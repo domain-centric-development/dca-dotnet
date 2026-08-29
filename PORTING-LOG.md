@@ -139,3 +139,8 @@ Port of `contextmap/ContextMapRenderer` to `DomainCentric.ArchRules.ContextMap.C
   - ArchUnitNET 0.13.4 has no `AreNotInterfaces()` on `Types().That()` (contrary to `PORTING.md`); replaced by `FollowCustomPredicate(t => t is not Interface, …)`.
 - **Rules without negative fixture:** none.
 - **Gaps reported:** none in the core; no shims needed (no framework types involved).
+
+## Cycles (follow-up, 2026-08-30)
+
+- ArchUnitNET `SliceRuleDefinition.Slices().Matching("Root.(*).Domain.Model")` does **not** restrict the slice to the trailing segments: every type below `Root.<ctx>` is assigned to a slice named by its full sub-namespace, so `Product.Domain.Model` and `Product.Domain.Event` became two slices and their (legitimate) mutual references a "cycle" — reported identically by all four `DCA-CYC` rules. The dca-dotnet fixtures only had one namespace per layer and never noticed; `dca-ecommerce-sample-dotnet` did on its first run.
+- Replaced by a hand-rolled check in `CycleRules.CheckSlices`: regex `^Root\.([^.]+)\.<Layer>(\..*)?$` assigns types to a slice per context, edges are `IType.Dependencies` between different slices, elementary cycles are enumerated (smallest node first, each once) and reported with their member dependencies. `DcaRule.Of` → `DcaRule.Check`. 237 self-tests unchanged, sample 111/111.
