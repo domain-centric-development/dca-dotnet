@@ -1,0 +1,10 @@
+<Project>
+  <!-- Detaches the sample from the repository-wide Directory.Build.props: it is a stand-alone consumer. -->
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+</Project>

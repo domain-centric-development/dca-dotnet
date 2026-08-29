@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>DomainCentric.ArchRules</RootNamespace>
+    <PackageId>DomainCentric.ArchRules</PackageId>
+    <Version>0.1.0</Version>
+    <Description>Executable architecture rules of Domain-Centric Architecture on ArchUnitNET: layered, onion, hexagonal, DDD tactical and strategic patterns, context map, use cases, naming, cycles. Rule ids DCA-&lt;SET&gt;-&lt;NNN&gt; shared with dca-archunit (Java).</Description>
+    <PackageTags>ddd;hexagonal;architecture-tests;archunitnet;clean-architecture;fitness-functions</PackageTags>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TngTech.ArchUnitNET" Version="0.13.4" />
+    <ProjectReference Include="../DomainCentric.BuildingBlocks/DomainCentric.BuildingBlocks.csproj" />
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+</Project>

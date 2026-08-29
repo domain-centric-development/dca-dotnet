@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - run: dotnet restore
+      # Architecture tests run against Debug builds on purpose: ArchUnitNET drops the struct-based
+      # async state machines of Release builds (see README, "Run against Debug builds").
+      - run: dotnet build --no-restore
+      - run: dotnet test --no-build --logger "trx"
+      - name: Rule catalog is up to date
+        run: |
+          dotnet run --project tools/RulesCatalog --no-build -- .
+          git diff --exit-code -- rules.json RULES.md
+      - name: Minimal consumer sample
+        run: dotnet test samples/MinimalConsumer
+      - run: dotnet pack -c Release -o artifacts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: artifacts/*.nupkg

@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>DomainCentric.ArchRules.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- Fixtures deliberately contain violations: unused fields, public setters, mutable structs, ... -->
+    <NoWarn>$(NoWarn);CS0169;CS0414;CS0649;CS8618;CA1051;CA1822;CA1812;CA1819;CA2211;IDE0051;IDE0052</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/DomainCentric.ArchRules/DomainCentric.ArchRules.csproj" />
+    <ProjectReference Include="../../src/DomainCentric.ArchRules.Xunit/DomainCentric.ArchRules.Xunit.csproj" />
+    <ProjectReference Include="../../src/DomainCentric.BuildingBlocks/DomainCentric.BuildingBlocks.csproj" />
+  </ItemGroup>
+
+</Project>

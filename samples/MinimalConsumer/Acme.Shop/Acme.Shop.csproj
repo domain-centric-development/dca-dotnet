@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>Acme.Shop</RootNamespace>
+  </PropertyGroup>
+
+  <!-- Local-first: inside the dca-dotnet repository the library is referenced as a project;
+       a copy of this sample elsewhere resolves the published NuGet package instead. -->
+  <ItemGroup Condition="Exists('../../../src/DomainCentric.BuildingBlocks/DomainCentric.BuildingBlocks.csproj')">
+    <ProjectReference Include="../../../src/DomainCentric.BuildingBlocks/DomainCentric.BuildingBlocks.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="!Exists('../../../src/DomainCentric.BuildingBlocks/DomainCentric.BuildingBlocks.csproj')">
+    <PackageReference Include="DomainCentric.BuildingBlocks" Version="0.1.0" />
+  </ItemGroup>
+
+</Project>

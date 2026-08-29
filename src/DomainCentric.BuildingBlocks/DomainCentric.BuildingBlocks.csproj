@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.1;net8.0</TargetFrameworks>
+    <RootNamespace>DomainCentric.BuildingBlocks</RootNamespace>
+    <PackageId>DomainCentric.BuildingBlocks</PackageId>
+    <Version>0.1.0</Version>
+    <Description>Building blocks of Domain-Centric Architecture: marker interfaces and attributes for DDD tactical patterns (aggregates, entities, values, events), strategic context declarations and hexagonal ports. Zero dependencies.</Description>
+    <PackageTags>ddd;domain-driven-design;hexagonal;ports-and-adapters;clean-architecture;building-blocks</PackageTags>
+    <NoWarn>$(NoWarn.Replace('CS1591', ''))</NoWarn>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,59 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{EAC7334E-95E9-48B4-8FD4-CD6707F00AFE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DomainCentric.ArchRules.Xunit", "src\DomainCentric.ArchRules.Xunit\DomainCentric.ArchRules.Xunit.csproj", "{72247E0F-701E-45F0-8674-46FB158A0D06}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DomainCentric.ArchRules", "src\DomainCentric.ArchRules\DomainCentric.ArchRules.csproj", "{5F71FDAA-1D99-482B-BF03-48B3A9E2715D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DomainCentric.BuildingBlocks", "src\DomainCentric.BuildingBlocks\DomainCentric.BuildingBlocks.csproj", "{EEB30F20-18D5-44E7-9E93-584731906F76}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{63E70622-2824-46E9-AA24-71B69C475C04}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DomainCentric.ArchRules.Tests", "tests\DomainCentric.ArchRules.Tests\DomainCentric.ArchRules.Tests.csproj", "{52B0F966-60B9-4951-878F-D25E6D8769A2}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tools", "tools", "{553AFA17-960A-4E9F-82E9-DA2ED2582B77}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RulesCatalog", "tools\RulesCatalog\RulesCatalog.csproj", "{EAD1CCA8-69AF-4003-AC45-FAB177D0690B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{72247E0F-701E-45F0-8674-46FB158A0D06}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{72247E0F-701E-45F0-8674-46FB158A0D06}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{72247E0F-701E-45F0-8674-46FB158A0D06}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{72247E0F-701E-45F0-8674-46FB158A0D06}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5F71FDAA-1D99-482B-BF03-48B3A9E2715D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5F71FDAA-1D99-482B-BF03-48B3A9E2715D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5F71FDAA-1D99-482B-BF03-48B3A9E2715D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5F71FDAA-1D99-482B-BF03-48B3A9E2715D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EEB30F20-18D5-44E7-9E93-584731906F76}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EEB30F20-18D5-44E7-9E93-584731906F76}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EEB30F20-18D5-44E7-9E93-584731906F76}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EEB30F20-18D5-44E7-9E93-584731906F76}.Release|Any CPU.Build.0 = Release|Any CPU
+		{52B0F966-60B9-4951-878F-D25E6D8769A2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{52B0F966-60B9-4951-878F-D25E6D8769A2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{52B0F966-60B9-4951-878F-D25E6D8769A2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{52B0F966-60B9-4951-878F-D25E6D8769A2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EAD1CCA8-69AF-4003-AC45-FAB177D0690B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EAD1CCA8-69AF-4003-AC45-FAB177D0690B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EAD1CCA8-69AF-4003-AC45-FAB177D0690B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EAD1CCA8-69AF-4003-AC45-FAB177D0690B}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{72247E0F-701E-45F0-8674-46FB158A0D06} = {EAC7334E-95E9-48B4-8FD4-CD6707F00AFE}
+		{5F71FDAA-1D99-482B-BF03-48B3A9E2715D} = {EAC7334E-95E9-48B4-8FD4-CD6707F00AFE}
+		{EEB30F20-18D5-44E7-9E93-584731906F76} = {EAC7334E-95E9-48B4-8FD4-CD6707F00AFE}
+		{52B0F966-60B9-4951-878F-D25E6D8769A2} = {63E70622-2824-46E9-AA24-71B69C475C04}
+		{EAD1CCA8-69AF-4003-AC45-FAB177D0690B} = {553AFA17-960A-4E9F-82E9-DA2ED2582B77}
+	EndGlobalSection
+EndGlobal

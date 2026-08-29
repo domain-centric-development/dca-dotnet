@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>DomainCentric.ArchRules.Xunit</RootNamespace>
+    <PackageId>DomainCentric.ArchRules.Xunit</PackageId>
+    <Version>0.1.0</Version>
+    <Description>xUnit base class that runs the whole DomainCentric.ArchRules catalog as one theory per rule.</Description>
+    <PackageTags>ddd;hexagonal;architecture-tests;archunitnet;xunit</PackageTags>
+    <IsPackable>true</IsPackable>
+    <IsTestProject>false</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.core" Version="2.9.3" />
+    <ProjectReference Include="../DomainCentric.ArchRules/DomainCentric.ArchRules.csproj" />
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+</Project>

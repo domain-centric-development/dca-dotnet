@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Acme.Shop", "Acme.Shop\Acme.Shop.csproj", "{6F236A05-4812-43E5-9A81-A556C8D24054}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Acme.Shop.ArchitectureTests", "Acme.Shop.ArchitectureTests\Acme.Shop.ArchitectureTests.csproj", "{1F83EDF8-8465-4332-9462-13C526E0B321}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{6F236A05-4812-43E5-9A81-A556C8D24054}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6F236A05-4812-43E5-9A81-A556C8D24054}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6F236A05-4812-43E5-9A81-A556C8D24054}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6F236A05-4812-43E5-9A81-A556C8D24054}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1F83EDF8-8465-4332-9462-13C526E0B321}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1F83EDF8-8465-4332-9462-13C526E0B321}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1F83EDF8-8465-4332-9462-13C526E0B321}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1F83EDF8-8465-4332-9462-13C526E0B321}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

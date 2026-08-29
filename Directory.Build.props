@@ -1,0 +1,34 @@
+<Project>
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <!-- CS1591: missing XML comment — fixtures and tests are not API docs; libraries opt back in. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+
+    <Authors>Christoph Bloemer and contributors</Authors>
+    <Company>domaincentric.dev</Company>
+    <Copyright>Copyright (c) 2026 Christoph Bloemer and contributors</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://domaincentric.dev</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/domain-centric-development/dca-dotnet</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(IsPackable)' != 'false'">
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" Condition="'$(GITHUB_ACTIONS)' == 'true'" />
+    <None Include="$(MSBuildThisFileDirectory)branding/icon.png" Pack="true" PackagePath="/" Visible="false" />
+  </ItemGroup>
+</Project>
