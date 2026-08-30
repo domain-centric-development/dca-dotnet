@@ -76,7 +76,7 @@ Port of `contextmap/ContextMapRenderer` to `DomainCentric.ArchRules.ContextMap.C
 
 ## UseCase
 
-- Ported: `DCA-USE-001` … `DCA-USE-011` (all 11). N/a: `DCA-USE-012` (2026-08-30; "publishing use cases must be transactional" guards Spring's after-commit relay, which has no .NET counterpart — after-save delivery is the outbox adapter's job).
+- Ported: `DCA-USE-001` … `DCA-USE-011` (all 11). N/a: `DCA-USE-013` (2026-08-30; "no remote-capable port inside a @Transactional use case" — .NET marks no use case transactional, the boundary is a decorator or `IUnitOfWork.RunAsync`; `DCA-NET-006` covers the .NET side by keeping EF Core/System.Data/System.Transactions out of the application layer) and `DCA-USE-012` (2026-08-30; "publishing use cases must be transactional" guards Spring's after-commit relay, which has no .NET counterpart — after-save delivery is the outbox adapter's job).
 - `DCA-USE-001`: matches interfaces named `InputPort` **or** `IInputPort`; they must reside exactly in `DomainCentric.BuildingBlocks.Hexagonal.Ports.In` (only types below the root namespace are loaded, so effectively: no application may define its own base input port).
 - `DCA-USE-002/003/006/008` use `Types()` (records are classes, `record struct`s are structs — both are covered). `DCA-USE-006` exempts `IValue` implementors as in Java.
 - `DCA-USE-004/005/007` ("final or records"): a `Command`/`Query`/`Result` **class** in the application layer must be a record or `sealed`; structs and interfaces are not checked (hand-written loop, `Class.IsRecord`/`IsSealed`).
@@ -144,3 +144,8 @@ Port of `contextmap/ContextMapRenderer` to `DomainCentric.ArchRules.ContextMap.C
 
 - ArchUnitNET `SliceRuleDefinition.Slices().Matching("Root.(*).Domain.Model")` does **not** restrict the slice to the trailing segments: every type below `Root.<ctx>` is assigned to a slice named by its full sub-namespace, so `Product.Domain.Model` and `Product.Domain.Event` became two slices and their (legitimate) mutual references a "cycle" — reported identically by all four `DCA-CYC` rules. The dca-dotnet fixtures only had one namespace per layer and never noticed; `dca-ecommerce-sample-dotnet` did on its first run.
 - Replaced by a hand-rolled check in `CycleRules.CheckSlices`: regex `^Root\.([^.]+)\.<Layer>(\..*)?$` assigns types to a slice per context, edges are `IType.Dependencies` between different slices, elementary cycles are enumerated (smallest node first, each once) and reported with their member dependencies. `DcaRule.Of` → `DcaRule.Check`. 237 self-tests unchanged, sample 111/111.
+
+## .NET-only rules (follow-up, 2026-08-30)
+
+- `DCA-NET-006` added: types in a context's `Application` namespace must not depend on `Microsoft.EntityFrameworkCore.*`, `System.Transactions.*`, `System.Data.*`, `Dapper.*`, `NHibernate.*`, `MongoDB.Driver.*`. The transaction boundary is a decorator around `IUseCase` or the `IUnitOfWork` port; the adapter behind it is the only place that knows the framework. Fixtures: Good `ShipOrderUseCase` (`IUnitOfWork.RunAsync`, remote `ICarrierPort` outside), Bad `ShipOrderUseCase` (`TransactionScope` in the use case).
+- `DCA-LAY-005` skips compiler-generated nested types in `Ports.Out` — the default interface method on `IUnitOfWork` produces a closure class and an async state machine there.

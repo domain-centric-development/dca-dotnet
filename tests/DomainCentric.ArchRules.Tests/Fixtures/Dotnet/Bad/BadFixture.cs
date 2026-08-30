@@ -65,6 +65,20 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Dotnet.Bad.Order.Domain.Model
     }
 }
 
+namespace DomainCentric.ArchRules.Tests.Fixtures.Dotnet.Bad.Order.Application.ShipOrder
+{
+    // DCA-NET-006: draws the transaction with System.Transactions inside the use case.
+    public sealed class ShipOrderUseCase
+    {
+        public Task ExecuteAsync(CancellationToken cancellationToken = default)
+        {
+            using var scope = new System.Transactions.TransactionScope(System.Transactions.TransactionScopeAsyncFlowOption.Enabled);
+            scope.Complete();
+            return Task.CompletedTask;
+        }
+    }
+}
+
 namespace DomainCentric.ArchRules.Tests.Fixtures.Dotnet.Bad.Order.Application.Shared
 {
     using DomainCentric.ArchRules.Tests.Fixtures.Dotnet.Bad.Order.Domain.Model;

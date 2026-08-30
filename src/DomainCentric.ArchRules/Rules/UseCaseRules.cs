@@ -21,6 +21,7 @@ public sealed class UseCaseRules : IDcaRuleSet
     /// <summary>Java rules of this set that have no .NET counterpart (id → reason).</summary>
     public static readonly IReadOnlyDictionary<string, string> NotApplicable = new Dictionary<string, string>
     {
+        ["DCA-USE-013"] = "Guards against remote-capable output ports called inside a @Transactional use case. .NET marks no use case as transactional — the boundary is a decorator or an explicit IUnitOfWork.RunAsync — so the rule has nothing to anchor on; DCA-NET-006 keeps transaction and persistence frameworks out of the application layer instead",
         ["DCA-USE-012"] = "Guards Spring's after-commit relay (@TransactionalEventListener / @ApplicationModuleListener), which is skipped silently without an active transaction. .NET has no ambient transaction attribute on use cases; after-save delivery is the job of the integration-event outbox adapter, not of the use case",
     };
 

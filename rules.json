@@ -649,6 +649,12 @@
     "reason": "Guards Spring's after-commit relay (@TransactionalEventListener / @ApplicationModuleListener), which is skipped silently without an active transaction. .NET has no ambient transaction attribute on use cases; after-save delivery is the job of the integration-event outbox adapter, not of the use case"
   },
   {
+    "set": "usecase",
+    "id": "DCA-USE-013",
+    "status": "n/a",
+    "reason": "Guards against remote-capable output ports called inside a @Transactional use case. .NET marks no use case as transactional — the boundary is a decorator or an explicit IUnitOfWork.RunAsync — so the rule has nothing to anchor on; DCA-NET-006 keeps transaction and persistence frameworks out of the application layer instead"
+  },
+  {
     "set": "naming",
     "id": "DCA-NAM-001",
     "title": "Application layer InputPort implementations must end with 'UseCase'",
@@ -785,6 +791,13 @@
     "id": "DCA-NET-005",
     "title": "Identifiers should be readonly record structs",
     "rationale": "A strongly typed identifier as a readonly record struct costs no allocation and cannot be confused with a raw Guid or string",
+    "implementation": "dotnet"
+  },
+  {
+    "set": "dotnet",
+    "id": "DCA-NET-006",
+    "title": "Application layer must not use persistence or transaction frameworks",
+    "rationale": "The transaction boundary of a use case is drawn by a decorator around IUseCase or by the IUnitOfWork port, never by DbContext, SaveChanges, TransactionScope or IDbTransaction in the use case itself. Framework types in the application layer bind use cases to one persistence technology and hide where the boundary is; the IUnitOfWork adapter is the single place that knows how to open and commit a transaction",
     "implementation": "dotnet"
   }
 ]

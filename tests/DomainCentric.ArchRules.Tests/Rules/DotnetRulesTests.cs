@@ -14,7 +14,7 @@ public sealed class DotnetRulesTests
 
     private static readonly string[] ExpectedIds =
     {
-        "DCA-NET-001", "DCA-NET-002", "DCA-NET-003", "DCA-NET-004", "DCA-NET-005",
+        "DCA-NET-001", "DCA-NET-002", "DCA-NET-003", "DCA-NET-004", "DCA-NET-005", "DCA-NET-006",
     };
 
     private static DcaArchitecture Arch(string ns) =>

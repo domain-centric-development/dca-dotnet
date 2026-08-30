@@ -74,6 +74,55 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Dotnet.Good.Order.Application.S
     {
         DateTimeOffset Now();
     }
+
+    /// <summary>Remote-capable port — called outside the unit of work.</summary>
+    public interface ICarrierPort : IOutputPort
+    {
+        Task<string> QuoteAsync(OrderId orderId, CancellationToken cancellationToken = default);
+    }
+}
+
+namespace DomainCentric.ArchRules.Tests.Fixtures.Dotnet.Good.Order.Application.ShipOrder
+{
+    using DomainCentric.ArchRules.Tests.Fixtures.Dotnet.Good.Order.Application.Shared;
+    using DomainCentric.ArchRules.Tests.Fixtures.Dotnet.Good.Order.Domain.Model;
+
+    public sealed record ShipOrderCommand(OrderId OrderId);
+
+    public sealed record ShipOrderResult(OrderId OrderId, string CarrierQuote);
+
+    public interface IShipOrderInputPort : IUseCase<ShipOrderCommand, ShipOrderResult>
+    {
+    }
+
+    // DCA-NET-006: transaction boundary through the IUnitOfWork port, remote call outside of it.
+    public sealed class ShipOrderUseCase : IShipOrderInputPort
+    {
+        private readonly IOrderRepository _orders;
+        private readonly ICarrierPort _carrier;
+        private readonly IUnitOfWork _unitOfWork;
+
+        public ShipOrderUseCase(IOrderRepository orders, ICarrierPort carrier, IUnitOfWork unitOfWork)
+        {
+            _orders = orders;
+            _carrier = carrier;
+            _unitOfWork = unitOfWork;
+        }
+
+        public async Task<ShipOrderResult> ExecuteAsync(ShipOrderCommand input, CancellationToken cancellationToken = default)
+        {
+            var quote = await _carrier.QuoteAsync(input.OrderId, cancellationToken).ConfigureAwait(false);
+            return await _unitOfWork.RunAsync(
+                async ct =>
+                {
+                    var order = await _orders.FindByIdAsync(input.OrderId, ct).ConfigureAwait(false)
+                                ?? throw new InvalidOperationException("unknown order");
+                    await _orders.SaveAsync(order, ct).ConfigureAwait(false);
+                    return new ShipOrderResult(order.Id, quote);
+                },
+                cancellationToken).ConfigureAwait(false);
+        }
+    }
 }
 
 namespace DomainCentric.ArchRules.Tests.Fixtures.Dotnet.Good.Order.Application.PlaceOrder

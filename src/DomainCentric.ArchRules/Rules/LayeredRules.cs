@@ -119,6 +119,8 @@ public sealed class LayeredRules : IDcaRuleSet
             {
                 var violations = typeof(IOutputPort).Assembly.GetTypes()
                     .Where(t => t.Namespace == DcaLayout.BuildingBlocksPortsOutNamespace && !t.IsInterface)
+                    // closures and async state machines of default interface methods are not port types
+                    .Where(t => !t.IsDefined(typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute), false) && !t.Name.Contains('<'))
                     .Select(t => $"{t.FullName} is not an interface")
                     .ToList();
                 DcaRule.Fail($"{title}\nbecause {rationale}", violations);

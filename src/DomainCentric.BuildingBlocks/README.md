@@ -57,7 +57,8 @@ IOutputPort (marker)
   ├── IRepository<TAggregate, TId>
   ├── IStore
   ├── IDomainEventPublisher
-  └── IIntegrationEventPublisher
+  ├── IIntegrationEventPublisher
+  └── IUnitOfWork
 ```
 
 Context-specific output ports (a token service, an identity session, …) are defined in their own
@@ -147,6 +148,7 @@ This package is a port of the Java library `dev.domaincentric:dca-building-block
 | `hexagonal.port.out.Store` | `Hexagonal.Ports.Out.IStore` |
 | `hexagonal.port.out.DomainEventPublisher` | `Hexagonal.Ports.Out.IDomainEventPublisher` (`PublishAsync`, `PublishAndClearEventsAsync`) |
 | `hexagonal.port.out.IntegrationEventPublisher` | `Hexagonal.Ports.Out.IIntegrationEventPublisher` (`PublishAsync`) |
+| `hexagonal.port.out.UnitOfWork` (`run`, `perform`) | `Hexagonal.Ports.Out.IUnitOfWork` (`RunAsync<T>`, `RunAsync`) |
 | `java.util.UUID` / `java.time.Instant` | `System.Guid` / `System.DateTimeOffset` |
 | `Optional<T>` | nullable reference `T?` |
 
