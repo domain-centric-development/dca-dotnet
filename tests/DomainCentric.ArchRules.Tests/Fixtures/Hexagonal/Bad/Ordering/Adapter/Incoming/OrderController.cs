@@ -4,6 +4,7 @@ using System.Transactions;
 using Microsoft.AspNetCore.Mvc;
 using DomainCentric.ArchRules.Tests.Fixtures.Hexagonal.Bad.Infrastructure.Config;
 using DomainCentric.ArchRules.Tests.Fixtures.Hexagonal.Bad.Ordering.Adapter.Outgoing;
+using DomainCentric.ArchRules.Tests.Fixtures.Hexagonal.Bad.Ordering.Application.PlaceOrder;
 using DomainCentric.ArchRules.Tests.Fixtures.Hexagonal.Bad.Ordering.Application.Shared;
 using DomainCentric.ArchRules.Tests.Fixtures.Hexagonal.Bad.Ordering.Domain.Model;
 using DomainCentric.ArchRules.Tests.Fixtures.Hexagonal.Bad.SharedKernel.Domain.Model;
@@ -16,6 +17,7 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Hexagonal.Bad.Ordering.Adapter.
 public sealed class OrderController : ControllerBase
 {
     private readonly IOrderRepository _orders = new InMemoryOrderRepository(); // DCA-HEX-003 (repository) + DCA-HEX-006 (outgoing adapter)
+    private readonly PlaceOrderUseCase _placeOrder = null!; // DCA-HEX-011: the use case class instead of its input port
 
     public Task<Order> Place(decimal amount, CancellationToken cancellationToken)
     {

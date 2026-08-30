@@ -1,6 +1,6 @@
 # DCA rule catalog (.NET)
 
-Generated from `DomainCentric.ArchRules` — do not edit. 111 rules in 11 sets; 4 Java rules not applicable in .NET.
+Generated from `DomainCentric.ArchRules` — do not edit. 112 rules in 11 sets; 4 Java rules not applicable in .NET.
 
 ## `layered`
 
@@ -34,6 +34,7 @@ Generated from `DomainCentric.ArchRules` — do not edit. 111 rules in 11 sets; 
 | `DCA-HEX-008` | Classes named *Repository must reside in the outgoing adapter namespace | Repository implementations are secondary adapters (outgoing ports) |
 | `DCA-HEX-009` | Output Ports in Application.Shared must extend IOutputPort | Top-level interfaces in Application.Shared are output ports and must extend IOutputPort to be part of the port hierarchy. Nested interfaces (e.g. IIdentityProvider.Identity) are part of their enclosing port's contract, not ports themselves |
 | `DCA-HEX-010` | Output ports must not reside in the domain layer | output ports (IRepository, IStore, IOutputPort) are an application-layer concern and must live in Application/Shared/, not Domain/ |
+| `DCA-HEX-011` | Incoming Adapters must depend on input port interfaces, not on use case classes | A driving adapter drives the application through its port. Injecting the concrete implementation instead couples the adapter to one realisation of the use case, defeats the Dependency Inversion Principle the port exists for, and makes the adapter untestable without the real use case and everything it depends on |
 
 ## `tactical`
 

@@ -126,6 +126,13 @@
     "implementation": "dotnet"
   },
   {
+    "set": "hexagonal",
+    "id": "DCA-HEX-011",
+    "title": "Incoming Adapters must depend on input port interfaces, not on use case classes",
+    "rationale": "A driving adapter drives the application through its port. Injecting the concrete implementation instead couples the adapter to one realisation of the use case, defeats the Dependency Inversion Principle the port exists for, and makes the adapter untestable without the real use case and everything it depends on",
+    "implementation": "dotnet"
+  },
+  {
     "set": "tactical",
     "id": "DCA-TAC-001",
     "title": "Aggregate Roots must implement IAggregateRoot",

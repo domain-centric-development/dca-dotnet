@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using ArchUnitNET.Domain;
 using ArchUnitNET.Domain.Extensions;
+using DomainCentric.BuildingBlocks.Hexagonal.Ports.In;
 using DomainCentric.BuildingBlocks.Hexagonal.Ports.Out;
 using static ArchUnitNET.Fluent.ArchRuleDefinition;
 
@@ -11,8 +12,9 @@ namespace DomainCentric.ArchRules.Rules;
 
 /// <summary>
 /// Hexagonal Architecture (Ports and Adapters) rules: separation between ports and adapters,
-/// incoming adapters drive the application, outgoing adapters implement outbound ports, adapters
-/// never talk to each other directly, incoming adapters stay inside their own bounded context.
+/// incoming adapters drive the application through its input ports, outgoing adapters implement
+/// outbound ports, adapters never talk to each other directly, incoming adapters stay inside their
+/// own bounded context.
 /// </summary>
 public sealed class HexagonalRules : IDcaRuleSet
 {
@@ -34,6 +36,7 @@ public sealed class HexagonalRules : IDcaRuleSet
             RepositoryClassesResideInOutgoingAdapter(),
             SharedOutputPortsExtendOutputPort(),
             OutputPortsMustNotResideInDomain(),
+            IncomingAdaptersMustDependOnInputPortsNotUseCaseClasses(),
         }.AsReadOnly();
     }
 
@@ -175,4 +178,48 @@ public sealed class HexagonalRules : IDcaRuleSet
                 + " in Application/Shared/, not Domain/",
             arch => Interfaces().That().AreAssignableTo(typeof(IOutputPort))
                 .Should().NotResideInNamespaceMatching(Layout.DomainPattern));
+
+    public IDcaRule IncomingAdaptersMustDependOnInputPortsNotUseCaseClasses() =>
+        DcaRule.Check(
+            "DCA-HEX-011",
+            "Incoming Adapters must depend on input port interfaces, not on use case classes",
+            "A driving adapter drives the application through its port. Injecting the concrete"
+                + " implementation instead couples the adapter to one realisation of the use case,"
+                + " defeats the Dependency Inversion Principle the port exists for, and makes the"
+                + " adapter untestable without the real use case and everything it depends on",
+            arch =>
+            {
+                var violations = arch.Classes
+                    .Where(c => InNamespace(c, arch.Layout.IncomingAdapterPattern))
+                    .SelectMany(c => c.Dependencies
+                        .Select(d => d.Target)
+                        .Where(t => IsUseCaseImplementation(arch, t))
+                        .Select(t => $"{c.FullName} depends on the use case class {t.FullName}"))
+                    .Distinct()
+                    .OrderBy(v => v, StringComparer.Ordinal)
+                    .ToList();
+                DcaRule.Fail(
+                    "Incoming Adapters must depend on input port interfaces, not on use case classes",
+                    violations,
+                    "inject the I<UseCaseName>InputPort interface instead of the <UseCaseName> class");
+            });
+
+    /// <summary>A use case implementation: a class (never an interface) behind an <see cref="IInputPort"/>.</summary>
+    private static bool IsUseCaseImplementation(DcaArchitecture arch, IType type) =>
+        type is Class && !type.IsGenericParameter && IsAssignableTo(arch, type, typeof(IInputPort));
+
+    private static bool InNamespace(IType type, string pattern) =>
+        type.Namespace is not null && Regex.IsMatch(type.Namespace.FullName, pattern);
+
+    private static bool IsAssignableTo(DcaArchitecture arch, IType type, Type marker)
+    {
+        var markerName = marker.FullName!;
+        if (type.FullName == markerName || type.ImplementsInterface(markerName) || type.IsAssignableTo(markerName))
+        {
+            return true;
+        }
+
+        var runtime = arch.RuntimeType(type);
+        return runtime is not null && marker.IsAssignableFrom(runtime);
+    }
 }
