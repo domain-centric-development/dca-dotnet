@@ -54,7 +54,7 @@ public sealed class DotnetRules : IDcaRuleSet
         DcaRule.Check(
             "DCA-NET-006",
             "Application layer must not use persistence or transaction frameworks",
-            "The transaction boundary of a use case is drawn by a decorator around IUseCase or by the IUnitOfWork port, never by DbContext, SaveChanges, TransactionScope or IDbTransaction in the use case itself. Framework types in the application layer bind use cases to one persistence technology and hide where the boundary is; the IUnitOfWork adapter is the single place that knows how to open and commit a transaction",
+            "The transaction boundary of a use case is drawn by a decorator around IUseCase or by ITransactionBoundary (an application-layer execution abstraction implemented in infrastructure), never by DbContext, SaveChanges, TransactionScope or IDbTransaction in the use case itself. Framework types in the application layer bind use cases to one persistence technology and hide where the boundary is; the ITransactionBoundary implementation is the single place that knows how to open and commit a transaction",
             arch =>
             {
                 var application = arch.ContextApplicationPatterns().Select(p => new Regex(p)).ToList();
@@ -74,9 +74,9 @@ public sealed class DotnetRules : IDcaRuleSet
                 }
 
                 DcaRule.Fail(
-                    "Application layer must not use persistence or transaction frameworks\nbecause the transaction boundary belongs to a decorator or the IUnitOfWork port",
+                    "Application layer must not use persistence or transaction frameworks\nbecause the transaction boundary belongs to a decorator or ITransactionBoundary",
                     violations,
-                    "Inject IUnitOfWork (or let the composition root decorate the use case) and move the framework call into an outgoing adapter.");
+                    "Inject ITransactionBoundary (or let the composition root decorate the use case) and move the framework call into infrastructure.");
             });
 
     private static readonly string[] PersistenceFrameworkNamespaces =

@@ -140,7 +140,7 @@ Not applicable in .NET:
 Not applicable in .NET:
 
 - `DCA-USE-012` — Guards Spring's after-commit relay (@TransactionalEventListener / @ApplicationModuleListener), which is skipped silently without an active transaction. .NET has no ambient transaction attribute on use cases; after-save delivery is the job of the integration-event outbox adapter, not of the use case
-- `DCA-USE-013` — Guards against remote-capable output ports called inside a @Transactional use case. .NET marks no use case as transactional — the boundary is a decorator or an explicit IUnitOfWork.RunAsync — so the rule has nothing to anchor on; DCA-NET-006 keeps transaction and persistence frameworks out of the application layer instead
+- `DCA-USE-013` — Guards against remote-capable output ports called inside a @Transactional use case. .NET has no declarative transaction metadata on use cases — the boundary is a decorator or an explicit ITransactionBoundary.InTransactionAsync — so the rule has nothing to anchor on; DCA-NET-006 keeps transaction and persistence frameworks out of the application layer instead
 
 ## `naming`
 
@@ -179,5 +179,5 @@ Not applicable in .NET:
 | `DCA-NET-003` | Use cases must expose exactly one ExecuteAsync | One use case, one entry point: the input port is the only way in, and a cancellation token lets the host stop long-running work |
 | `DCA-NET-004` | Value objects should be records or readonly record structs | Records give attribute-based equality, immutability by default and with-expressions — the C# way to write a Value Object |
 | `DCA-NET-005` | Identifiers should be readonly record structs | A strongly typed identifier as a readonly record struct costs no allocation and cannot be confused with a raw Guid or string |
-| `DCA-NET-006` | Application layer must not use persistence or transaction frameworks | The transaction boundary of a use case is drawn by a decorator around IUseCase or by the IUnitOfWork port, never by DbContext, SaveChanges, TransactionScope or IDbTransaction in the use case itself. Framework types in the application layer bind use cases to one persistence technology and hide where the boundary is; the IUnitOfWork adapter is the single place that knows how to open and commit a transaction |
+| `DCA-NET-006` | Application layer must not use persistence or transaction frameworks | The transaction boundary of a use case is drawn by a decorator around IUseCase or by ITransactionBoundary (an application-layer execution abstraction implemented in infrastructure), never by DbContext, SaveChanges, TransactionScope or IDbTransaction in the use case itself. Framework types in the application layer bind use cases to one persistence technology and hide where the boundary is; the ITransactionBoundary implementation is the single place that knows how to open and commit a transaction |
 

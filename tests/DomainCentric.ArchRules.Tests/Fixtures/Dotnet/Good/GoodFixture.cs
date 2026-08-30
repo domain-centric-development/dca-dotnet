@@ -3,6 +3,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
+using DomainCentric.BuildingBlocks.Application.Transactions;
 using DomainCentric.BuildingBlocks.Ddd.Strategic;
 using DomainCentric.BuildingBlocks.Ddd.Strategic.Relationships;
 using DomainCentric.BuildingBlocks.Ddd.Tactical;
@@ -95,24 +96,24 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Dotnet.Good.Order.Application.S
     {
     }
 
-    // DCA-NET-006: transaction boundary through the IUnitOfWork port, remote call outside of it.
+    // DCA-NET-006: transaction boundary through ITransactionBoundary (not a port), remote call outside of it.
     public sealed class ShipOrderUseCase : IShipOrderInputPort
     {
         private readonly IOrderRepository _orders;
         private readonly ICarrierPort _carrier;
-        private readonly IUnitOfWork _unitOfWork;
+        private readonly ITransactionBoundary _transactionBoundary;
 
-        public ShipOrderUseCase(IOrderRepository orders, ICarrierPort carrier, IUnitOfWork unitOfWork)
+        public ShipOrderUseCase(IOrderRepository orders, ICarrierPort carrier, ITransactionBoundary transactionBoundary)
         {
             _orders = orders;
             _carrier = carrier;
-            _unitOfWork = unitOfWork;
+            _transactionBoundary = transactionBoundary;
         }
 
         public async Task<ShipOrderResult> ExecuteAsync(ShipOrderCommand input, CancellationToken cancellationToken = default)
         {
             var quote = await _carrier.QuoteAsync(input.OrderId, cancellationToken).ConfigureAwait(false);
-            return await _unitOfWork.RunAsync(
+            return await _transactionBoundary.InTransactionAsync(
                 async ct =>
                 {
                     var order = await _orders.FindByIdAsync(input.OrderId, ct).ConfigureAwait(false)
