@@ -34,8 +34,17 @@ namespace DomainCentric.BuildingBlocks.Hexagonal.Ports.Out;
 ///   <item><description>Easy to swap implementations or mock for testing</description></item>
 /// </list>
 /// <para>
-/// <b>Implementation note:</b> concrete implementations should ensure events are published only
-/// after successful persistence to maintain data consistency.
+/// <b>Order of operations — save, dispatch, then clear.</b> The use case calls
+/// <c>PublishAndClearEventsAsync</c> after <c>SaveAsync</c>, inside the same transaction, so an event is never
+/// dispatched for state that was not persisted. The implementation dispatches the collected events first and
+/// clears the aggregate <em>afterwards</em>: clearing is the acknowledgement that every listener has seen the
+/// event. A listener that throws therefore fails the use case and leaves the events on the aggregate — nothing is
+/// silently lost. Clearing before dispatch would drop events on the first failing listener.
+/// </para>
+/// <para>
+/// Integration events derived from these domain events (by an outgoing event adapter listening in-process) are
+/// recorded in a transactional outbox inside the same transaction and delivered after commit, at least once;
+/// their consumers are idempotent.
 /// </para>
 /// </remarks>
 public interface IDomainEventPublisher : IOutputPort
@@ -57,8 +66,10 @@ public interface IDomainEventPublisher : IOutputPort
     /// Publishes all domain events from an aggregate and clears them.
     /// </summary>
     /// <remarks>
-    /// Call this after successfully persisting an aggregate. It publishes all collected events and
-    /// then clears them to prevent duplicate publishing.
+    /// Call after successfully persisting the aggregate, inside the transaction. Dispatches all collected events
+    /// to their listeners and, once every listener completed, clears them from the aggregate — the clear is the
+    /// acknowledgement. If a listener throws, the exception propagates, the events stay on the aggregate and the
+    /// surrounding transaction rolls back.
     /// </remarks>
     /// <param name="aggregate">The aggregate containing domain events.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>

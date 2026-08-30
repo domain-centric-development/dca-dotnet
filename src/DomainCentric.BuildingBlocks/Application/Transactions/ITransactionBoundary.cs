@@ -34,6 +34,11 @@ namespace DomainCentric.BuildingBlocks.Application.Transactions;
 /// </code>
 /// <para>Domain events published inside <see cref="InTransactionAsync{T}"/> see the same transaction as the save;
 /// integration events registered inside it become visible to their dispatcher when it commits.</para>
+/// <para><b>Nesting.</b> A call inside a running transaction joins it — there is one commit, at the outermost
+/// boundary. A failure in an inner block marks the shared transaction rollback-only even when the outer block
+/// catches the exception: the outermost <c>InTransactionAsync</c> then rolls back and throws instead of committing
+/// half of the work. Implementations must preserve this; an in-memory implementation emulates it with a
+/// rollback-only flag.</para>
 /// <para><b>Rules of thumb:</b></para>
 /// <list type="number">
 ///   <item><description>No remote call inside a transaction — neither in a decorated use case nor inside
