@@ -78,6 +78,12 @@ bounded context under `Application.Shared`, extending `IOutputPort` or `IStore`.
 * **Non-generic bases for reflection.** `IEntity`, `IAggregateRoot` and `IRepository` exist as
   empty (or minimal) non-generic bases so rules can test `IsAssignableFrom` without closing the
   generic definitions. Domain code always implements the generic variants.
+* **Self-referencing generics are Java parity, not C# idiom.** `IEntity<TSelf, TId>`,
+  `IAggregateRoot<TSelf, TId>` and `AggregateRootBase<TSelf, TId>` mirror the Java signatures
+  `Entity<T extends Entity<T, ID>, ID>` one to one, so the guide's templates, the rule catalog and
+  the two reference implementations read the same in both languages. Plain C# would more often
+  write `IAggregateRoot<TId>`; `TSelf` buys little type safety here and is kept deliberately for
+  cross-language consistency. Repositories are the ordinary `IRepository<TAggregate, TId>`.
 * **Async ports, synchronous domain.** `IUseCase<,>.ExecuteAsync`, `IRepository<,>` and the
   publishers are `Task`-based and take a `CancellationToken`. There is no synchronous twin. The
   domain layer itself (aggregates, entities, values, domain services) stays synchronous.
