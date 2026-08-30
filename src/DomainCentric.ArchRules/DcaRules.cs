@@ -63,12 +63,69 @@ public static class DcaRules
     public static IDcaRule ById(DcaLayout layout, string id) =>
         All(layout).FirstOrDefault(r => r.Id == id) ?? throw new KeyNotFoundException($"no DCA rule with id {id}");
 
-    /// <summary>Convenience: run every rule against the architecture, failing on the first violation.</summary>
-    public static void CheckAll(DcaArchitecture architecture)
+    /// <summary>The sets and rules the selection asks for, in catalog order, empty sets removed.</summary>
+    public static IReadOnlyList<IDcaRuleSet> Select(DcaLayout layout, DcaRuleSelection selection)
     {
-        foreach (var rule in All(architecture.Layout))
+        var selected = new List<IDcaRuleSet>();
+        foreach (var set in RuleSets(layout))
         {
-            rule.Check(architecture);
+            var rules = set.Rules.Where(r => selection.Includes(set.Name, r.Id)).ToList();
+            if (rules.Count > 0)
+            {
+                selected.Add(new SelectedRuleSet(set.Name, rules));
+            }
+        }
+
+        return selected;
+    }
+
+    /// <summary>The rules the selection asks for, flattened.</summary>
+    public static IReadOnlyList<IDcaRule> SelectFlat(DcaLayout layout, DcaRuleSelection selection) =>
+        Select(layout, selection).SelectMany(s => s.Rules).ToList();
+
+    /// <summary>The names of the rule sets, in catalog order.</summary>
+    public static IReadOnlyList<string> SetNames() =>
+        RuleSets(DcaLayout.ForRootNamespace("Catalog")).Select(s => s.Name).ToList();
+
+    /// <summary>The set a rule belongs to, keyed by rule id.</summary>
+    public static IReadOnlyDictionary<string, string> SetOfRule()
+    {
+        var map = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var set in RuleSets(DcaLayout.ForRootNamespace("Catalog")))
+        {
+            foreach (var rule in set.Rules)
+            {
+                map[rule.Id] = set.Name;
+            }
+        }
+
+        return map;
+    }
+
+    /// <summary>Convenience: run every rule against the architecture, failing on the first violation.</summary>
+    public static void CheckAll(DcaArchitecture architecture) => CheckAll(architecture, DcaRuleSelection.All());
+
+    /// <summary>
+    /// Runs the selected rules, failing on the first rule at <see cref="DcaSeverity.Error"/> that is
+    /// violated. Warnings go to the error stream, skipped rules are silent.
+    /// </summary>
+    public static void CheckAll(DcaArchitecture architecture, DcaRuleSelection selection)
+    {
+        foreach (var rule in SelectFlat(architecture.Layout, selection))
+        {
+            var outcome = DcaRuleExecution.Execute(rule, architecture, selection);
+            switch (outcome.Status)
+            {
+                case DcaRuleStatus.Failed:
+                    throw new DcaRuleViolationException($"[{rule.Id}] {outcome.Message}");
+                case DcaRuleStatus.Warned:
+                    Console.Error.WriteLine($"[{rule.Id}] WARNING: {outcome.Message}");
+                    break;
+                default:
+                    break;
+            }
         }
     }
+
+    private sealed record SelectedRuleSet(string Name, IReadOnlyList<IDcaRule> Rules) : IDcaRuleSet;
 }

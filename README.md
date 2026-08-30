@@ -91,18 +91,57 @@ DcaLayout.ForRootNamespace("Acme.Shop")
     .WithFrameworkTypes(FrameworkTypes.AspNetCore());   // or your own full names
 ```
 
-Switch rules off by id, or pick rule sets:
+### Choose which rules run, and how strictly
+
+The catalog is opinionated, and no team adopts all of it on day one. A rule you disagree with, or
+cannot satisfy yet, is a decision to record — not a reason to drop the library. `DcaRuleSelection`
+expresses three things:
 
 ```csharp
-protected override ISet<string> ExcludedRuleIds => new HashSet<string> { "DCA-NAM-004" };
-protected override IReadOnlyList<IDcaRule> Rules => DcaRules.Only(Layout, "tactical", "hexagonal");
+protected override DcaRuleSelection AdditionalSelection => DcaRuleSelection.All()
+    .OnlySets("cycles", "layered", "hexagonal")             // scope: adopt in stages
+    .Excluding("DCA-NAM-005", "no MVC controllers here")    // off, with the reason
+    .Warning("DCA-TAC-009", "being made sealed step by step")   // reported, does not fail the build
+    .IgnoringViolationsMatching("DCA-STR-003", ".*Legacy.*");   // a documented exception
 ```
+
+The same configuration can live in `dca-archunit.properties` next to the test assembly (copy it to the
+output directory), which the base class reads and `AdditionalSelection` is then applied on top of —
+the keys are identical to the Java library's:
+
+```properties
+dca.rules.sets              = cycles,layered,hexagonal
+dca.rules.off               = DCA-NAM-005
+dca.rule.DCA-NAM-005.reason = no MVC controllers here
+dca.rules.warn              = DCA-TAC-009
+dca.rules.warn.sets         = naming
+dca.rule.DCA-STR-003.ignore = .*Legacy.*
+```
+
+An unknown rule id or set name fails the run immediately — a typo must never leave a rule silently
+enforced.
+
+Both sources combine: the file is the base, `AdditionalSelection` is merged on top, and the later entry
+wins per rule id. Override `AdditionalSelection`, not `Selection` — the latter *replaces* the file, so
+a `dca-archunit.properties` added later would be ignored without a word.
+
+**Three differences from the Java library.** There is no baseline dial (`frozen` /
+`dca.rules.freeze`): ArchUnitNET has no equivalent of ArchUnit's `FreezingArchRule`, and the properties
+key is rejected with a message saying so — lower those rules to a warning instead. Because xUnit v2
+cannot skip a test dynamically, a rule at `WARN` or `OFF` is reported green rather than skipped. And
+only the **file** shapes the report: theory cases are built statically, before an instance exists, so a
+rule the file scopes out produces no case at all and one it lowers is named
+`naming / DCA-NAM-005 [OFF: no MVC controllers here]`. The same settings made in `AdditionalSelection`
+take effect but appear only in the test output — put them in the file when the report should carry the
+decision.
+
+The older `ExcludedRuleIds` and `Rules` overrides keep working and feed the same selection.
 
 Without xUnit (NUnit, MSTest, a console):
 
 ```csharp
 var arch = DcaArchitecture.Load(DcaLayout.ForRootNamespace("Acme.Shop"), typeof(Program).Assembly);
-DcaRules.CheckAll(arch);                       // or iterate DcaRules.All(arch.Layout)
+DcaRules.CheckAll(arch);                       // or CheckAll(arch, selection) with a selection
 ```
 
 Violations are thrown as `DcaRuleViolationException`.

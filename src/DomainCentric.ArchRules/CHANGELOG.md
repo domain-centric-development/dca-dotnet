@@ -5,9 +5,28 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 ## [Unreleased]
 
 ### Added
+- **Configurable rule selection.** `DcaRuleSelection` decides which rules run and how strictly:
+  `OnlySets` / `OnlyIds` narrow the run, `Excluding(id, reason)` switches a rule off,
+  `Warning(id, reason)` reports it without failing the build, and
+  `IgnoringViolationsMatching(id, regex)` tolerates a documented exception. Readable from
+  `dca-archunit.properties` next to the test assembly (same keys as the Java library), which the xUnit
+  base class reads and merges `AdditionalSelection` on top of — override that property, not
+  `Selection`, which would replace the file. Unknown rule ids and set names fail the run.
+  No baseline dial: ArchUnitNET has no `FreezingArchRule`, and `dca.rules.freeze*` is rejected with a
+  message pointing at `dca.rules.warn`.
+- **New public API:** `DcaSeverity`, `DcaRuleSelection`, `DcaRuleExecution`, `DcaRuleOutcome`,
+  `DcaRules.Select/SelectFlat/SetNames/SetOfRule`, `DcaRules.CheckAll(architecture, selection)`, plus
+  `Header`/`Violations`/`Retaining` on `DcaRuleViolationException`. `ExcludedRuleIds` and `Rules` keep
+  working.
 - `DCA-NET-006` — application layer must not use persistence or transaction frameworks (EF Core, System.Data, System.Transactions, Dapper, NHibernate, MongoDB driver); the boundary is a decorator or the `ITransactionBoundary` port.
 
 ### Changed
+- Theory cases are named by rule set (`tactical / DCA-TAC-001`), a rule the properties file lowers to
+  `WARN` or `OFF` carries its severity and recorded reason in the display name, and a rule the file
+  scopes out produces no case at all — the test count now says what was actually checked. Previously
+  an excluded rule passed silently, which hid the decision; xUnit v2 cannot skip dynamically, so a
+  lowered rule is still reported green. Settings made in `AdditionalSelection` take effect but cannot
+  shape the display name, because theory data is built before an instance exists.
 - `DCA-USE-013` (Java: transactional use cases must not call remote-capable ports) listed as not applicable; 4 n/a rules now.
 - `DCA-USE-012` (Java: publishing use cases must be transactional) listed as not applicable in `UseCaseRules.NotApplicable`; the catalog now reports 3 n/a rules.
 - Target frameworks: `net8.0;net10.0` (BuildingBlocks additionally `netstandard2.1`); tests, tools and the
