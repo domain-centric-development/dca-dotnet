@@ -64,7 +64,7 @@ Each Java rule becomes one `IDcaRule` **with the same id, title and rationale** 
 
 ## Fixtures and self-tests
 
-Test project: `tests/DomainCentric.ArchRules.Tests/` (xUnit 2.9, `net8.0`, references ArchRules + BuildingBlocks; `ImplicitUsings` is off — write your `using`s). Every rule set gets its own fixture tree:
+Test project: `tests/DomainCentric.ArchRules.Tests/` (xUnit 2.9, `net10.0`, references ArchRules + BuildingBlocks; `ImplicitUsings` is off — write your `using`s). Every rule set gets its own fixture tree:
 
 ```
 tests/DomainCentric.ArchRules.Tests/Fixtures/<Set>/Good/        ← root namespace DomainCentric.ArchRules.Tests.Fixtures.<Set>.Good

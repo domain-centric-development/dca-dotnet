@@ -7,7 +7,7 @@ root is an `IAggregateRoot<,>`, a use case is an `IUseCase<,>`, a bounded contex
 `[BoundedContext]`. Architecture rules and tooling (such as the companion `DomainCentric.ArchRules`
 package) discover these roles by type, not by naming convention alone.
 
-The package has **zero dependencies** and targets `netstandard2.1` and `net8.0`.
+The package has **zero dependencies** and targets `netstandard2.1`, `net8.0` and `net10.0`.
 
 ## Namespaces
 
