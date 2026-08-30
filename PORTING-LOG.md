@@ -76,7 +76,7 @@ Port of `contextmap/ContextMapRenderer` to `DomainCentric.ArchRules.ContextMap.C
 
 ## UseCase
 
-- Ported: `DCA-USE-001` … `DCA-USE-011` (all 11). N/a: none.
+- Ported: `DCA-USE-001` … `DCA-USE-011` (all 11). N/a: `DCA-USE-012` (2026-08-30; "publishing use cases must be transactional" guards Spring's after-commit relay, which has no .NET counterpart — after-save delivery is the outbox adapter's job).
 - `DCA-USE-001`: matches interfaces named `InputPort` **or** `IInputPort`; they must reside exactly in `DomainCentric.BuildingBlocks.Hexagonal.Ports.In` (only types below the root namespace are loaded, so effectively: no application may define its own base input port).
 - `DCA-USE-002/003/006/008` use `Types()` (records are classes, `record struct`s are structs — both are covered). `DCA-USE-006` exempts `IValue` implementors as in Java.
 - `DCA-USE-004/005/007` ("final or records"): a `Command`/`Query`/`Result` **class** in the application layer must be a record or `sealed`; structs and interfaces are not checked (hand-written loop, `Class.IsRecord`/`IsSealed`).

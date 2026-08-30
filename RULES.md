@@ -1,6 +1,6 @@
 # DCA rule catalog (.NET)
 
-Generated from `DomainCentric.ArchRules` — do not edit. 110 rules in 11 sets; 2 Java rules not applicable in .NET.
+Generated from `DomainCentric.ArchRules` — do not edit. 110 rules in 11 sets; 3 Java rules not applicable in .NET.
 
 ## `layered`
 
@@ -136,6 +136,10 @@ Not applicable in .NET:
 | `DCA-USE-009` | Use cases that save an aggregate must publish its domain events | A saved aggregate must not keep its events: unpublished, they are lost, and stored on the instance they may later be published out of context. Publishing belongs after the save, in the use case that owns the unit of work - even when the action raised no event |
 | `DCA-USE-010` | DTOs must not be used in the Domain Layer | Domain layer should not depend on DTOs (presentation concerns) - Dependency Inversion Principle |
 | `DCA-USE-011` | DTOs must not be used in the Application Layer | Application layer should use Command/Query/Response models, not presentation DTOs (Clean Architecture) |
+
+Not applicable in .NET:
+
+- `DCA-USE-012` — Guards Spring's after-commit relay (@TransactionalEventListener / @ApplicationModuleListener), which is skipped silently without an active transaction. .NET has no ambient transaction attribute on use cases; after-save delivery is the job of the integration-event outbox adapter, not of the use case
 
 ## `naming`
 

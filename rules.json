@@ -643,6 +643,12 @@
     "implementation": "dotnet"
   },
   {
+    "set": "usecase",
+    "id": "DCA-USE-012",
+    "status": "n/a",
+    "reason": "Guards Spring's after-commit relay (@TransactionalEventListener / @ApplicationModuleListener), which is skipped silently without an active transaction. .NET has no ambient transaction attribute on use cases; after-save delivery is the job of the integration-event outbox adapter, not of the use case"
+  },
+  {
     "set": "naming",
     "id": "DCA-NAM-001",
     "title": "Application layer InputPort implementations must end with 'UseCase'",

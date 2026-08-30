@@ -5,6 +5,7 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 ## [Unreleased]
 
 ### Changed
+- `DCA-USE-012` (Java: publishing use cases must be transactional) listed as not applicable in `UseCaseRules.NotApplicable`; the catalog now reports 3 n/a rules.
 - Target frameworks: `net8.0;net10.0` (BuildingBlocks additionally `netstandard2.1`); tests, tools and the
   minimal consumer sample build on `net10.0`.
 

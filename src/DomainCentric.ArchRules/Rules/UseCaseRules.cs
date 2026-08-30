@@ -18,8 +18,11 @@ namespace DomainCentric.ArchRules.Rules;
 /// </summary>
 public sealed class UseCaseRules : IDcaRuleSet
 {
-    /// <summary>Java rules of this set that have no .NET counterpart (id → reason). None.</summary>
-    public static readonly IReadOnlyDictionary<string, string> NotApplicable = new Dictionary<string, string>();
+    /// <summary>Java rules of this set that have no .NET counterpart (id → reason).</summary>
+    public static readonly IReadOnlyDictionary<string, string> NotApplicable = new Dictionary<string, string>
+    {
+        ["DCA-USE-012"] = "Guards Spring's after-commit relay (@TransactionalEventListener / @ApplicationModuleListener), which is skipped silently without an active transaction. .NET has no ambient transaction attribute on use cases; after-save delivery is the job of the integration-event outbox adapter, not of the use case",
+    };
 
     public UseCaseRules(DcaLayout layout)
     {
