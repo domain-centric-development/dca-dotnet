@@ -4,6 +4,9 @@
 Hexagonal Architecture and Clean Architecture. The .NET twin of [dca-java](https://github.com/domain-centric-development/dca-java):
 same building blocks, same rule ids.
 
+*Written with AI assistance — drafted mainly by Claude, reviewed and directed by the author since
+2025. The architecture rules in this repository's build are part of how that work is verified.*
+
 | Package | What it is | Dependencies |
 |---------|------------|--------------|
 | `DomainCentric.BuildingBlocks` | The building blocks your code implements: DDD tactical markers (`IAggregateRoot`, `IEntity`, `IValue`, `IDomainEvent`, …), strategic attributes (`[BoundedContext]`, `[SharedKernel]`, `[Upstream]`, `[Partnership]`, …) and hexagonal port interfaces (`IUseCase`, `IRepository`, `IStore`, …) | none (`netstandard2.1`, `net8.0`, `net10.0`) |
