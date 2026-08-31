@@ -223,3 +223,6 @@ cd samples/MinimalConsumer && dotnet test        # the smallest consumer
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+Contributions are accepted under the MIT licence, and the copyright holder may additionally publish
+them under other licences (for example a documentation licence for prose).
