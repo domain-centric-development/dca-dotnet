@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Text.RegularExpressions;
 using ArchUnitNET.Domain;
 
 namespace DomainCentric.ArchRules.Rules;
@@ -65,16 +64,14 @@ public sealed class CycleRules : IDcaRuleSet
             arch => CheckSlices(arch, layout, $"{layout.AdapterSegment}.{layout.IncomingSegment}", "Incoming Adapter Namespaces must not have cyclic dependencies"));
 
     /// <summary>
-    /// One slice per context for the given layer: <c>Root.(*).Layer</c> and everything below it — the
-    /// reading of ArchUnit's <c>Root.(*).layer..</c>. Hand-rolled because ArchUnitNET's
+    /// One slice per module for the given layer: <c>module.Layer</c> and everything below it, where the module
+    /// is the structural <see cref="DcaArchitecture.ModuleRootOf(string)"/> — so two contexts grouped below an
+    /// intermediate namespace are two slices, at any depth. Hand-rolled because ArchUnitNET's
     /// <c>Slices().Matching(...)</c> ignores the segments after <c>(*)</c> and slices every sub-namespace of
     /// a context, which reports intra-context namespace pairs (e.g. Domain.Model ↔ Domain.Event) as cycles.
     /// </summary>
     private static void CheckSlices(DcaArchitecture arch, DcaLayout layout, string layerSegments, string title)
     {
-        var pattern = new Regex(
-            "^" + Regex.Escape(layout.RootNamespace) + @"\.(" + DcaLayout.Segment + @")\." + Regex.Escape(layerSegments) + @"(\..*)?$");
-
         var sliceOf = new Dictionary<IType, string>();
         foreach (var type in arch.Types)
         {
@@ -83,10 +80,11 @@ public sealed class CycleRules : IDcaRuleSet
                 continue;
             }
 
-            var match = pattern.Match(type.Namespace.FullName);
-            if (match.Success)
+            var ns = type.Namespace.FullName;
+            var module = arch.ModuleRootOf(ns);
+            if (module is not null && DcaLayout.IsBelow(ns, module + "." + layerSegments))
             {
-                sliceOf[type] = match.Groups[1].Value;
+                sliceOf[type] = module;
             }
         }
 

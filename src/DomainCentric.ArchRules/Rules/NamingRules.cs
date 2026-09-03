@@ -54,7 +54,7 @@ public sealed class NamingRules : IDcaRuleSet
             arch =>
             {
                 var violations = arch.Classes
-                    .Where(c => InNamespace(c, arch.Layout.ApplicationPattern)
+                    .Where(c => InNamespace(c, DcaLayout.AnyOf(arch.AllApplicationPatterns()))
                         && c.IsRecord != true
                         && IsAssignableTo(arch, c, typeof(IInputPort))
                         && !c.Name.EndsWith(arch.Layout.UseCaseSuffix, StringComparison.Ordinal))
@@ -77,7 +77,7 @@ public sealed class NamingRules : IDcaRuleSet
             arch =>
             {
                 var violations = arch.Interfaces
-                    .Where(i => InNamespace(i, arch.Layout.ApplicationPattern)
+                    .Where(i => InNamespace(i, DcaLayout.AnyOf(arch.AllApplicationPatterns()))
                         && IsAssignableTo(arch, i, typeof(IInputPort))
                         && !IsBaseInputPortName(i.Name)
                         && !(i.Name.StartsWith("I", StringComparison.Ordinal) && i.Name.EndsWith("InputPort", StringComparison.Ordinal)))
@@ -97,7 +97,7 @@ public sealed class NamingRules : IDcaRuleSet
             arch =>
             {
                 var violations = arch.Interfaces
-                    .Where(i => InNamespace(i, arch.Layout.ApplicationPattern)
+                    .Where(i => InNamespace(i, DcaLayout.AnyOf(arch.AllApplicationPatterns()))
                         && i.Name.Contains("Repository", StringComparison.Ordinal)
                         && i.Name != "Repository"
                         && i.Name != "IRepository"
@@ -117,7 +117,7 @@ public sealed class NamingRules : IDcaRuleSet
             arch =>
             {
                 var violations = arch.Classes
-                    .Where(c => InNamespace(c, arch.Layout.IncomingAdapterPattern)
+                    .Where(c => InNamespace(c, DcaLayout.AnyOf(arch.AllIncomingAdapterPatterns()))
                         && IsMvcController(arch, c)
                         && !c.Name.EndsWith("Controller", StringComparison.Ordinal))
                     .Select(c => $"{c.FullName} is a controller but does not end with 'Controller'")
@@ -134,7 +134,7 @@ public sealed class NamingRules : IDcaRuleSet
             arch =>
             {
                 var violations = arch.Classes
-                    .Where(c => InNamespace(c, arch.Layout.IncomingAdapterPattern)
+                    .Where(c => InNamespace(c, DcaLayout.AnyOf(arch.AllIncomingAdapterPatterns()))
                         && IsApiController(arch, c)
                         && !c.Name.EndsWith(arch.Layout.RestControllerSuffix, StringComparison.Ordinal))
                     .Select(c => $"{c.FullName} is an API controller but does not end with '{arch.Layout.RestControllerSuffix}'")

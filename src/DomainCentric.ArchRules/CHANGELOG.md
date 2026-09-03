@@ -5,6 +5,45 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 ## [Unreleased]
 
 ### Added
+- **Context discovery at any depth.** `DcaArchitecture.RootContextNamespace` walks up from a type's
+  namespace to the nearest ancestor whose marker class carries `[BoundedContext]` or `[SharedKernel]`,
+  so a context may be grouped (`Acme.Shop.Sales.Order`) or be the root namespace itself. A context is
+  identified by its namespace relative to the root (`ContextName`: `Sales.Order`), which is what the
+  context-map rules, the renderer and rule messages now use; `SimpleContextName` is obsolete. For a
+  context that is a direct child of the root the identifier is unchanged.
+- **`DcaArchitecture.ModuleRoots()` — structural module discovery.** A module root is the shortest
+  namespace prefix whose remainder starts with a layer segment (`Domain`, `Application`, `Adapter`),
+  found at any depth and without an attribute. Distinct from `BoundedContexts`: being a context is a
+  strategic declaration, owning a layer is a structural fact, and the layer rules apply to both.
+  Plus `ModuleRootOf`, `LayerSegments`, `IsolatedModuleRoots` (module roots minus the shared kernel),
+  `ModuleRootPatternsExcluding`, `PublishedPatternsExcluding`, and `AllDomain/DomainModel/Application/
+  SharedOutputPort/Adapter/IncomingAdapter/OutgoingAdapterPatterns()` over module roots.
+  `AllDomainPatternsWithSharedKernel` / `AllDomainModelPatternsWithSharedKernel` are obsolete aliases.
+- **`DcaLayout.WithApiSegment()` / `WithEventsSegment()`** — the published-contract segments are layout
+  settings like every other segment (defaults `Api`, `Events`; the two must differ), read via
+  `ApiSegment`, `EventsSegment`, `PublishedSegments`. `DCA-STR-005/006/007`, the context-map rules and
+  `ContextMapRenderer` take them from the layout; nothing hard-codes the channel names any more.
+  Also `DcaLayout.AnyOf(patterns)` (alternation; empty → matches nothing) and `AnySegmentPath`.
+- `DcaRule.EvaluateAll(rules, arch, title, rationale)` — evaluates several fluent rules that make up one
+  DCA rule and throws once with all their violations.
+
+### Changed
+- **Rules select over discovered modules, not over a one-segment wildcard.** Every rule that used
+  `Layout.DomainPattern` and its siblings (`Root.[^.]+.Domain`, exactly one segment) now selects through
+  `arch.All*Patterns()` built from `ModuleRoots()`. A context grouped or nested one level too deep used
+  to match no rule and pass silently; it is governed now. The wildcard properties remain for tooling.
+- **Isolation is structural.** `DCA-STR-003`, `DCA-STR-004`, `DCA-STR-006` and `DCA-HEX-007` iterate over
+  `IsolatedModuleRoots()` on the source and the target side, so a module that declares no
+  `[BoundedContext]` can neither reach into a neighbour's internals nor have its own reached into. The
+  adapter allow-list is the target's `Api`/`Events` namespaces; `DCA-STR-006` forbids everything else in
+  a foreign module (adapters and infrastructure included). Titles and rationales say "module"; the four
+  rules report every offending module, not only the first. Same ids and texts as `dca-archunit`.
+- **`DCA-STR-005`** accepts an Open Host Service in `Api` or anywhere under `Adapter.Incoming` — the
+  pattern is the published relationship, not a folder; the former `Adapter.Incoming.OpenHost` requirement
+  is gone.
+- **Cycle rules slice by module root.** `CycleRules.CheckSlices` assigned slices with a one-segment
+  regex capture, so two contexts grouped below an intermediate namespace produced no slices and a cycle
+  between them went unreported. Slices are now `ModuleRootOf(namespace)`, at any depth.
 - **Configurable rule selection.** `DcaRuleSelection` decides which rules run and how strictly:
   `OnlySets` / `OnlyIds` narrow the run, `Excluding(id, reason)` switches a rule off,
   `Warning(id, reason)` reports it without failing the build, and

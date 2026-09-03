@@ -56,6 +56,26 @@ public static class DcaRule
     private static bool IsEmptySelection(string description) =>
         description.Contains("requires positive evaluation", StringComparison.Ordinal);
 
+    /// <summary>
+    /// Evaluates several ArchUnitNET rules that together make up one DCA rule and throws once with
+    /// <em>all</em> their violations. A rule that iterates over modules — one fluent rule per module —
+    /// must not stop at the first module that fails: a report naming only the first offender hides the
+    /// others, and a <see cref="DcaRuleSelection"/> could not tolerate individual violations.
+    /// </summary>
+    public static void EvaluateAll(IEnumerable<IArchRule> rules, DcaArchitecture arch, string title, string rationale)
+    {
+        var failed = rules
+            .SelectMany(rule => rule.Evaluate(arch.Architecture))
+            .Where(r => !r.Passed && !IsEmptySelection(r.Description))
+            .Select(r => r.Description)
+            .Distinct()
+            .ToList();
+        if (failed.Count > 0)
+        {
+            throw DcaRuleViolationException.Of($"{title}\nbecause {rationale}", failed);
+        }
+    }
+
     /// <summary>Throws a <see cref="DcaRuleViolationException"/> if <paramref name="violations"/> is not empty.</summary>
     public static void Fail(string header, IReadOnlyCollection<string> violations, string? fix = null)
     {

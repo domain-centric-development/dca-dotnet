@@ -57,7 +57,7 @@ public sealed class DotnetRules : IDcaRuleSet
             "The transaction boundary of a use case is drawn by a decorator around IUseCase or by ITransactionBoundary (an application-layer execution abstraction implemented in infrastructure), never by DbContext, SaveChanges, TransactionScope or IDbTransaction in the use case itself. Framework types in the application layer bind use cases to one persistence technology and hide where the boundary is; the ITransactionBoundary implementation is the single place that knows how to open and commit a transaction",
             arch =>
             {
-                var application = arch.ContextApplicationPatterns().Select(p => new Regex(p)).ToList();
+                var application = arch.AllApplicationPatterns().Select(p => new Regex(p)).ToList();
                 var violations = new List<string>();
                 foreach (var type in arch.Types.Where(t => application.Any(r => r.IsMatch(t.Namespace.FullName))))
                 {
@@ -100,7 +100,7 @@ public sealed class DotnetRules : IDcaRuleSet
             "Async is an I/O concern of ports and adapters; a synchronous domain model stays testable, deterministic and free of sync-over-async hazards",
             arch =>
             {
-                var domain = arch.AllDomainPatternsWithSharedKernel().Select(p => new Regex(p)).ToList();
+                var domain = arch.AllDomainPatterns().Select(p => new Regex(p)).ToList();
                 var violations = new List<string>();
                 foreach (var type in arch.Types.Where(t => domain.Any(r => r.IsMatch(t.Namespace.FullName))))
                 {
@@ -212,7 +212,7 @@ public sealed class DotnetRules : IDcaRuleSet
             "Records give attribute-based equality, immutability by default and with-expressions — the C# way to write a Value Object",
             arch =>
             {
-                var domain = arch.AllDomainPatternsWithSharedKernel().Select(p => new Regex(p)).ToList();
+                var domain = arch.AllDomainPatterns().Select(p => new Regex(p)).ToList();
                 var violations = new List<string>();
                 foreach (var type in arch.Types.Where(t => domain.Any(r => r.IsMatch(t.Namespace.FullName))))
                 {

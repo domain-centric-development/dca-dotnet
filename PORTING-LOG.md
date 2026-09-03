@@ -149,3 +149,34 @@ Port of `contextmap/ContextMapRenderer` to `DomainCentric.ArchRules.ContextMap.C
 
 - `DCA-NET-006` added: types in a context's `Application` namespace must not depend on `Microsoft.EntityFrameworkCore.*`, `System.Transactions.*`, `System.Data.*`, `Dapper.*`, `NHibernate.*`, `MongoDB.Driver.*`. The transaction boundary is a decorator around `IUseCase` or the `ITransactionBoundary` port; the adapter behind it is the only place that knows the framework. Fixtures: Good `ShipOrderUseCase` (`ITransactionBoundary.InTransactionAsync`, remote `ICarrierPort` outside), Bad `ShipOrderUseCase` (`TransactionScope` in the use case).
 - `DCA-LAY-005` skips compiler-generated nested types in `Ports.Out` (found while `ITransactionBoundary` still lived there as `IUnitOfWork`: its default interface method produces a closure class and an async state machine). Same day it was renamed and moved to `Application.Transactions` — a transaction boundary is execution semantics, not an output port.
+
+## Context discovery, module discovery, structural isolation (2026-09-03, planning WP-20 + WP-21)
+
+- **Same one-segment bug as Java, same fix.** `DcaLayout.Segment` (`[^.]+`) in the wildcard patterns and
+  the first-segment cut in `RootContextNamespace` meant a grouped (`Root.Sales.Order`), nested or flat
+  layout matched no layer rule and passed for lack of subjects. `RootContextNamespace` now walks up to the
+  nearest declared ancestor (memoised per namespace); `ContextName` is the namespace relative to the root
+  (`Sales.Order`), used by `ContextMapRules`, `ContextMapRenderer` (the two `ShortName` copies are gone)
+  and rule messages; `SimpleContextName` is `[Obsolete]`. All eight sample contexts sit at depth 1, so the
+  identifier change is a no-op there — measured: `dotnet test` 127 + 29 + 113 green, `docs/context-map.md`
+  byte-identical.
+- **Module roots** (`ModuleRoots()`, shortest prefix owning a layer) drive every layer, hexagonal, onion,
+  naming, tactical, use-case and .NET-only rule via `All*Patterns()`; declared contexts drive only the
+  context-map rules and `DCA-STR-001/002`. ArchUnitNET's `ResideInNamespaceMatching` takes one regex, so
+  the arrays are combined with `DcaLayout.AnyOf` (empty → `(?!)`, never an empty string that matches all).
+  Rules whose helpers took only the layout (`AdvancedPatternRules.InDomain`, `IsAllowedAttribute`) take the
+  architecture now, as `UseCaseRules.immutableApplicationModels` did in Java.
+- **Cycle rules** slice by `ModuleRootOf(namespace)` instead of the one-segment capture group; the
+  hand-rolled slicing stays (ArchUnitNET's `Slices().Matching` reports intra-context pairs as cycles).
+- **Isolation is structural** (WP-21, same shape as Java): `DCA-STR-003/004/006` and `DCA-HEX-007` loop
+  over `IsolatedModuleRoots()` on both sides; `DCA-STR-006`'s forbidden set is "foreign module minus its
+  `Api`/`Events`", expressed as one regex with a negative lookahead (`(?!published)(?:foreign)`) because
+  the fluent API has no "except". The four collect their per-module violations via `DcaRule.EvaluateAll`.
+  `DCA-STR-005` accepts `Api` or any namespace under `Adapter.Incoming`. `Api`/`Events` come from
+  `DcaLayout.ApiSegment`/`EventsSegment` everywhere; the renderer lower-cases them for the map labels so the
+  generated document is unchanged. **No `DCA-LAY-006`** — deleted on the Java side before release.
+- **allowEmptyShould asymmetry recorded:** .NET passes every empty selection (`DcaRule.Of`), so nothing
+  had to change for transaction-script contexts; the `TransactionScript` fixture runs the whole catalog green.
+- Fixtures `Fixtures/Layout/*` (grouped, flat, nested, grouped module, empty context, transaction script,
+  grouped cycle, isolation) and tests `ContextDiscoveryTests`, `StructuralIsolationTests` — 300 self-tests.
+  `ContextDiscoveryTests.NoRuleUsesTheWildcardPatterns` greps the rule sources so the wildcard cannot creep back.

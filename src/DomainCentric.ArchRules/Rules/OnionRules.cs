@@ -40,8 +40,8 @@ public sealed class OnionRules : IDcaRuleSet
             "DCA-ONI-001",
             "Domain must not access Application Services (Onion Architecture - Domain is innermost layer)",
             "Domain is the innermost layer in onion architecture and should not depend on application services",
-            arch => Types().That().ResideInNamespaceMatching(Layout.DomainPattern)
-                .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(Layout.ApplicationPattern));
+            arch => Types().That().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns()))
+                .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllApplicationPatterns())));
 
     /// <summary>
     /// Domain types may depend only on domain namespaces (matched by pattern, which also covers the
@@ -58,7 +58,7 @@ public sealed class OnionRules : IDcaRuleSet
             rationale,
             arch =>
             {
-                var domain = new Regex(Layout.DomainPattern);
+                var domain = new Regex(DcaLayout.AnyOf(arch.AllDomainPatterns()));
                 var allowedPrefixes = Layout.ThirdPartyNamespacesAllowedInDomain
                     .Concat(new[] { DcaLayout.BuildingBlocksTacticalNamespace, DcaLayout.BuildingBlocksPortsOutNamespace })
                     .ToList();
@@ -91,7 +91,7 @@ public sealed class OnionRules : IDcaRuleSet
             rationale,
             arch =>
             {
-                var domainModel = new Regex(HexagonalRules.AnyOf(new[] { Layout.DomainModelPattern, Layout.SharedKernelDomainPattern }));
+                var domainModel = new Regex(DcaLayout.AnyOf(arch.AllDomainModelPatterns().Append(Layout.SharedKernelDomainPattern)));
                 bool Allowed(ArchUnitNET.Domain.Attribute a) =>
                     a.Namespace is not null && Layout.ThirdPartyNamespacesAllowedInDomain.Any(p => DcaLayout.IsBelow(a.Namespace.FullName, p));
 

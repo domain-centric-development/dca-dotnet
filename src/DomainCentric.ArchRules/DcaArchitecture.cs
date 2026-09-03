@@ -32,6 +32,9 @@ public sealed class DcaArchitecture
     private string? _sharedKernelNamespace;
     private bool _sharedKernelResolved;
     private IReadOnlyList<Type>? _rootTypes;
+    private IReadOnlyList<string>? _moduleRoots;
+    private readonly Dictionary<string, string?> _rootContextCache = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, bool> _contextRootCache = new(StringComparer.Ordinal);
 
     private DcaArchitecture(DcaLayout layout, Architecture architecture, IReadOnlyList<Assembly> assemblies)
     {
@@ -120,12 +123,14 @@ public sealed class DcaArchitecture
     public IEnumerable<Interface> Interfaces => Types.OfType<Interface>();
 
     // ---------------------------------------------------------------------------------------------
-    // Bounded-context discovery
+    // Bounded-context discovery — by declaration, at any depth
     // ---------------------------------------------------------------------------------------------
 
     /// <summary>
-    /// All namespaces directly below the root namespace that carry a <c>[BoundedContext]</c> marker class,
-    /// keyed by namespace, in encounter order.
+    /// All namespaces at or below the root namespace that carry a <c>[BoundedContext]</c> marker class,
+    /// keyed by namespace, in encounter order. A context may sit at any depth (<c>Acme.Shop.Cart</c>,
+    /// <c>Acme.Shop.Sales.Order</c>, or the root namespace itself); the declaration is the attribute, not
+    /// the position in the namespace tree.
     /// </summary>
     public IReadOnlyDictionary<string, BoundedContextAttribute> BoundedContexts
     {
@@ -135,7 +140,7 @@ public sealed class DcaArchitecture
             {
                 var found = new Dictionary<string, BoundedContextAttribute>();
                 var order = new List<string>();
-                foreach (var root in RootNamespaces())
+                foreach (var root in ContextRoots())
                 {
                     var attribute = NamespaceAttribute<BoundedContextAttribute>(root);
                     if (attribute is not null && !found.ContainsKey(root))
@@ -162,14 +167,14 @@ public sealed class DcaArchitecture
     public string[] BoundedContextPatternsExcluding(string contextNamespace) =>
         BoundedContexts.Keys.Where(p => p != contextNamespace).Select(DcaLayout.Below).ToArray();
 
-    /// <summary>The namespace directly below the root namespace whose marker class carries <c>[SharedKernel]</c>.</summary>
+    /// <summary>The namespace, at whatever depth below the root, whose marker class carries <c>[SharedKernel]</c>.</summary>
     public string? SharedKernelNamespace
     {
         get
         {
             if (!_sharedKernelResolved)
             {
-                _sharedKernelNamespace = RootNamespaces().FirstOrDefault(r => NamespaceAttribute<SharedKernelAttribute>(r) is not null);
+                _sharedKernelNamespace = ContextRoots().FirstOrDefault(r => NamespaceAttribute<SharedKernelAttribute>(r) is not null);
                 _sharedKernelResolved = true;
             }
 
@@ -178,30 +183,240 @@ public sealed class DcaArchitecture
     }
 
     /// <summary>
-    /// The direct child namespace of the root namespace that a full namespace belongs to, e.g.
-    /// <c>Acme.Shop.Cart.Domain.Model → Acme.Shop.Cart</c>; <c>null</c> for namespaces outside the root.
+    /// The root namespace of the bounded context (or shared kernel) a full namespace belongs to — the
+    /// nearest ancestor at or below the root namespace whose marker class carries <c>[BoundedContext]</c>
+    /// or <c>[SharedKernel]</c>: <c>Acme.Shop.Cart.Domain.Model → Acme.Shop.Cart</c> when <c>Cart</c> is
+    /// declared, <c>Acme.Shop.Sales.Order.Domain.Model → Acme.Shop.Sales.Order</c> when <c>Sales.Order</c> is.
     /// </summary>
+    /// <remarks>
+    /// Falls back to the direct child namespace of the root when no ancestor is declared, so that a
+    /// project which has not declared its contexts yet still groups types the way it used to. Such a
+    /// namespace is not a discovered context; whether it owns layers — and is therefore governed — is
+    /// decided structurally by <see cref="ModuleRoots"/>, not by this fallback.
+    /// </remarks>
+    /// <returns>the context root namespace, or <c>null</c> for namespaces outside the root namespace</returns>
     public string? RootContextNamespace(string fullNamespace)
     {
-        var prefix = Layout.RootNamespace + ".";
-        if (fullNamespace is null || !fullNamespace.StartsWith(prefix, StringComparison.Ordinal))
+        if (fullNamespace is null)
         {
             return null;
         }
 
-        var remainder = fullNamespace.Substring(prefix.Length);
-        var dot = remainder.IndexOf('.');
-        if (dot > 0)
+        var root = Layout.RootNamespace;
+        if (!DcaLayout.IsBelow(fullNamespace, root))
         {
-            return Layout.RootNamespace + "." + remainder.Substring(0, dot);
+            return null;
         }
 
-        return remainder.Length == 0 ? null : Layout.RootNamespace + "." + remainder;
+        if (_rootContextCache.TryGetValue(fullNamespace, out var cached))
+        {
+            return cached;
+        }
+
+        string? result = null;
+        for (var candidate = fullNamespace; candidate is not null; candidate = ParentNamespace(candidate, root))
+        {
+            if (IsContextRoot(candidate))
+            {
+                result = candidate;
+                break;
+            }
+        }
+
+        result ??= FirstSegmentBelowRoot(fullNamespace, root);
+        _rootContextCache[fullNamespace] = result;
+        return result;
     }
 
-    /// <summary>Last segment of a context namespace: <c>Acme.Shop.Cart → Cart</c>.</summary>
-    public static string SimpleContextName(string contextNamespace) =>
-        contextNamespace.Substring(contextNamespace.LastIndexOf('.') + 1);
+    /// <summary>
+    /// The identifier of a context: its namespace relative to the root namespace —
+    /// <c>Acme.Shop.Cart → Cart</c>, <c>Acme.Shop.Sales.Order → Sales.Order</c>. For a single-context
+    /// application whose root namespace is the context, the root's last segment. Unambiguous for grouped
+    /// contexts, where the last segment alone would not be; identical to the last segment for a context
+    /// that is a direct child of the root, so existing <c>[Upstream("Cart")]</c> declarations keep working.
+    /// </summary>
+    public string ContextName(string contextNamespace)
+    {
+        var root = Layout.RootNamespace;
+        if (contextNamespace == root)
+        {
+            return LastSegment(root);
+        }
+
+        return contextNamespace.StartsWith(root + ".", StringComparison.Ordinal)
+            ? contextNamespace.Substring(root.Length + 1)
+            : LastSegment(contextNamespace);
+    }
+
+    /// <summary>Last segment of a namespace: <c>Acme.Shop.Cart → Cart</c>.</summary>
+    /// <remarks>A context identifier is its name relative to the root namespace — use
+    /// <see cref="ContextName"/>, which is unambiguous for grouped contexts. This method stays for the
+    /// case where only a last segment is wanted.</remarks>
+    [Obsolete("Use ContextName(string): a context is identified by its namespace relative to the root namespace.")]
+    public static string SimpleContextName(string contextNamespace) => LastSegment(contextNamespace);
+
+    private static string LastSegment(string ns) => ns.Substring(ns.LastIndexOf('.') + 1);
+
+    private bool IsContextRoot(string ns)
+    {
+        if (!_contextRootCache.TryGetValue(ns, out var isRoot))
+        {
+            isRoot = NamespaceAttribute<BoundedContextAttribute>(ns) is not null
+                || NamespaceAttribute<SharedKernelAttribute>(ns) is not null;
+            _contextRootCache[ns] = isRoot;
+        }
+
+        return isRoot;
+    }
+
+    /// <summary>The parent of a namespace, or <c>null</c> at (or above) the root namespace.</summary>
+    private static string? ParentNamespace(string ns, string root)
+    {
+        if (ns == root)
+        {
+            return null;
+        }
+
+        var dot = ns.LastIndexOf('.');
+        return dot < 0 ? null : ns.Substring(0, dot);
+    }
+
+    private static string? FirstSegmentBelowRoot(string fullNamespace, string root)
+    {
+        if (fullNamespace == root)
+        {
+            return null;
+        }
+
+        var remainder = fullNamespace.Substring(root.Length + 1);
+        var dot = remainder.IndexOf('.');
+        return root + "." + (dot > 0 ? remainder.Substring(0, dot) : remainder);
+    }
+
+    /// <summary>Distinct context roots of all loaded types, in encounter order.</summary>
+    private IEnumerable<string> ContextRoots()
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var type in RootTypes())
+        {
+            var root = RootContextNamespace(type.Namespace!);
+            if (root is not null && seen.Add(root))
+            {
+                yield return root;
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Module discovery — structural, unlike context discovery
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Every namespace that owns a DCA layer, in encounter order — the roots the layer rules apply to.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Why this is not the same as <see cref="BoundedContexts"/>.</b> Being a bounded context is
+    /// a strategic statement: it is declared with <c>[BoundedContext]</c> and it decides the context map
+    /// and the upstream relationships. Owning a <c>Domain</c>/<c>Application</c>/<c>Adapter</c> layer is
+    /// a structural fact, and the layer rules — the domain knows no infrastructure, transactions are an
+    /// application concern, a <c>Command</c> lives in <c>Application</c> — apply to it either way. A
+    /// module that is deliberately <em>not</em> a bounded context still follows DCA layering and must
+    /// still be governed.</para>
+    /// <para>A root is the <b>shortest</b> namespace prefix at or below the root namespace whose remainder
+    /// starts with a layer segment. Shortest wins so that an adapter's own <c>Domain</c> namespace — an
+    /// outgoing adapter mapping to a foreign model — stays inside its module instead of becoming a root
+    /// of its own: for <c>Root.Cart.Adapter.Outgoing.Domain.Foo</c> the root is <c>Root.Cart</c>.</para>
+    /// <para>Because the test is structural, a module is found at any depth and without any attribute —
+    /// which is what keeps a grouped or nested layout governed. The isolation rules select over module
+    /// roots as well (<see cref="IsolatedModuleRoots"/>), so a module that declares nothing can neither
+    /// reach into a neighbour's internals nor have its own internals reached into. Declaring a module a
+    /// bounded context decides its place on the context map, nothing more.</para>
+    /// </remarks>
+    public IReadOnlyList<string> ModuleRoots()
+    {
+        if (_moduleRoots is null)
+        {
+            var layers = LayerSegments();
+            var roots = new List<string>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var type in Types)
+            {
+                var root = ModuleRootOf(type.Namespace!.FullName, Layout.RootNamespace, layers);
+                if (root is not null && seen.Add(root))
+                {
+                    roots.Add(root);
+                }
+            }
+
+            _moduleRoots = roots;
+        }
+
+        return _moduleRoots;
+    }
+
+    /// <summary>The layer segments of this layout: <c>Domain</c>, <c>Application</c>, <c>Adapter</c>.</summary>
+    public ISet<string> LayerSegments() =>
+        new HashSet<string>(new[] { Layout.DomainSegment, Layout.ApplicationSegment, Layout.AdapterSegment }, StringComparer.Ordinal);
+
+    /// <summary>
+    /// The module root of a namespace, or <c>null</c> when the namespace carries no layer segment — the
+    /// global infrastructure namespace, for instance, or a plain support namespace.
+    /// </summary>
+    public string? ModuleRootOf(string ns) => ModuleRootOf(ns, Layout.RootNamespace, LayerSegments());
+
+    private static string? ModuleRootOf(string? ns, string root, ISet<string> layers)
+    {
+        if (ns is null || !ns.StartsWith(root + ".", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var current = root;
+        foreach (var segment in ns.Substring(root.Length + 1).Split('.'))
+        {
+            if (layers.Contains(segment))
+            {
+                return current;
+            }
+
+            current = current + "." + segment;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The module roots the isolation rules govern: every module root except the shared kernel. The
+    /// shared kernel is a module root too (it may own <c>Domain</c>, <c>Application</c> and <c>Adapter</c>
+    /// namespaces), but everyone may depend on it, and what <em>it</em> may depend on is <c>DCA-STR-002</c>'s
+    /// business.
+    /// </summary>
+    public IReadOnlyList<string> IsolatedModuleRoots()
+    {
+        var sharedKernel = SharedKernelNamespace;
+        return ModuleRoots().Where(root => root != sharedKernel).ToList();
+    }
+
+    /// <summary>
+    /// Patterns of every isolated module root except the given one — <c>root</c> and below, each. Built
+    /// from <see cref="IsolatedModuleRoots"/>, so an undeclared module is a forbidden target like any
+    /// other, not only a governed source.
+    /// </summary>
+    public string[] ModuleRootPatternsExcluding(string moduleRoot) =>
+        IsolatedModuleRoots().Where(root => root != moduleRoot).Select(DcaLayout.Below).ToArray();
+
+    /// <summary>
+    /// The published namespaces of every isolated module root except the given one: <c>root.Api</c>
+    /// (synchronous, in-process) and <c>root.Events</c> (asynchronous) and below, with the segment names
+    /// taken from <see cref="DcaLayout.PublishedSegments"/>. DCA's in-process contract convention —
+    /// namespace names, a convention of the architecture and not of any framework — and the only part
+    /// of a foreign module an adapter may depend on.
+    /// </summary>
+    public string[] PublishedPatternsExcluding(string moduleRoot) =>
+        IsolatedModuleRoots()
+            .Where(root => root != moduleRoot)
+            .SelectMany(root => Layout.PublishedSegments.Select(segment => DcaLayout.Below(root + "." + segment)))
+            .ToArray();
 
     // ---------------------------------------------------------------------------------------------
     // Namespace-level attributes (marker classes)
@@ -266,22 +481,8 @@ public sealed class DcaArchitecture
         }
     }
 
-    /// <summary>Distinct direct child namespaces of the root namespace, in encounter order.</summary>
-    private IEnumerable<string> RootNamespaces()
-    {
-        var seen = new HashSet<string>();
-        foreach (var type in RootTypes())
-        {
-            var root = RootContextNamespace(type.Namespace!);
-            if (root is not null && seen.Add(root))
-            {
-                yield return root;
-            }
-        }
-    }
-
     // ---------------------------------------------------------------------------------------------
-    // Per-context patterns
+    // Patterns: Context* over declared bounded contexts, All* over module roots
     // ---------------------------------------------------------------------------------------------
 
     public string[] ContextDomainPatterns() => BoundedContexts.Keys.Select(Layout.DomainPatternOf).ToArray();
@@ -292,34 +493,38 @@ public sealed class DcaArchitecture
 
     public string[] ContextAdapterPatterns() => BoundedContexts.Keys.Select(Layout.AdapterPatternOf).ToArray();
 
-    /// <summary>Incoming-adapter patterns of all contexts plus the shared kernel's, if it has one.</summary>
-    public string[] AllIncomingAdapterPatterns() => WithSharedKernel(Layout.IncomingAdapterPatternOf);
+    /// <summary>Domain patterns of every module root — the layer rules' selection, at any depth.</summary>
+    public string[] AllDomainPatterns() => ModuleRoots().Select(Layout.DomainPatternOf).ToArray();
 
-    /// <summary>Outgoing-adapter patterns of all contexts plus the shared kernel's, if it has one.</summary>
-    public string[] AllOutgoingAdapterPatterns() => WithSharedKernel(Layout.OutgoingAdapterPatternOf);
+    /// <summary>Domain-model patterns of every module root.</summary>
+    public string[] AllDomainModelPatterns() => ModuleRoots().Select(Layout.DomainModelPatternOf).ToArray();
 
-    /// <summary>Domain patterns of all contexts plus the shared kernel domain.</summary>
-    public string[] AllDomainPatternsWithSharedKernel() =>
-        ContextDomainPatterns().Append(Layout.SharedKernelDomainPattern).ToArray();
+    /// <summary>Application patterns of every module root.</summary>
+    public string[] AllApplicationPatterns() => ModuleRoots().Select(Layout.ApplicationPatternOf).ToArray();
 
-    /// <summary>Domain-model patterns of all contexts plus the shared kernel domain.</summary>
-    public string[] AllDomainModelPatternsWithSharedKernel() =>
-        ContextDomainModelPatterns().Append(Layout.SharedKernelDomainPattern).ToArray();
+    /// <summary>Shared-output-port patterns (<c>Application.Shared</c>) of every module root.</summary>
+    public string[] AllSharedOutputPortPatterns() => ModuleRoots().Select(Layout.SharedOutputPortPatternOf).ToArray();
+
+    /// <summary>Adapter patterns of every module root.</summary>
+    public string[] AllAdapterPatterns() => ModuleRoots().Select(Layout.AdapterPatternOf).ToArray();
+
+    /// <summary>Incoming-adapter patterns of every module root (contexts, shared kernel and undeclared modules alike).</summary>
+    public string[] AllIncomingAdapterPatterns() => ModuleRoots().Select(Layout.IncomingAdapterPatternOf).ToArray();
+
+    /// <summary>Outgoing-adapter patterns of every module root.</summary>
+    public string[] AllOutgoingAdapterPatterns() => ModuleRoots().Select(Layout.OutgoingAdapterPatternOf).ToArray();
+
+    /// <summary>Domain patterns of every module root — the shared kernel is a module root when it owns a domain layer.</summary>
+    [Obsolete("Use AllDomainPatterns(): module roots include the shared kernel.")]
+    public string[] AllDomainPatternsWithSharedKernel() => AllDomainPatterns();
+
+    /// <summary>Domain-model patterns of every module root.</summary>
+    [Obsolete("Use AllDomainModelPatterns(): module roots include the shared kernel.")]
+    public string[] AllDomainModelPatternsWithSharedKernel() => AllDomainModelPatterns();
 
     /// <summary>Whether a type resides in the global infrastructure namespace (or below).</summary>
     public bool IsInfrastructureImplementation(IType type) =>
         type.Namespace is not null && DcaLayout.IsBelow(type.Namespace.FullName, Layout.InfrastructureNamespace);
-
-    private string[] WithSharedKernel(Func<string, string> pattern)
-    {
-        var patterns = BoundedContexts.Keys.Select(pattern).ToList();
-        if (SharedKernelNamespace is not null)
-        {
-            patterns.Add(pattern(SharedKernelNamespace));
-        }
-
-        return patterns.ToArray();
-    }
 
     private sealed class OrderedReadOnlyDictionary<TValue> : IReadOnlyDictionary<string, TValue>
     {

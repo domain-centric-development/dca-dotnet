@@ -75,7 +75,7 @@ public sealed class UseCaseRules : IDcaRuleSet
                     .And()
                     .ResideInNamespaceMatching(DcaLayout.Below(layout.RootNamespace))
                     .Should()
-                    .ResideInNamespaceMatching(layout.ApplicationPattern));
+                    .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllApplicationPatterns())));
 
     public static IDcaRule QueriesResideInApplication(DcaLayout layout) =>
         DcaRule.Of(
@@ -89,7 +89,7 @@ public sealed class UseCaseRules : IDcaRuleSet
                     .And()
                     .ResideInNamespaceMatching(DcaLayout.Below(layout.RootNamespace))
                     .Should()
-                    .ResideInNamespaceMatching(layout.ApplicationPattern));
+                    .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllApplicationPatterns())));
 
     public static IDcaRule CommandsAreImmutable(DcaLayout layout) =>
         DcaRule.Check(
@@ -119,7 +119,7 @@ public sealed class UseCaseRules : IDcaRuleSet
                     .And()
                     .DoNotImplementInterface(typeof(IValue))
                     .Should()
-                    .ResideInNamespaceMatching(layout.ApplicationPattern));
+                    .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllApplicationPatterns())));
 
     public static IDcaRule ResultsAreImmutable(DcaLayout layout) =>
         DcaRule.Check(
@@ -156,7 +156,7 @@ public sealed class UseCaseRules : IDcaRuleSet
             {
                 var violations = arch.Classes
                     .Where(c => c.Namespace is not null
-                        && Matches(c.Namespace.FullName, arch.Layout.ApplicationPattern)
+                        && Matches(c.Namespace.FullName, DcaLayout.AnyOf(arch.AllApplicationPatterns()))
                         && c.Name.EndsWith(arch.Layout.UseCaseSuffix, StringComparison.Ordinal))
                     .Where(c => Calls(arch, c, "SaveAsync", typeof(IRepository))
                         && !Calls(arch, c, "PublishAndClearEventsAsync", typeof(IDomainEventPublisher)))
@@ -176,7 +176,7 @@ public sealed class UseCaseRules : IDcaRuleSet
             arch =>
                 Types()
                     .That()
-                    .ResideInNamespaceMatching(layout.DomainPattern)
+                    .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns()))
                     .Should()
                     .NotDependOnAnyTypesThat()
                     .HaveNameEndingWith("Dto"));
@@ -189,7 +189,7 @@ public sealed class UseCaseRules : IDcaRuleSet
             arch =>
                 Types()
                     .That()
-                    .ResideInNamespaceMatching(layout.ApplicationPattern)
+                    .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllApplicationPatterns()))
                     .Should()
                     .NotDependOnAnyTypesThat()
                     .HaveNameEndingWith("Dto"));
@@ -206,7 +206,7 @@ public sealed class UseCaseRules : IDcaRuleSet
     {
         var violations = arch.Classes
             .Where(c => c.Namespace is not null
-                && Matches(c.Namespace.FullName, arch.Layout.ApplicationPattern)
+                && Matches(c.Namespace.FullName, DcaLayout.AnyOf(arch.AllApplicationPatterns()))
                 && c.Name.EndsWith(suffix, StringComparison.Ordinal)
                 && c.IsRecord != true
                 && c.IsSealed != true)

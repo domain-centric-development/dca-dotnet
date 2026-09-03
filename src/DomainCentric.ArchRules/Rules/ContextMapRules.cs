@@ -109,7 +109,7 @@ public sealed class ContextMapRules : IDcaRuleSet
                 var moduleNames = ModuleNames(arch);
                 foreach (var ns in arch.BoundedContextNamespaces)
                 {
-                    var source = ShortName(ns);
+                    var source = ShortName(arch, ns);
                     var edges = new List<string>();
                     foreach (var e in arch.NamespaceAttributes<ExternalUpstreamAttribute>(ns))
                     {
@@ -174,7 +174,7 @@ public sealed class ContextMapRules : IDcaRuleSet
                 var moduleNames = ModuleNames(arch);
                 foreach (var ns in arch.BoundedContextNamespaces)
                 {
-                    var source = ShortName(ns);
+                    var source = ShortName(arch, ns);
                     foreach (var u in arch.NamespaceAttributes<UpstreamAttribute>(ns))
                     {
                         if (!moduleNames.Contains(u.Context))
@@ -204,7 +204,7 @@ public sealed class ContextMapRules : IDcaRuleSet
                 var violations = new List<string>();
                 foreach (var ns in arch.BoundedContextNamespaces)
                 {
-                    var source = ShortName(ns);
+                    var source = ShortName(arch, ns);
                     var edges = new List<string>();
                     foreach (var u in arch.NamespaceAttributes<UpstreamAttribute>(ns))
                     {
@@ -215,7 +215,7 @@ public sealed class ContextMapRules : IDcaRuleSet
                         }
                         foreach (var channel in u.Via)
                         {
-                            var edge = u.Context + " :: " + ChannelName(channel);
+                            var edge = u.Context + " :: " + ChannelName(arch, channel);
                             if (edges.Contains(edge))
                             {
                                 violations.Add("Context '" + source + "' declares (context, channel) '" + edge
@@ -246,7 +246,7 @@ public sealed class ContextMapRules : IDcaRuleSet
                 var namespacesByName = NamespacesByName(arch);
                 foreach (var ns in arch.BoundedContextNamespaces)
                 {
-                    var source = ShortName(ns);
+                    var source = ShortName(arch, ns);
                     foreach (var u in arch.NamespaceAttributes<UpstreamAttribute>(ns))
                     {
                         if (u.Status != UpstreamStatus.Implemented || !namespacesByName.TryGetValue(u.Context, out var targetNs))
@@ -255,12 +255,12 @@ public sealed class ContextMapRules : IDcaRuleSet
                         }
                         foreach (var channel in u.Via)
                         {
-                            var channelNs = targetNs + "." + ChannelName(channel);
+                            var channelNs = targetNs + "." + ChannelName(arch, channel);
                             var exists = TypesBelow(arch, ns).Any(t => DependsOnNamespace(t, channelNs));
                             if (!exists)
                             {
                                 violations.Add("Context '" + source + "' declares [Upstream(\"" + u.Context + "\", via = "
-                                    + ChannelName(channel) + ")] as Implemented, but no type in '" + ns + "' depends on '"
+                                    + ChannelName(arch, channel) + ")] as Implemented, but no type in '" + ns + "' depends on '"
                                     + channelNs + "' — implement the dependency, mark the declaration Status = Planned, or remove it");
                             }
                         }
@@ -287,7 +287,7 @@ public sealed class ContextMapRules : IDcaRuleSet
                 var namespacesByName = NamespacesByName(arch);
                 foreach (var ns in arch.BoundedContextNamespaces)
                 {
-                    var source = ShortName(ns);
+                    var source = ShortName(arch, ns);
                     foreach (var u in arch.NamespaceAttributes<UpstreamAttribute>(ns))
                     {
                         if (u.Translation != Translation.AntiCorruptionLayer || !namespacesByName.TryGetValue(u.Context, out var targetNs))
@@ -299,13 +299,13 @@ public sealed class ContextMapRules : IDcaRuleSet
                             var allowedAdapter = channel == Consumes.Api
                                 ? OutgoingAdapterNamespace(ns)
                                 : IncomingAdapterNamespace(ns);
-                            var channelNs = targetNs + "." + ChannelName(channel);
+                            var channelNs = targetNs + "." + ChannelName(arch, channel);
                             foreach (var type in TypesBelow(arch, ns).Where(t => !IsBelow(t, allowedAdapter)))
                             {
                                 if (DependsOnNamespace(type, channelNs))
                                 {
                                     violations.Add("Context '" + source + "' declares AntiCorruptionLayer towards '" + u.Context
-                                        + "' (" + ChannelName(channel) + ") — " + type.FullName + " uses upstream contract types"
+                                        + "' (" + ChannelName(arch, channel) + ") — " + type.FullName + " uses upstream contract types"
                                         + " outside " + allowedAdapter + "; translate them there into the context's own model");
                                 }
                             }
@@ -327,7 +327,7 @@ public sealed class ContextMapRules : IDcaRuleSet
                 var namespacesByName = NamespacesByName(arch);
                 foreach (var ns in arch.BoundedContextNamespaces)
                 {
-                    var source = ShortName(ns);
+                    var source = ShortName(arch, ns);
                     foreach (var u in arch.NamespaceAttributes<UpstreamAttribute>(ns))
                     {
                         if (u.Translation != Translation.Conformist || !namespacesByName.TryGetValue(u.Context, out var targetNs))
@@ -336,12 +336,12 @@ public sealed class ContextMapRules : IDcaRuleSet
                         }
                         foreach (var channel in u.Via)
                         {
-                            var channelNs = targetNs + "." + ChannelName(channel);
+                            var channelNs = targetNs + "." + ChannelName(arch, channel);
                             foreach (var type in TypesBelow(arch, DomainNamespace(ns)))
                             {
                                 if (DependsOnNamespace(type, channelNs))
                                 {
-                                    violations.Add("Context '" + source + "' conforms to '" + u.Context + "' (" + ChannelName(channel)
+                                    violations.Add("Context '" + source + "' conforms to '" + u.Context + "' (" + ChannelName(arch, channel)
                                         + "), but conformism does not suspend domain purity — " + type.FullName
                                         + " in the domain layer uses foreign contract types");
                                 }
@@ -366,7 +366,7 @@ public sealed class ContextMapRules : IDcaRuleSet
                 var violations = new List<string>();
                 foreach (var ns in arch.BoundedContextNamespaces)
                 {
-                    var source = ShortName(ns);
+                    var source = ShortName(arch, ns);
                     foreach (var e in arch.NamespaceAttributes<ExternalUpstreamAttribute>(ns))
                     {
                         if (e.ContractNamespaces.Length == 0)
@@ -417,7 +417,7 @@ public sealed class ContextMapRules : IDcaRuleSet
                 var contexts = arch.BoundedContextNamespaces;
                 foreach (var srcNs in contexts)
                 {
-                    var source = ShortName(srcNs);
+                    var source = ShortName(arch, srcNs);
                     var declared = DeclaredEdges(arch, srcNs);
                     var sourceTypes = TypesBelow(arch, srcNs).ToList();
                     foreach (var tgtNs in contexts)
@@ -426,8 +426,8 @@ public sealed class ContextMapRules : IDcaRuleSet
                         {
                             continue;
                         }
-                        var target = ShortName(tgtNs);
-                        foreach (var channel in Channels)
+                        var target = ShortName(arch, tgtNs);
+                        foreach (var channel in arch.Layout.PublishedSegments)
                         {
                             if (declared.Contains(target + " :: " + channel))
                             {
@@ -462,7 +462,7 @@ public sealed class ContextMapRules : IDcaRuleSet
                 var namespacesByName = NamespacesByName(arch);
                 foreach (var ns in arch.BoundedContextNamespaces)
                 {
-                    var source = ShortName(ns);
+                    var source = ShortName(arch, ns);
                     foreach (var p in arch.NamespaceAttributes<PartnershipAttribute>(ns))
                     {
                         if (!namespacesByName.TryGetValue(p.Context, out var partnerNs))
@@ -503,12 +503,12 @@ public sealed class ContextMapRules : IDcaRuleSet
                 Console.WriteLine("=== Context Map (declared) ===");
                 foreach (var ns in arch.BoundedContextNamespaces)
                 {
-                    var source = ShortName(ns);
+                    var source = ShortName(arch, ns);
                     foreach (var u in arch.NamespaceAttributes<UpstreamAttribute>(ns))
                     {
                         foreach (var channel in u.Via)
                         {
-                            Console.WriteLine("  " + source + " --[" + u.Translation + " / " + ChannelName(channel) + "]--> " + u.Context);
+                            Console.WriteLine("  " + source + " --[" + u.Translation + " / " + ChannelName(arch, channel) + "]--> " + u.Context);
                         }
                     }
                     foreach (var e in arch.NamespaceAttributes<ExternalUpstreamAttribute>(ns))
@@ -527,7 +527,6 @@ public sealed class ContextMapRules : IDcaRuleSet
     // Helpers
     // ---------------------------------------------------------------------------------------------
 
-    private static readonly string[] Channels = { ChannelName(Consumes.Api), ChannelName(Consumes.Events) };
 
     private static IEnumerable<string> AllRootNamespaces(DcaArchitecture arch)
     {
@@ -543,20 +542,21 @@ public sealed class ContextMapRules : IDcaRuleSet
     }
 
     private static HashSet<string> ModuleNames(DcaArchitecture arch) =>
-        new(arch.BoundedContextNamespaces.Select(ShortName), StringComparer.Ordinal);
+        new(arch.BoundedContextNamespaces.Select(arch.ContextName), StringComparer.Ordinal);
 
     private static Dictionary<string, string> NamespacesByName(DcaArchitecture arch) =>
-        arch.BoundedContextNamespaces.ToDictionary(ShortName, ns => ns, StringComparer.Ordinal);
+        arch.BoundedContextNamespaces.ToDictionary(arch.ContextName, ns => ns, StringComparer.Ordinal);
 
     /// <summary>All declared upstream edges of a context as "target :: channel" strings.</summary>
     private static HashSet<string> DeclaredEdges(DcaArchitecture arch, string contextNamespace) =>
         new(
             arch.NamespaceAttributes<UpstreamAttribute>(contextNamespace)
-                .SelectMany(u => u.Via.Select(c => u.Context + " :: " + ChannelName(c))),
+                .SelectMany(u => u.Via.Select(c => u.Context + " :: " + ChannelName(arch, c))),
             StringComparer.Ordinal);
 
-    /// <summary>The published-interface namespace segment of a channel (<c>Api</c> / <c>Events</c>).</summary>
-    private static string ChannelName(Consumes channel) => channel.ToString();
+    /// <summary>The published-interface namespace segment of a channel (<c>Api</c> / <c>Events</c>), per the layout.</summary>
+    private static string ChannelName(DcaArchitecture arch, Consumes channel) =>
+        channel == Consumes.Api ? arch.Layout.ApiSegment : arch.Layout.EventsSegment;
 
     private string DomainNamespace(string contextNamespace) => contextNamespace + "." + Layout.DomainSegment;
 
@@ -583,5 +583,5 @@ public sealed class ContextMapRules : IDcaRuleSet
     private static string NormalizedExternalId(string name) =>
         "ext_" + Regex.Replace(name.ToLower(CultureInfo.InvariantCulture), "[^a-z0-9]+", "_");
 
-    private static string ShortName(string contextNamespace) => DcaArchitecture.SimpleContextName(contextNamespace);
+    private static string ShortName(DcaArchitecture arch, string contextNamespace) => arch.ContextName(contextNamespace);
 }

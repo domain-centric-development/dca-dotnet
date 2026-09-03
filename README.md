@@ -88,6 +88,7 @@ assembly per bounded context? Pass them all — the rules work on namespaces.
 DcaLayout.ForRootNamespace("Acme.Shop")
     .WithIncomingSegment("In")                 // Adapter.In instead of Adapter.Incoming
     .WithOutgoingSegment("Out")
+    .WithApiSegment("Contract")                // published sync contract (default: Api); events: WithEventsSegment
     .WithUseCaseSuffix("ApplicationService")
     .WithRestControllerSuffix("Endpoint")
     .AllowingInDomain("NodaTime")              // extra namespaces allowed in the domain

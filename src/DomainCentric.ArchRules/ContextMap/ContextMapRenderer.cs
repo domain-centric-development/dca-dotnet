@@ -27,7 +27,6 @@ namespace DomainCentric.ArchRules.ContextMap;
 public sealed class ContextMapRenderer
 {
     /// <summary>Published-interface channels, as namespace segments below the context root (matched case-insensitively).</summary>
-    private static readonly string[] Channels = { "api", "events" };
 
     private readonly DcaArchitecture _arch;
     private bool _includeExternalSystems = true;
@@ -307,7 +306,7 @@ public sealed class ContextMapRenderer
     private List<string> PublishedInterfaces(string contextNamespace)
     {
         var published = new List<string>();
-        foreach (var channel in Channels)
+        foreach (var channel in _arch.Layout.PublishedSegments)
         {
             // Exact namespace-segment boundary — a plain prefix would also match "Apiary"/"EventSourcing".
             var root = contextNamespace + "." + channel;
@@ -316,7 +315,7 @@ public sealed class ContextMapRenderer
                 t.Namespace.FullName.StartsWith(root + ".", StringComparison.OrdinalIgnoreCase));
             if (hasTypes)
             {
-                published.Add(channel);
+                published.Add(channel.ToLowerInvariant());
             }
         }
 
@@ -351,9 +350,11 @@ public sealed class ContextMapRenderer
     private static string StatusSuffix(UpstreamStatus status) =>
         status == UpstreamStatus.Planned ? " / planned" : "";
 
-    private static string ChannelName(Consumes channel) => channel == Consumes.Api ? "api" : "events";
+    /// <summary>Channel label in the rendered map: the layout's published segment, lower-cased (<c>api</c> / <c>events</c>).</summary>
+    private string ChannelName(Consumes channel) =>
+        (channel == Consumes.Api ? _arch.Layout.ApiSegment : _arch.Layout.EventsSegment).ToLowerInvariant();
 
     private static string OrDash(string value) => value.Length == 0 ? "—" : value;
 
-    private static string ShortName(string ns) => ns.Substring(ns.LastIndexOf('.') + 1);
+    private string ShortName(string ns) => _arch.ContextName(ns);
 }

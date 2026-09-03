@@ -20,10 +20,20 @@ namespace DomainCentric.ArchRules;
 /// <para>Every <c>*Pattern</c> member returns a .NET regular expression over full namespace names,
 /// ready for ArchUnitNET's <c>ResideInNamespaceMatching(pattern)</c>. Layout segments are matched
 /// case-sensitively, exactly as written.</para>
-/// <para>The layout assumes one root namespace per application; each direct child namespace that
-/// carries a <c>[BoundedContext]</c> marker class is a bounded context (<c>Acme.Shop.Cart</c>), the one
-/// carrying <c>[SharedKernel]</c> is the shared kernel. Bounded contexts may live in one assembly or in
-/// one assembly each — the rules work on namespaces, so both layouts are supported.</para>
+/// <para>The layout assumes one root namespace per application. A namespace at any depth below it
+/// that carries a <c>[BoundedContext]</c> marker class is a bounded context (<c>Acme.Shop.Cart</c>,
+/// <c>Acme.Shop.Sales.Order</c>, or the root itself for a single-context application); the one carrying
+/// <c>[SharedKernel]</c> is the shared kernel. Bounded contexts may live in one assembly or in one
+/// assembly each — the rules work on namespaces, so both layouts are supported.</para>
+/// <para><b>Wildcard patterns versus discovered modules.</b> The parameterless <c>*Pattern</c>
+/// properties (<see cref="DomainPattern"/> and siblings) build <c>Root.[^.]+.Domain</c>, where the
+/// wildcard is exactly one segment — they only ever match a module that is a direct child of the root
+/// namespace. They are kept for tooling that needs a pattern without a loaded type graph. <b>The rules
+/// do not use them.</b> Every rule selects through <see cref="DcaArchitecture"/>'s discovery accessors
+/// (<c>AllDomainPatterns()</c>, <c>ContextDomainPatterns()</c>, …), built from the module roots and
+/// declared contexts actually present, and so works at any depth. The wildcard is deliberately not
+/// loosened to <c>.*</c>: that would also match any namespace merely <em>named</em> <c>Domain</c> further
+/// down, such as an outgoing adapter mapping to a foreign model.</para>
 /// </remarks>
 public sealed class DcaLayout
 {
@@ -49,6 +59,8 @@ public sealed class DcaLayout
         string incomingSegment,
         string outgoingSegment,
         string infrastructureSegment,
+        string apiSegment,
+        string eventsSegment,
         string useCaseSuffix,
         string restControllerSuffix,
         IReadOnlyList<string> thirdPartyNamespacesAllowedInDomain,
@@ -62,6 +74,13 @@ public sealed class DcaLayout
         IncomingSegment = RequireSegment(incomingSegment, nameof(incomingSegment));
         OutgoingSegment = RequireSegment(outgoingSegment, nameof(outgoingSegment));
         InfrastructureSegment = RequireSegment(infrastructureSegment, nameof(infrastructureSegment));
+        ApiSegment = RequireSegment(apiSegment, nameof(apiSegment));
+        EventsSegment = RequireSegment(eventsSegment, nameof(eventsSegment));
+        if (ApiSegment == EventsSegment)
+        {
+            throw new ArgumentException($"apiSegment and eventsSegment must differ, both are '{ApiSegment}'", nameof(eventsSegment));
+        }
+
         UseCaseSuffix = RequireSegment(useCaseSuffix, nameof(useCaseSuffix));
         RestControllerSuffix = RequireSegment(restControllerSuffix, nameof(restControllerSuffix));
         ThirdPartyNamespacesAllowedInDomain = thirdPartyNamespacesAllowedInDomain.ToArray();
@@ -79,6 +98,8 @@ public sealed class DcaLayout
             "Incoming",
             "Outgoing",
             "Infrastructure",
+            "Api",
+            "Events",
             "UseCase",
             "Controller",
             DefaultThirdPartyAllowedInDomain,
@@ -106,6 +127,19 @@ public sealed class DcaLayout
     public string IncomingSegment { get; }
     public string OutgoingSegment { get; }
     public string InfrastructureSegment { get; }
+
+    /// <summary>Segment of a module's <em>synchronous</em> published contract (<c>Api</c> by default).</summary>
+    public string ApiSegment { get; }
+
+    /// <summary>Segment of a module's <em>asynchronous</em> published contract — its integration events (<c>Events</c> by default).</summary>
+    public string EventsSegment { get; }
+
+    /// <summary>
+    /// The published segments of a module, <see cref="ApiSegment"/> then <see cref="EventsSegment"/>:
+    /// DCA's in-process contract convention — namespace names, not framework attributes — and the only
+    /// part of a module another module's adapters may depend on.
+    /// </summary>
+    public IReadOnlyList<string> PublishedSegments => new[] { ApiSegment, EventsSegment };
 
     /// <summary>Suffix of use-case implementations, e.g. <c>UseCase</c> or <c>ApplicationService</c>.</summary>
     public string UseCaseSuffix { get; }
@@ -143,6 +177,16 @@ public sealed class DcaLayout
 
     public DcaLayout WithInfrastructureSegment(string value) => Copy(infrastructure: value);
 
+    /// <summary>
+    /// Segment of a module's synchronous published contract, e.g. <c>Api</c> (default) or <c>Contract</c>.
+    /// Together with <see cref="WithEventsSegment"/> it is the only part of a module another module's
+    /// adapters may depend on; the context-map rules and renderer use the same name for the channel.
+    /// </summary>
+    public DcaLayout WithApiSegment(string value) => Copy(api: value);
+
+    /// <summary>Segment of a module's asynchronous published contract — its integration events — e.g. <c>Events</c> (default).</summary>
+    public DcaLayout WithEventsSegment(string value) => Copy(events: value);
+
     public DcaLayout WithUseCaseSuffix(string value) => Copy(useCaseSuffix: value);
 
     public DcaLayout WithRestControllerSuffix(string value) => Copy(restControllerSuffix: value);
@@ -165,6 +209,8 @@ public sealed class DcaLayout
         string? incoming = null,
         string? outgoing = null,
         string? infrastructure = null,
+        string? api = null,
+        string? events = null,
         string? useCaseSuffix = null,
         string? restControllerSuffix = null,
         IReadOnlyList<string>? thirdParty = null,
@@ -178,6 +224,8 @@ public sealed class DcaLayout
             incoming ?? IncomingSegment,
             outgoing ?? OutgoingSegment,
             infrastructure ?? InfrastructureSegment,
+            api ?? ApiSegment,
+            events ?? EventsSegment,
             useCaseSuffix ?? UseCaseSuffix,
             restControllerSuffix ?? RestControllerSuffix,
             thirdParty ?? ThirdPartyNamespacesAllowedInDomain,
@@ -254,6 +302,20 @@ public sealed class DcaLayout
     /// Literal parts are escaped; <see cref="Segment"/> wildcards are kept.
     /// </summary>
     public static string Below(string ns) => $"^{EscapeKeepingSegments(ns)}(\\..*)?$";
+
+    /// <summary>
+    /// Alternation of complete namespace patterns (each already anchored). An empty list yields a
+    /// pattern that matches nothing — never an empty string, which would match everything.
+    /// </summary>
+    public static string AnyOf(IEnumerable<string> patterns)
+    {
+        var list = patterns.ToList();
+        return list.Count == 0 ? "(?!)" : string.Join("|", list.Select(p => $"(?:{p})"));
+    }
+
+    /// <summary>ArchUnit's <c>..A.B..</c>: the dotted path appears anywhere on segment boundaries.</summary>
+    public static string AnySegmentPath(string dottedPath) =>
+        @"^(?:.*\.)?" + Regex.Escape(dottedPath) + @"(?:\..*)?$";
 
     /// <summary>Regex matching exactly <paramref name="ns"/> (no sub-namespaces).</summary>
     public static string Exactly(string ns) => $"^{EscapeKeepingSegments(ns)}$";

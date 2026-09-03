@@ -55,7 +55,7 @@ public sealed class LayeredRules : IDcaRuleSet
             "DCA-LAY-002",
             "Domain must not have dependencies on Infrastructure",
             "Domain should not depend on infrastructure concerns (Dependency Inversion Principle)",
-            arch => Types().That().ResideInNamespaceMatching(Layout.DomainPattern)
+            arch => Types().That().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns()))
                 .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(Layout.InfrastructurePattern));
 
     public IDcaRule ApplicationMustNotUseInfrastructureImplementations() =>
@@ -64,7 +64,7 @@ public sealed class LayeredRules : IDcaRuleSet
             "Application Services must only use outbound ports (not infrastructure implementations)",
             "Application services should only use outbound ports declared as interfaces (Ports.Out), not"
                 + " infrastructure implementation details",
-            arch => Types().That().ResideInNamespaceMatching(Layout.ApplicationPattern)
+            arch => Types().That().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllApplicationPatterns()))
                 .Should().NotDependOnAnyTypesThat()
                 .FollowCustomPredicate(arch.IsInfrastructureImplementation, "are infrastructure implementations"));
 
@@ -83,12 +83,10 @@ public sealed class LayeredRules : IDcaRuleSet
             rationale,
             arch =>
             {
+                // Structural, over every module root: the application layer and the outgoing adapters
+                // (which implement the transaction boundary) of any module, at any depth.
                 var allowed = new Regex(
-                    HexagonalRules.AnyOf(new[]
-                    {
-                        Layout.ApplicationPattern,
-                        DcaLayout.Below($"{Layout.RootNamespace}.{DcaLayout.Segment}.{Layout.AdapterSegment}.{Layout.OutgoingSegment}"),
-                    }));
+                    DcaLayout.AnyOf(arch.AllApplicationPatterns().Concat(arch.AllOutgoingAdapterPatterns())));
                 var transactionType = Layout.FrameworkTypes.TransactionScope;
                 var violations = arch.Types
                     .Where(t => t.Dependencies.Any(d => d.Target.FullName == transactionType))

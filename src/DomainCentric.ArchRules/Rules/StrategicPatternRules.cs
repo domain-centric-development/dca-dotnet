@@ -5,6 +5,8 @@ using DomainCentric.BuildingBlocks.Ddd.Strategic.Relationships;
 using DomainCentric.BuildingBlocks.Ddd.Tactical;
 using static ArchUnitNET.Fluent.ArchRuleDefinition;
 
+using ArchUnitNET.Fluent;
+
 namespace DomainCentric.ArchRules.Rules;
 
 /// <summary>
@@ -26,7 +28,7 @@ public sealed class StrategicPatternRules : IDcaRuleSet
             SharedKernelMustNotDependOnBoundedContexts(),
             ApplicationLayerIsolation(),
             DomainLayerIsolation(),
-            OpenHostServicesResideInApiOrOpenHostNamespaces(),
+            OpenHostServicesResideInApiOrIncomingAdapter(),
             OutgoingAdaptersOnlyUseOpenHostServices(),
             IntegrationEventsResideInEventsNamespaces(),
             IntegrationEventsAreRecords(),
@@ -93,114 +95,138 @@ public sealed class StrategicPatternRules : IDcaRuleSet
             });
     }
 
-    /// <summary>DCA-STR-003.</summary>
+    /// <summary>
+    /// DCA-STR-003. Selects over every module that owns a DCA layer (<see cref="DcaArchitecture.IsolatedModuleRoots"/>),
+    /// declared as a bounded context or not — on the source side and on the target side. A module must not be able
+    /// to escape isolation, or to have its internals reached into, by staying off the context map.
+    /// </summary>
     public IDcaRule ApplicationLayerIsolation()
     {
-        const string title = "Bounded contexts must not directly access each other in application layer (except allowed dependencies)";
+        const string title = "Modules must not access each other in the application layer";
+        const string rationale = "An application layer talks to other modules through its own output ports, implemented by"
+            + " adapters - never directly. Selects structurally over every module that owns a DCA"
+            + " layer, declared as a bounded context or not: an undeclared module must not be able"
+            + " to escape isolation by staying off the context map";
         return DcaRule.Check(
             "DCA-STR-003",
             title,
-            "Application layers talk to other contexts through output ports and adapters, never directly",
+            rationale,
             arch =>
             {
-                foreach (var source in arch.BoundedContexts)
+                var perModule = new List<IArchRule>();
+                foreach (var source in arch.IsolatedModuleRoots())
                 {
-                    var forbidden = arch.BoundedContextPatternsExcluding(source.Key);
+                    var forbidden = arch.ModuleRootPatternsExcluding(source);
                     if (forbidden.Length == 0)
                     {
                         continue;
                     }
+
                     // Dependencies, not accesses: a field, parameter or record component of a foreign
                     // type is a dependency even without a method call.
-                    DcaRule.Evaluate(
-                        Types().That().ResideInNamespaceMatching(Layout.ApplicationPatternOf(source.Key))
-                            .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(AnyOf(forbidden)),
-                        arch,
-                        title,
-                        "Application layer of bounded context '" + source.Value.Name
-                            + "' must not access other contexts directly - define output ports and use adapters instead");
+                    perModule.Add(
+                        Types().That().ResideInNamespaceMatching(Layout.ApplicationPatternOf(source))
+                            .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(AnyOf(forbidden))
+                            .Because("The application layer of module '" + arch.ContextName(source)
+                                + "' must not access other modules directly - define output ports and use adapters instead"));
                 }
+
+                DcaRule.EvaluateAll(perModule, arch, title, rationale);
             });
     }
 
     /// <summary>DCA-STR-004.</summary>
     public IDcaRule DomainLayerIsolation()
     {
-        const string title = "Bounded contexts must not access each other in the domain layer";
+        const string title = "Modules must not access each other in the domain layer";
+        const string rationale = "A domain layer talks to its own module and the shared kernel, nothing else - not even"
+            + " another module's api/. Selects structurally over every module that owns a DCA layer,"
+            + " declared as a bounded context or not";
         return DcaRule.Check(
             "DCA-STR-004",
             title,
-            "A domain layer talks to its own context and the shared kernel, nothing else — not even another context's Api/",
+            rationale,
             arch =>
             {
-                foreach (var source in arch.BoundedContexts)
+                var perModule = new List<IArchRule>();
+                foreach (var source in arch.IsolatedModuleRoots())
                 {
-                    var forbidden = arch.BoundedContextPatternsExcluding(source.Key);
+                    var forbidden = arch.ModuleRootPatternsExcluding(source);
                     if (forbidden.Length == 0)
                     {
                         continue;
                     }
-                    DcaRule.Evaluate(
-                        Types().That().ResideInNamespaceMatching(Layout.DomainPatternOf(source.Key))
-                            .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(AnyOf(forbidden)),
-                        arch,
-                        title,
-                        "The domain layer of bounded context '" + source.Value.Name
-                            + "' must depend on nothing outside its own context and the shared kernel");
+
+                    perModule.Add(
+                        Types().That().ResideInNamespaceMatching(Layout.DomainPatternOf(source))
+                            .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(AnyOf(forbidden))
+                            .Because("The domain layer of module '" + arch.ContextName(source)
+                                + "' must depend on nothing outside its own module and the shared kernel"));
                 }
+
+                DcaRule.EvaluateAll(perModule, arch, title, rationale);
             });
     }
 
-    /// <summary>DCA-STR-005.</summary>
-    public IDcaRule OpenHostServicesResideInApiOrOpenHostNamespaces() =>
+    /// <summary>
+    /// DCA-STR-005. An Open Host Service is a relationship pattern, not a transport: the published protocol one
+    /// context offers to many consumers. In-process it is the <c>Api</c> namespace; over the network it is an
+    /// incoming adapter (REST, gRPC, MCP, ...). Which sub-namespace of the incoming adapter it sits in is the
+    /// project's business.
+    /// </summary>
+    public IDcaRule OpenHostServicesResideInApiOrIncomingAdapter() =>
         DcaRule.Of(
             "DCA-STR-005",
-            "Open Host Services must reside in Api or Adapter.Incoming.OpenHost namespaces",
-            "Open Host Services expose context capabilities via Api/ namespaces (published named interface) or"
-                + " Adapter.Incoming.OpenHost/ namespaces",
+            "Open Host Services must be published: in the api package or as an incoming adapter",
+            "An Open Host Service is the protocol a context publishes for other contexts - in-process"
+                + " as its api/ package, over the network as an incoming adapter (REST, gRPC, MCP). It"
+                + " belongs at the context boundary, never in the domain or application layer; the"
+                + " adapter's sub-package is irrelevant",
             arch =>
                 Types().That().HaveAnyAttributes(typeof(OpenHostServiceAttribute))
-                    .Should().ResideInNamespaceMatching(AnyOf(AnySegment("Api"), OpenHostAdapterPattern())));
+                    .Should().ResideInNamespaceMatching(AnyOf(
+                        AnySegment(Layout.ApiSegment),
+                        AnySegmentPath(Layout.AdapterSegment + "." + Layout.IncomingSegment))));
 
-    private string OpenHostAdapterPattern() =>
-        AnySegmentPath(Layout.AdapterSegment + "." + Layout.IncomingSegment + ".OpenHost");
-
-    /// <summary>DCA-STR-006.</summary>
+    /// <summary>
+    /// DCA-STR-006. The allow-list is the namespace convention <c>Api</c> / <c>Events</c> of the target module —
+    /// DCA's in-process contract, a convention of the architecture and not of any framework. Everything else in
+    /// a foreign module (its domain, application, adapters, infrastructure) is internal.
+    /// </summary>
     public IDcaRule OutgoingAdaptersOnlyUseOpenHostServices()
     {
-        const string title = "Outgoing adapters accessing other contexts must only use OpenHostService classes (except allowed ACL patterns)";
+        const string title = "Outgoing adapters accessing other modules must only use their published api/ and events/"
+            + " packages";
+        const string rationale = "Cross-module communication goes through the target's published api/ (synchronous) and"
+            + " events/ (asynchronous) packages - DCA's in-process contract convention, package"
+            + " names rather than framework annotations - never through its domain, application,"
+            + " adapter or infrastructure packages. Selects structurally over every module that owns"
+            + " a DCA layer, declared as a bounded context or not";
         return DcaRule.Check(
             "DCA-STR-006",
             title,
-            "Cross-context communication goes through the published Api/ and Events/ namespaces, never through"
-                + " another context's domain or application layer",
+            rationale,
             arch =>
             {
-                var contexts = arch.BoundedContexts;
-                foreach (var source in contexts)
+                var perModule = new List<IArchRule>();
+                foreach (var source in arch.IsolatedModuleRoots())
                 {
-                    foreach (var target in contexts)
+                    var foreign = arch.ModuleRootPatternsExcluding(source);
+                    if (foreign.Length == 0)
                     {
-                        if (target.Key == source.Key)
-                        {
-                            continue;
-                        }
-                        DcaRule.Evaluate(
-                            Types().That().ResideInNamespaceMatching(Layout.OutgoingAdapterPatternOf(source.Key))
-                                .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(Layout.DomainPatternOf(target.Key)),
-                            arch,
-                            title,
-                            "Outgoing adapters in '" + source.Value.Name + "' must not access domain layer of '"
-                                + target.Value.Name + "' - use Api/ or Events/ namespaces instead");
-                        DcaRule.Evaluate(
-                            Types().That().ResideInNamespaceMatching(Layout.OutgoingAdapterPatternOf(source.Key))
-                                .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(Layout.ApplicationPatternOf(target.Key)),
-                            arch,
-                            title,
-                            "Outgoing adapters in '" + source.Value.Name + "' must not access application layer of '"
-                                + target.Value.Name + "' - use Api/ or Events/ namespaces instead");
+                        continue;
                     }
+
+                    // Foreign internals = anything in another module except its published Api/Events namespaces.
+                    var internals = "(?!" + AnyOf(arch.PublishedPatternsExcluding(source)) + ")(?:" + AnyOf(foreign) + ")";
+                    perModule.Add(
+                        Types().That().ResideInNamespaceMatching(Layout.OutgoingAdapterPatternOf(source))
+                            .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(internals)
+                            .Because("Outgoing adapters in module '" + arch.ContextName(source)
+                                + "' must not access another module's internals - use its api/ or events/ packages instead"));
                 }
+
+                DcaRule.EvaluateAll(perModule, arch, title, rationale);
             });
     }
 
@@ -212,7 +238,7 @@ public sealed class StrategicPatternRules : IDcaRuleSet
             "Integration Events must be in Events/ namespaces (published named interface) or Adapter.Outgoing.Event/ namespaces",
             arch =>
                 Types().That().ImplementInterface(typeof(IIntegrationEvent))
-                    .Should().ResideInNamespaceMatching(AnyOf(AnySegment("Events"), OutgoingEventAdapterPattern())));
+                    .Should().ResideInNamespaceMatching(AnyOf(AnySegment(Layout.EventsSegment), OutgoingEventAdapterPattern())));
 
     private string OutgoingEventAdapterPattern() =>
         AnySegmentPath(Layout.AdapterSegment + "." + Layout.OutgoingSegment + ".Event");
@@ -261,13 +287,11 @@ public sealed class StrategicPatternRules : IDcaRuleSet
     // ---------------------------------------------------------------------------------------------
 
     /// <summary>Alternation of complete namespace patterns (each already anchored).</summary>
-    private static string AnyOf(params string[] patterns) =>
-        string.Join("|", patterns.Select(p => "(?:" + p + ")"));
+    private static string AnyOf(params string[] patterns) => DcaLayout.AnyOf(patterns);
 
     /// <summary>ArchUnit <c>..Segment..</c>: the segment appears anywhere in the namespace.</summary>
     private static string AnySegment(string segment) => AnySegmentPath(segment);
 
     /// <summary>ArchUnit <c>..A.B..</c>: the dotted path appears anywhere on segment boundaries.</summary>
-    private static string AnySegmentPath(string dottedPath) =>
-        "^(?:.*\\.)?" + System.Text.RegularExpressions.Regex.Escape(dottedPath) + "(?:\\..*)?$";
+    private static string AnySegmentPath(string dottedPath) => DcaLayout.AnySegmentPath(dottedPath);
 }

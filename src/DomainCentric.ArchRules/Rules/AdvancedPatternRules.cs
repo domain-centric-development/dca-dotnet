@@ -93,7 +93,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 .And()
                 .FollowCustomPredicate(t => t is not Interface, "are not interfaces")
                 .Should()
-                .ResideInNamespaceMatching(Layout.DomainPattern));
+                .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns())));
 
     public IDcaRule DomainEventsAreImmutable() =>
         DcaRule.Check(
@@ -104,7 +104,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 "Domain Events that are not records must be sealed:",
                 Violations(
                     arch,
-                    t => t is Class c && c.IsRecord != true && InDomain(t) && IsDomainEvent(t),
+                    t => t is Class c && c.IsRecord != true && InDomain(arch, t) && IsDomainEvent(t),
                     t => ((Class)t).IsSealed != true,
                     t => $"{t.FullName} is neither a record nor sealed")));
 
@@ -115,7 +115,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
             "Domain events must be framework-independent plain objects",
             arch => FailOnFrameworkAttributes(
                 arch,
-                t => InDomain(t) && IsDomainEvent(t),
+                t => InDomain(arch, t) && IsDomainEvent(t),
                 "Domain Events must not carry framework attributes:"));
 
     public IDcaRule IntegrationEventsAreAnnotatedWithIntegrationEventType() =>
@@ -208,7 +208,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 .And()
                 .FollowCustomPredicate(t => t is not Interface, "are not interfaces")
                 .Should()
-                .ResideInNamespaceMatching(Layout.DomainPattern));
+                .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns())));
 
     public IDcaRule DomainServicesHaveNoFrameworkAttributes() =>
         DcaRule.Check(
@@ -229,7 +229,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 "Domain Services must have only readonly fields:",
                 NonReadonlyFieldViolations(
                     arch,
-                    t => t is not Interface && InDomain(t) && t.IsAssignableTo(typeof(IDomainService).FullName!))));
+                    t => t is not Interface && InDomain(arch, t) && t.IsAssignableTo(typeof(IDomainService).FullName!))));
 
     // ============================================================================
     // FACTORIES PATTERN
@@ -259,7 +259,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 .And()
                 .FollowCustomPredicate(t => t is not Interface, "are not interfaces")
                 .Should()
-                .ResideInNamespaceMatching(Layout.DomainPattern));
+                .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns())));
 
     public IDcaRule FactoriesHaveNoFrameworkAttributes() =>
         DcaRule.Check(
@@ -268,7 +268,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
             "Factories should be framework-independent",
             arch => FailOnFrameworkAttributes(
                 arch,
-                t => t is not Interface && InDomain(t) && t.IsAssignableTo(typeof(IFactory).FullName!),
+                t => t is not Interface && InDomain(arch, t) && t.IsAssignableTo(typeof(IFactory).FullName!),
                 "Factories must not carry framework attributes:"));
 
     public IDcaRule FactoriesAreStateless() =>
@@ -280,7 +280,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 "Factories must have only readonly fields:",
                 NonReadonlyFieldViolations(
                     arch,
-                    t => t is not Interface && InDomain(t) && t.IsAssignableTo(typeof(IFactory).FullName!))));
+                    t => t is not Interface && InDomain(arch, t) && t.IsAssignableTo(typeof(IFactory).FullName!))));
 
     // ============================================================================
     // SPECIFICATION PATTERN
@@ -299,7 +299,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 .And()
                 .DoNotHaveName("Specification")
                 .Should()
-                .ResideInNamespaceMatching(Layout.DomainPattern));
+                .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns())));
 
     public IDcaRule SpecificationsHaveNoFrameworkAttributes() =>
         DcaRule.Check(
@@ -308,7 +308,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
             "Specifications should be framework-independent value objects",
             arch => FailOnFrameworkAttributes(
                 arch,
-                t => InDomain(t) && t.Name.EndsWith("Specification", StringComparison.Ordinal),
+                t => InDomain(arch, t) && t.Name.EndsWith("Specification", StringComparison.Ordinal),
                 "Specifications must not carry framework attributes:"));
 
     // ============================================================================
@@ -318,8 +318,8 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
     private string DomainServicePattern() =>
         $"^.*\\.{Regex.Escape(Layout.DomainSegment)}\\.Service(\\..*)?$";
 
-    private bool InDomain(IType type) =>
-        type.Namespace is not null && Regex.IsMatch(type.Namespace.FullName, Layout.DomainPattern);
+    private static bool InDomain(DcaArchitecture arch, IType type) =>
+        type.Namespace is not null && Regex.IsMatch(type.Namespace.FullName, DcaLayout.AnyOf(arch.AllDomainPatterns()));
 
     private static bool IsDomainEvent(IType type) => type.IsAssignableTo(typeof(IDomainEvent).FullName!);
 
@@ -398,7 +398,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
             foreach (var attribute in runtime.GetCustomAttributesData())
             {
                 var attributeType = attribute.AttributeType;
-                if (!IsAllowedAttribute(attributeType))
+                if (!IsAllowedAttribute(arch, attributeType))
                 {
                     violations.Add($"{type.FullName} is annotated with framework attribute [{attributeType.FullName}]");
                 }
@@ -408,12 +408,12 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
         DcaRule.Fail(header, violations, "Register the type in the container by code; keep the domain free of framework attributes.");
     }
 
-    private bool IsAllowedAttribute(Type attributeType)
+    private bool IsAllowedAttribute(DcaArchitecture arch, Type attributeType)
     {
         var ns = attributeType.Namespace ?? string.Empty;
         return Layout.ThirdPartyNamespacesAllowedInDomain.Any(prefix => DcaLayout.IsBelow(ns, prefix))
             || DcaLayout.IsBelow(ns, DcaLayout.BuildingBlocksNamespace)
-            || Regex.IsMatch(ns, Layout.DomainPattern);
+            || Regex.IsMatch(ns, DcaLayout.AnyOf(arch.AllDomainPatterns()));
     }
 
     private static List<string> Violations(

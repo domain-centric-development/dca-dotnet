@@ -303,29 +303,29 @@
   {
     "set": "strategic",
     "id": "DCA-STR-003",
-    "title": "Bounded contexts must not directly access each other in application layer (except allowed dependencies)",
-    "rationale": "Application layers talk to other contexts through output ports and adapters, never directly",
+    "title": "Modules must not access each other in the application layer",
+    "rationale": "An application layer talks to other modules through its own output ports, implemented by adapters - never directly. Selects structurally over every module that owns a DCA layer, declared as a bounded context or not: an undeclared module must not be able to escape isolation by staying off the context map",
     "implementation": "dotnet"
   },
   {
     "set": "strategic",
     "id": "DCA-STR-004",
-    "title": "Bounded contexts must not access each other in the domain layer",
-    "rationale": "A domain layer talks to its own context and the shared kernel, nothing else — not even another context's Api/",
+    "title": "Modules must not access each other in the domain layer",
+    "rationale": "A domain layer talks to its own module and the shared kernel, nothing else - not even another module's api/. Selects structurally over every module that owns a DCA layer, declared as a bounded context or not",
     "implementation": "dotnet"
   },
   {
     "set": "strategic",
     "id": "DCA-STR-005",
-    "title": "Open Host Services must reside in Api or Adapter.Incoming.OpenHost namespaces",
-    "rationale": "Open Host Services expose context capabilities via Api/ namespaces (published named interface) or Adapter.Incoming.OpenHost/ namespaces",
+    "title": "Open Host Services must be published: in the api package or as an incoming adapter",
+    "rationale": "An Open Host Service is the protocol a context publishes for other contexts - in-process as its api/ package, over the network as an incoming adapter (REST, gRPC, MCP). It belongs at the context boundary, never in the domain or application layer; the adapter's sub-package is irrelevant",
     "implementation": "dotnet"
   },
   {
     "set": "strategic",
     "id": "DCA-STR-006",
-    "title": "Outgoing adapters accessing other contexts must only use OpenHostService classes (except allowed ACL patterns)",
-    "rationale": "Cross-context communication goes through the published Api/ and Events/ namespaces, never through another context's domain or application layer",
+    "title": "Outgoing adapters accessing other modules must only use their published api/ and events/ packages",
+    "rationale": "Cross-module communication goes through the target's published api/ (synchronous) and events/ (asynchronous) packages - DCA's in-process contract convention, package names rather than framework annotations - never through its domain, application, adapter or infrastructure packages. Selects structurally over every module that owns a DCA layer, declared as a bounded context or not",
     "implementation": "dotnet"
   },
   {
