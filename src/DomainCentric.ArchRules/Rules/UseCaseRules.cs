@@ -15,7 +15,8 @@ namespace DomainCentric.ArchRules.Rules;
 /// <summary>
 /// Use case and mapping patterns: the generic input-port contract, Command/Query/Result models, HTTP
 /// response models, domain-event publication after saving, DTO-free inner layers, and one consistent
-/// use-case namespace depth per module (flat, or grouped by feature).
+/// use-case namespace depth per module (flat, or grouped by feature), and results that carry values
+/// rather than aggregate roots or entities.
 /// </summary>
 public sealed class UseCaseRules : IDcaRuleSet
 {
@@ -43,6 +44,7 @@ public sealed class UseCaseRules : IDcaRuleSet
             NoDtosInDomain(layout),
             NoDtosInApplication(layout),
             UseCasePackagesUseOneDepth(layout),
+            ResultsMustNotExposeAggregatesOrEntities(layout),
         };
     }
 
@@ -289,6 +291,135 @@ public sealed class UseCaseRules : IDcaRuleSet
             violations,
             "keep every use case of the module at Application.<UseCase>, or group all of them as Application.<Feature>.<UseCase>");
     }
+
+    /// <summary>
+    /// A use case result carries the answer, not the model: no property, field or generic type argument of a
+    /// <c>*Result</c> type in an application namespace may be assignable to <see cref="IAggregateRoot"/> or
+    /// <see cref="IEntity"/>. The walk is transitive: it follows nested records, part records anywhere in the
+    /// application layer (<c>Application.Shared</c> included; parts carry no <c>Result</c> suffix), arrays, generic
+    /// arguments (<c>IReadOnlyList&lt;T&gt;</c>, <c>IReadOnlyDictionary&lt;K,V&gt;</c>) and <c>Nullable&lt;T&gt;</c>,
+    /// and reports the member path of every
+    /// identity it finds. Domain value objects named <c>*Result</c> (<see cref="IValue"/>) are not results.
+    /// </summary>
+    public static IDcaRule ResultsMustNotExposeAggregatesOrEntities(DcaLayout layout) =>
+        DcaRule.Check(
+            "DCA-USE-015",
+            "Use Case Result Models must not expose aggregate roots or entities",
+            "A result is the use case's answer, not a handle on the model: identity and behaviour stay behind"
+                + " the port; values, enriched models and read models may cross. Checked transitively through"
+                + " nested records, part records anywhere in the application layer (Application.Shared included),"
+                + " arrays and generic type arguments (IReadOnlyList<T>, T?, IReadOnlyDictionary<K,V>)",
+            CheckResultsCarryNoIdentities);
+
+    private static void CheckResultsCarryNoIdentities(DcaArchitecture arch)
+    {
+        var application = DcaLayout.AnyOf(arch.AllApplicationPatterns());
+        var violations = new List<string>();
+        foreach (var result in arch.Classes
+            .Where(c => c.Namespace is not null
+                && Matches(c.Namespace.FullName, application)
+                && c.Name.EndsWith("Result", StringComparison.Ordinal)
+                && !IsAssignableTo(arch, c, typeof(IValue)))
+            .OrderBy(c => c.FullName, StringComparer.Ordinal))
+        {
+            var runtime = arch.RuntimeType(result);
+            if (runtime is null)
+            {
+                continue;
+            }
+
+            WalkResultMembers(application, runtime, runtime.Name, new HashSet<Type>(), violations);
+        }
+
+        DcaRule.Fail(
+            "Use Case Result Models must not expose aggregate roots or entities",
+            violations.Distinct().OrderBy(v => v, StringComparer.Ordinal).ToList(),
+            "carry ids, values, read models or snapshots instead");
+    }
+
+    private static void WalkResultMembers(string application, Type type, string path, ISet<Type> visited, ICollection<string> violations)
+    {
+        if (!visited.Add(type))
+        {
+            return;
+        }
+
+        const BindingFlags members = BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly;
+        var memberTypes = type.GetProperties(members).Select(p => (p.Name, p.PropertyType))
+            .Concat(type.GetFields(members).Select(f => (f.Name, f.FieldType)));
+        foreach (var (name, memberType) in memberTypes)
+        {
+            if (name == "EqualityContract")
+            {
+                continue;
+            }
+
+            CheckResultMemberType(application, memberType, $"{path}.{name}", visited, violations);
+        }
+    }
+
+    /// <summary>
+    /// One member type: an identity is a violation; an array is checked through its element type; a generic
+    /// instantiation through every type argument <em>and</em> its own members (a generic part record may hide an
+    /// identity next to its type parameter); a part record through its members.
+    /// </summary>
+    private static void CheckResultMemberType(string application, Type type, string path, ISet<Type> visited, ICollection<string> violations)
+    {
+        var identity = IdentityMarkerOf(type);
+        if (identity is not null)
+        {
+            violations.Add($"{path} : {type.Name} ({identity})");
+            return;
+        }
+
+        if (type.IsArray)
+        {
+            CheckResultMemberType(application, type.GetElementType()!, path, visited, violations);
+            return;
+        }
+
+        if (type.IsGenericType)
+        {
+            foreach (var argument in type.GetGenericArguments())
+            {
+                CheckResultMemberType(application, argument, path, visited, violations);
+            }
+        }
+
+        if (IsPartRecord(application, type))
+        {
+            WalkResultMembers(application, type, $"{path} -> {PlainName(type)}", visited, violations);
+        }
+    }
+
+    /// <summary>
+    /// A part record: a record (class or struct) declared in an application namespace — nested in the result, next
+    /// to it, or shared in <c>Application.Shared</c>. Types from other layers (value objects, read models) are values
+    /// by contract and are not walked; BCL and generic parameters never are.
+    /// </summary>
+    private static bool IsPartRecord(string application, Type type) =>
+        !type.IsGenericParameter
+        && !type.IsPrimitive
+        && !type.IsEnum
+        && type.Namespace is not null
+        && Matches(type.Namespace, application)
+        && IsRecord(type);
+
+    /// <summary>Record classes synthesize <c>&lt;Clone&gt;$</c>; record structs synthesize <c>PrintMembers</c> and <c>Deconstruct</c> like record classes do.</summary>
+    private static bool IsRecord(Type type) =>
+        type.GetMethod("<Clone>$", BindingFlags.Public | BindingFlags.Instance) is not null
+        || (type.IsValueType && type.GetMethod("PrintMembers", BindingFlags.NonPublic | BindingFlags.Instance) is not null);
+
+    private static string PlainName(Type type)
+    {
+        var tick = type.Name.IndexOf('`');
+        return tick >= 0 ? type.Name.Substring(0, tick) : type.Name;
+    }
+
+    private static string? IdentityMarkerOf(Type type) =>
+        typeof(IAggregateRoot).IsAssignableFrom(type) ? nameof(IAggregateRoot)
+        : typeof(IEntity).IsAssignableFrom(type) ? nameof(IEntity)
+        : null;
 
     private static void ImmutableApplicationModels(DcaArchitecture arch, string suffix)
     {

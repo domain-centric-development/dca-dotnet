@@ -7,6 +7,7 @@ using DomainCentric.ArchRules.Tests.Fixtures.Hexagonal.Bad.Ordering.Adapter.Outg
 using DomainCentric.ArchRules.Tests.Fixtures.Hexagonal.Bad.Ordering.Application.PlaceOrder;
 using DomainCentric.ArchRules.Tests.Fixtures.Hexagonal.Bad.Ordering.Application.Shared;
 using DomainCentric.ArchRules.Tests.Fixtures.Hexagonal.Bad.Ordering.Domain.Model;
+using DomainCentric.ArchRules.Tests.Fixtures.Hexagonal.Bad.Ordering.Domain.Service;
 using DomainCentric.ArchRules.Tests.Fixtures.Hexagonal.Bad.SharedKernel.Domain.Model;
 
 namespace DomainCentric.ArchRules.Tests.Fixtures.Hexagonal.Bad.Ordering.Adapter.Incoming;
@@ -18,12 +19,18 @@ public sealed class OrderController : ControllerBase
 {
     private readonly IOrderRepository _orders = new InMemoryOrderRepository(); // DCA-HEX-003 (repository) + DCA-HEX-006 (outgoing adapter)
     private readonly PlaceOrderUseCase _placeOrder = null!; // DCA-HEX-011: the use case class instead of its input port
+    private readonly PricingPolicy _pricing; // DCA-HEX-012: a domain service injected into an incoming adapter
+
+    public OrderController(PricingPolicy pricing)
+    {
+        _pricing = pricing;
+    }
 
     public Task<Order> Place(decimal amount, CancellationToken cancellationToken)
     {
         using var scope = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled); // DCA-LAY-004: transaction in incoming adapter
         _ = InMemoryConfig.OrderRepository(); // DCA-HEX-004: incoming adapter -> infrastructure implementation
-        var order = Order.Place(new Money(amount, "EUR"));
+        var order = Order.Place(_pricing.Discounted(new Money(amount, "EUR")));
         scope.Complete();
         return _orders.SaveAsync(order, cancellationToken);
     }

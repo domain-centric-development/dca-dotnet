@@ -5,6 +5,8 @@ using System.Text.RegularExpressions;
 using ArchUnitNET.Domain;
 using ArchUnitNET.Fluent;
 using ArchUnitNET.Domain.Extensions;
+using System.Reflection;
+using DomainCentric.BuildingBlocks.Ddd.Tactical;
 using DomainCentric.BuildingBlocks.Hexagonal.Ports.In;
 using DomainCentric.BuildingBlocks.Hexagonal.Ports.Out;
 using static ArchUnitNET.Fluent.ArchRuleDefinition;
@@ -15,7 +17,7 @@ namespace DomainCentric.ArchRules.Rules;
 /// Hexagonal Architecture (Ports and Adapters) rules: separation between ports and adapters,
 /// incoming adapters drive the application through its input ports, outgoing adapters implement
 /// outbound ports, adapters never talk to each other directly, incoming adapters stay inside their
-/// own bounded context.
+/// own bounded context and obtain no domain collaborator of their own.
 /// </summary>
 public sealed class HexagonalRules : IDcaRuleSet
 {
@@ -38,6 +40,7 @@ public sealed class HexagonalRules : IDcaRuleSet
             SharedOutputPortsExtendOutputPort(),
             OutputPortsMustNotResideInDomain(),
             IncomingAdaptersMustDependOnInputPortsNotUseCaseClasses(),
+            IncomingAdaptersMustNotDependOnDomainServices(),
         }.AsReadOnly();
     }
 
@@ -210,6 +213,52 @@ public sealed class HexagonalRules : IDcaRuleSet
                     "Incoming Adapters must depend on input port interfaces, not on use case classes",
                     violations,
                     "inject the I<UseCaseName>InputPort interface instead of the <UseCaseName> class");
+            });
+
+    /// <summary>
+    /// DCA-HEX-012. Selects every class in an incoming adapter namespace (event consumers included) and reports each
+    /// dependency on a type assignable to <see cref="IDomainService"/> — a field, constructor parameter, member type
+    /// or call. Constructor parameters are read from the runtime type as well, because ArchUnitNET attributes the
+    /// body of an async member to its state machine. Outgoing adapters are outside the selection.
+    /// </summary>
+    public IDcaRule IncomingAdaptersMustNotDependOnDomainServices() =>
+        DcaRule.Check(
+            "DCA-HEX-012",
+            "Incoming Adapters must not depend on domain services",
+            "An incoming adapter translates external input, calls an input port and formats its result."
+                + " Injecting or invoking a domain service bypasses the application boundary; the use case owns"
+                + " that collaboration and puts its outcome into the result. Outgoing adapters are outside this"
+                + " rule - repositories and other driven adapters may construct or reconstitute domain objects"
+                + " while implementing output ports",
+            arch =>
+            {
+                var incoming = DcaLayout.AnyOf(arch.AllIncomingAdapterPatterns());
+                var violations = new List<string>();
+                foreach (var adapter in arch.Classes.Where(c => InNamespace(c, incoming)))
+                {
+                    var services = adapter.Dependencies
+                        .Select(d => d.Target)
+                        .Where(t => !t.IsGenericParameter && IsAssignableTo(arch, t, typeof(IDomainService)))
+                        .Select(t => t.FullName);
+                    var runtime = arch.RuntimeType(adapter);
+                    if (runtime is not null)
+                    {
+                        services = services.Concat(runtime
+                            .GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                            .SelectMany(c => c.GetParameters())
+                            .Select(p => p.ParameterType)
+                            .Where(t => typeof(IDomainService).IsAssignableFrom(t))
+                            .Select(t => t.FullName!));
+                    }
+
+                    violations.AddRange(services.Distinct()
+                        .Select(s => $"{adapter.FullName} depends on the domain service {s}"));
+                }
+
+                DcaRule.Fail(
+                    "Incoming Adapters must not depend on domain services",
+                    violations.Distinct().OrderBy(v => v, StringComparer.Ordinal).ToList(),
+                    "move the collaboration into the use case and carry its outcome in the result");
             });
 
     /// <summary>A use case implementation: a class (never an interface) behind an <see cref="IInputPort"/>.</summary>

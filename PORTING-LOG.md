@@ -196,3 +196,30 @@ Port of `contextmap/ContextMapRenderer` to `DomainCentric.ArchRules.ContextMap.C
   `Application.Shared`, `Adapter.Incoming.Web.Ordering`); the `UseCase/Bad` and `Cycles/Bad` fixtures gained
   a mixed-depth use case and a `Quote ↔ Booking` cycle so the set-wide negative tests keep one failing case
   per rule. 319 self-tests. Rule count 112 → 114.
+
+## Shaping the result (2026-09-06, planning WP-24)
+
+- `DCA-USE-015` and `DCA-HEX-012` ported the day Java added them, same ids/titles/rationales (namespace
+  wording). `USE-015` does not rely on the ArchUnitNET member model: ArchUnitNET exposes record positional
+  properties, but not generic arguments of member types, so the rule resolves each `*Result` (non-`IValue`,
+  application namespace) to its runtime `Type` via `DcaArchitecture.RuntimeType` and walks public properties
+  and fields by reflection — `IsGenericType` → `GetGenericArguments()` (covers `IReadOnlyList<T>`,
+  `IReadOnlyDictionary<K,V>` and `Nullable<T>` alike), records recognised by their synthesized `<Clone>$`
+  method — record classes via `<Clone>$`, record structs via `PrintMembers` — parts being records anywhere in an
+  application namespace (nested, next to the result, or in `Application.Shared`), arrays via their element type,
+  generic parts through their type arguments and their own members, a visited set against
+  self-referencing parts, `EqualityContract` skipped. Identity is `typeof(IAggregateRoot).IsAssignableFrom`
+  / `typeof(IEntity).IsAssignableFrom`; each hit is reported with the member path. `HEX-012` mirrors
+  `HEX-011`: incoming-adapter classes whose `Dependencies` target an `IDomainService`, plus the runtime
+  type's constructor parameter types, since ArchUnitNET attributes async bodies to the state machine.
+  Neither rule is `NotApplicable`.
+- Fixtures: `UseCase/Good` gained `ListOrders` (a result of `IReadOnlyList<OrderSummary : IValue>`, a nested
+  `OrderLine` part, a same-namespace `OrderTotals` part and a `Money?`), `UseCase/Bad` a `ListOrdersResult`
+  with `IReadOnlyList<Order>`, a nested part holding `Order`, a sibling `LineView(OrderLine : IEntity)`, an
+  `Application.Shared` part `OrderPart(OrderLine)`, an `Order[]`, a `record struct LinePart(Order)` and a generic
+  `Boxed<int>(T Value, Order Extra)`;
+  `Hexagonal/{Good,Bad}` gained `Domain/Service/PricingPolicy : IDomainService`, used by the Good use case,
+  injected into the Bad `OrderController` and called statically by the Bad `OrderQuoteController`; the
+  outgoing `InMemoryOrderRepository` keeps depending on domain types and stays green. 326 self-tests.
+  Rule count 114 → 116.
+

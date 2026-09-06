@@ -5,6 +5,24 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 ## [Unreleased]
 
 ### Added
+- **Shaping the result — two rules** (ported from `dca-archunit`, same ids, titles and rationales). A use case
+  result carries the answer, never a handle on the model; an incoming adapter formats that answer and obtains
+  no domain collaborator of its own. Outgoing adapters are deliberately outside both rules — repositories and
+  persistence mappers construct and reconstitute domain objects while implementing output ports.
+  - `DCA-USE-015` — use case result models must not expose aggregate roots or entities. Selects every
+    `*Result` class in an application namespace that is not an `IValue`, resolves its runtime type and walks
+    its public properties and fields **transitively**: through generic type arguments (`IReadOnlyList<T>`,
+    `IReadOnlyDictionary<K,V>`), `Nullable<T>`, arrays, records nested in the result and part records — record
+    classes and record structs — anywhere in the application layer, `Application.Shared` included (parts carry
+    no `Result` suffix); a generic part record is walked through its type arguments and its own members. Every member assignable to `IAggregateRoot` or `IEntity`
+    is reported with its path (`ListOrdersResult.Latest -> OrderView.Order : Order (IAggregateRoot)`).
+  - `DCA-HEX-012` — incoming adapters must not depend on domain services. Every class in an incoming adapter
+    namespace (event consumers included) is checked for dependencies on a type assignable to
+    `IDomainService`, through the ArchUnitNET dependency model and the runtime type's constructor
+    parameters. The mechanical subset of "an incoming adapter derives no business facts"; construction of
+    domain objects and calls into domain behaviour stay review checks, because a result may legitimately
+    carry a domain `IValue` or read model the adapter has to name.
+  Catalog: 116 rules (110 ported + 6 .NET-only, 4 Java rules n/a).
 - **Features within a bounded context — two rules and a compatibility fixture** (ported from `dca-archunit`,
   same ids, titles and rationales). A *feature* is an optional, domain-named group of related use cases below
   a module's application namespace (`Application.<Feature>.<UseCase>`, e.g.

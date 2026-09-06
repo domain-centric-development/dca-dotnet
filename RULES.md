@@ -1,6 +1,6 @@
 # DCA rule catalog (.NET)
 
-Generated from `DomainCentric.ArchRules` — do not edit. 114 rules in 11 sets; 4 Java rules not applicable in .NET.
+Generated from `DomainCentric.ArchRules` — do not edit. 116 rules in 11 sets; 4 Java rules not applicable in .NET.
 
 ## `layered`
 
@@ -35,6 +35,7 @@ Generated from `DomainCentric.ArchRules` — do not edit. 114 rules in 11 sets; 
 | `DCA-HEX-009` | Output Ports in Application.Shared must extend IOutputPort | Top-level interfaces in Application.Shared are output ports and must extend IOutputPort to be part of the port hierarchy. Nested interfaces (e.g. IIdentityProvider.Identity) are part of their enclosing port's contract, not ports themselves |
 | `DCA-HEX-010` | Output ports must not reside in the domain layer | output ports (IRepository, IStore, IOutputPort) are an application-layer concern and must live in Application/Shared/, not Domain/ |
 | `DCA-HEX-011` | Incoming Adapters must depend on input port interfaces, not on use case classes | A driving adapter drives the application through its port. Injecting the concrete implementation instead couples the adapter to one realisation of the use case, defeats the Dependency Inversion Principle the port exists for, and makes the adapter untestable without the real use case and everything it depends on |
+| `DCA-HEX-012` | Incoming Adapters must not depend on domain services | An incoming adapter translates external input, calls an input port and formats its result. Injecting or invoking a domain service bypasses the application boundary; the use case owns that collaboration and puts its outcome into the result. Outgoing adapters are outside this rule - repositories and other driven adapters may construct or reconstitute domain objects while implementing output ports |
 
 ## `tactical`
 
@@ -138,6 +139,7 @@ Not applicable in .NET:
 | `DCA-USE-010` | DTOs must not be used in the Domain Layer | Domain layer should not depend on DTOs (presentation concerns) - Dependency Inversion Principle |
 | `DCA-USE-011` | DTOs must not be used in the Application Layer | Application layer should use Command/Query/Response models, not presentation DTOs (Clean Architecture) |
 | `DCA-USE-014` | Use case namespaces within a module must use one consistent depth (flat or grouped by feature) | A use case namespace sits either directly below the application namespace (Application.<UseCase>) or one level deeper inside a feature (Application.<Feature>.<UseCase>). A feature is an optional, domain-named group of related use cases - a navigation boundary inside one bounded context, not a layer, module or aggregate owner. Mixing both forms in one module makes it unclear whether a namespace is a feature, a use case or a leftover; nesting deeper than a feature hides the use case. The rule checks legibility only: it does not infer bounded contexts, feature semantics or aggregate ownership. Application.Shared holds the context-wide output ports and is not a use case namespace |
+| `DCA-USE-015` | Use Case Result Models must not expose aggregate roots or entities | A result is the use case's answer, not a handle on the model: identity and behaviour stay behind the port; values, enriched models and read models may cross. Checked transitively through nested records, part records anywhere in the application layer (Application.Shared included), arrays and generic type arguments (IReadOnlyList<T>, T?, IReadOnlyDictionary<K,V>) |
 
 Not applicable in .NET:
 

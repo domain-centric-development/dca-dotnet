@@ -24,6 +24,7 @@ public sealed class UseCaseRulesTests
         "DCA-USE-010",
         "DCA-USE-011",
         "DCA-USE-014",
+        "DCA-USE-015",
     };
 
     /// <summary>Rules without a negative fixture (id → reason).</summary>
@@ -61,5 +62,18 @@ public sealed class UseCaseRulesTests
     {
         var ex = Assert.Throws<DcaRuleViolationException>(() => Rule(Bad, id).Check(Arch(Bad)));
         Assert.False(string.IsNullOrWhiteSpace(ex.Message));
+    }
+
+    [Fact]
+    public void ResultRuleReportsTheTransitivePath()
+    {
+        var ex = Assert.Throws<DcaRuleViolationException>(() => Rule(Bad, "DCA-USE-015").Check(Arch(Bad)));
+        Assert.Contains("ListOrdersResult.Orders : Order (IAggregateRoot)", ex.Message);
+        Assert.Contains("ListOrdersResult.Latest -> OrderView.Order : Order (IAggregateRoot)", ex.Message);
+        Assert.Contains("ListOrdersResult.FirstLine -> LineView.Line : OrderLine (IEntity)", ex.Message);
+        Assert.Contains("ListOrdersResult.Parts -> OrderPart.Line : OrderLine (IEntity)", ex.Message);
+        Assert.Contains("ListOrdersResult.Archive : Order (IAggregateRoot)", ex.Message);
+        Assert.Contains("ListOrdersResult.Struct -> LinePart.Order : Order (IAggregateRoot)", ex.Message);
+        Assert.Contains("ListOrdersResult.Boxed -> Boxed.Extra : Order (IAggregateRoot)", ex.Message);
     }
 }
