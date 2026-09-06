@@ -1,0 +1,36 @@
+# docker compose run --rm build      → dotnet build (Debug)
+# docker compose run --rm test       → dotnet test (Debug — architecture tests need it)
+# docker compose run --rm catalog    → renders rules.json / RULES.md into the checkout
+# docker compose run --rm dotnet <args>  → any dotnet command, packages cached in a volume
+# docker compose build               → CI-style check: the image builds only if everything is green
+services:
+  dotnet:
+    image: mcr.microsoft.com/dotnet/sdk:10.0
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+      - nuget-cache:/root/.nuget/packages
+    environment:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+    entrypoint: ["dotnet"]
+    command: ["build"]
+
+  build:
+    extends: dotnet
+    command: ["build"]
+
+  test:
+    extends: dotnet
+    command: ["test"]
+
+  catalog:
+    extends: dotnet
+    command: ["run", "--project", "tools/RulesCatalog", "--", "."]
+
+  check:
+    build: .
+    image: dca-dotnet
+    profiles: [ci]
+
+volumes:
+  nuget-cache:
