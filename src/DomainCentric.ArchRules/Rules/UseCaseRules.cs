@@ -14,7 +14,8 @@ namespace DomainCentric.ArchRules.Rules;
 
 /// <summary>
 /// Use case and mapping patterns: the generic input-port contract, Command/Query/Result models, HTTP
-/// response models, domain-event publication after saving, and DTO-free inner layers.
+/// response models, domain-event publication after saving, DTO-free inner layers, and one consistent
+/// use-case namespace depth per module (flat, or grouped by feature).
 /// </summary>
 public sealed class UseCaseRules : IDcaRuleSet
 {
@@ -41,6 +42,7 @@ public sealed class UseCaseRules : IDcaRuleSet
             UseCasesPublishDomainEventsAfterSaving(layout),
             NoDtosInDomain(layout),
             NoDtosInApplication(layout),
+            UseCasePackagesUseOneDepth(layout),
         };
     }
 
@@ -202,6 +204,92 @@ public sealed class UseCaseRules : IDcaRuleSet
     /// Application models with the given suffix must be immutable: a record, a struct (value type) or a
     /// sealed class (the .NET reading of Java's <c>final</c>). Interfaces are not checked.
     /// </summary>
+    /// <summary>
+    /// Use cases live at one of two depths below a module's application namespace:
+    /// <c>Application.&lt;UseCase&gt;</c> (flat) or <c>Application.&lt;Feature&gt;.&lt;UseCase&gt;</c> (grouped).
+    /// Selects the classes ending in the configured use-case suffix, ignores <c>Application.Shared</c>, abstract
+    /// classes (a shared base class is not a use case) and nested types, and reports every offending module and namespace in one violation: a use case directly in the
+    /// application namespace, one nested deeper than a feature, or a module that mixes both forms.
+    /// </summary>
+    public static IDcaRule UseCasePackagesUseOneDepth(DcaLayout layout) =>
+        DcaRule.Check(
+            "DCA-USE-014",
+            "Use case namespaces within a module must use one consistent depth (flat or grouped by feature)",
+            "A use case namespace sits either directly below the application namespace (Application.<UseCase>) or"
+                + " one level deeper inside a feature (Application.<Feature>.<UseCase>). A feature is an optional,"
+                + " domain-named group of related use cases - a navigation boundary inside one bounded context, not"
+                + " a layer, module or aggregate owner. Mixing both forms in one module makes it unclear whether a"
+                + " namespace is a feature, a use case or a leftover; nesting deeper than a feature hides the use"
+                + " case. The rule checks legibility only: it does not infer bounded contexts, feature semantics or"
+                + " aggregate ownership. Application.Shared holds the context-wide output ports and is not a use"
+                + " case namespace",
+            arch => CheckUseCaseDepth(arch, layout));
+
+    private static void CheckUseCaseDepth(DcaArchitecture arch, DcaLayout layout)
+    {
+        var violations = new List<string>();
+        foreach (var root in arch.ModuleRoots())
+        {
+            var application = root + "." + layout.ApplicationSegment;
+            var shared = application + ".Shared";
+            var byDepth = new SortedDictionary<int, SortedSet<string>>();
+            foreach (var candidate in arch.Classes)
+            {
+                var ns = candidate.Namespace?.FullName;
+                if (ns is null
+                    || !(ns == application || ns.StartsWith(application + ".", StringComparison.Ordinal))
+                    || ns == shared
+                    || ns.StartsWith(shared + ".", StringComparison.Ordinal)
+                    || candidate.IsNested
+                    || candidate.IsAbstract == true
+                    || !candidate.Name.EndsWith(layout.UseCaseSuffix, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var depth = ns == application ? 0 : ns.Substring(application.Length + 1).Split('.').Length;
+                if (!byDepth.TryGetValue(depth, out var namespaces))
+                {
+                    byDepth[depth] = namespaces = new SortedSet<string>(StringComparer.Ordinal);
+                }
+
+                namespaces.Add(ns);
+            }
+
+            if (byDepth.Count == 0)
+            {
+                continue;
+            }
+
+            if (byDepth.TryGetValue(0, out var shallow))
+            {
+                violations.AddRange(shallow.Select(ns =>
+                    $"Module {root}: use case directly in the application namespace {ns} - give it a namespace of its own (Application.<UseCase>)"));
+            }
+
+            foreach (var (depth, namespaces) in byDepth.Select(e => (e.Key, e.Value)))
+            {
+                if (depth > 2)
+                {
+                    violations.AddRange(namespaces.Select(ns =>
+                        $"Module {root}: use case namespace {ns} is nested deeper than Application.<Feature>.<UseCase>"));
+                }
+            }
+
+            if (byDepth.ContainsKey(1) && byDepth.ContainsKey(2))
+            {
+                violations.Add(
+                    $"Module {root} mixes flat use case namespaces [{string.Join(", ", byDepth[1])}] with feature-grouped ones"
+                    + $" [{string.Join(", ", byDepth[2])}] - finish the migration in one direction");
+            }
+        }
+
+        DcaRule.Fail(
+            "Use case namespaces within a module must use one consistent depth (flat or grouped by feature)",
+            violations,
+            "keep every use case of the module at Application.<UseCase>, or group all of them as Application.<Feature>.<UseCase>");
+    }
+
     private static void ImmutableApplicationModels(DcaArchitecture arch, string suffix)
     {
         var violations = arch.Classes

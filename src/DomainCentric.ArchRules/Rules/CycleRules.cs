@@ -8,7 +8,8 @@ namespace DomainCentric.ArchRules.Rules;
 
 /// <summary>
 /// Namespace cycle detection: no circular dependencies between the per-context slices of one layer
-/// (domain model, application, incoming adapters, outgoing adapters).
+/// (domain model, application, incoming adapters, outgoing adapters), and none between the feature or
+/// use-case slices inside one module's application layer.
 /// </summary>
 /// <remarks>Reference: Clean Architecture, Acyclic Dependencies Principle (ADP).</remarks>
 public sealed class CycleRules : IDcaRuleSet
@@ -25,6 +26,7 @@ public sealed class CycleRules : IDcaRuleSet
             ApplicationLayerFreeOfCycles(layout),
             OutgoingAdaptersFreeOfCycles(layout),
             IncomingAdaptersFreeOfCycles(layout),
+            ApplicationSlicesFreeOfCycles(layout),
         };
     }
 
@@ -70,7 +72,66 @@ public sealed class CycleRules : IDcaRuleSet
     /// <c>Slices().Matching(...)</c> ignores the segments after <c>(*)</c> and slices every sub-namespace of
     /// a context, which reports intra-context namespace pairs (e.g. Domain.Model ↔ Domain.Event) as cycles.
     /// </summary>
-    private static void CheckSlices(DcaArchitecture arch, DcaLayout layout, string layerSegments, string title)
+    private static void CheckSlices(DcaArchitecture arch, DcaLayout layout, string layerSegments, string title) =>
+        CheckSlices(
+            arch,
+            ns =>
+            {
+                var module = arch.ModuleRootOf(ns);
+                return module is not null && DcaLayout.IsBelow(ns, module + "." + layerSegments) ? module : null;
+            },
+            title);
+
+    /// <summary>
+    /// The immediate child namespaces of a module's application namespace, <c>Shared</c> excepted, must be free
+    /// of cycles. In a grouped layout those children are features, in a flat layout they are the use cases
+    /// themselves.
+    /// </summary>
+    public static IDcaRule ApplicationSlicesFreeOfCycles(DcaLayout layout) =>
+        DcaRule.Check(
+            "DCA-CYC-005",
+            "Feature and use case namespaces within a module's application layer must not have cyclic dependencies",
+            "The namespaces directly below a module's application namespace are its features"
+                + " (Application.<Feature>.<UseCase>) or, in a flat layout, its use cases (Application.<UseCase>). A"
+                + " feature is an optional, domain-named group of related use cases; it may depend on another feature"
+                + " in one direction, but a cycle between two of them means the grouping does not carry its weight -"
+                + " the shared concept belongs in Application.Shared, in the domain, or in one of the two."
+                + " Application.Shared is the context-wide port namespace and is not a slice. The rule does not infer"
+                + " bounded contexts or aggregate ownership from the namespaces it slices",
+            arch => CheckSlices(
+                arch,
+                ns => ApplicationChildSlice(arch, layout, ns),
+                "Feature and use case namespaces within a module's application layer must not have cyclic dependencies"));
+
+    /// <summary>
+    /// The slice of a namespace for <c>DCA-CYC-005</c>: <c>module.Application.&lt;child&gt;</c>, where the module is
+    /// the structural <see cref="DcaArchitecture.ModuleRootOf(string)"/> - so the slicing holds at any depth and
+    /// never assumes a module is a direct child of the root namespace. Types directly in the application namespace
+    /// and everything below <c>Application.Shared</c> belong to no slice.
+    /// </summary>
+    private static string? ApplicationChildSlice(DcaArchitecture arch, DcaLayout layout, string ns)
+    {
+        var module = arch.ModuleRootOf(ns);
+        if (module is null)
+        {
+            return null;
+        }
+
+        var application = module + "." + layout.ApplicationSegment;
+        if (!ns.StartsWith(application + ".", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var child = ns.Substring(application.Length + 1).Split('.')[0];
+        return child == "Shared" ? null : application + "." + child;
+    }
+
+    /// <summary>
+    /// Generic slice-cycle check: <paramref name="sliceOfNamespace"/> assigns each type's namespace to a slice (or
+    /// to none), dependencies between different slices form the graph, and every elementary cycle is one violation.
+    /// </summary>
+    private static void CheckSlices(DcaArchitecture arch, Func<string, string?> sliceOfNamespace, string title)
     {
         var sliceOf = new Dictionary<IType, string>();
         foreach (var type in arch.Types)
@@ -80,11 +141,10 @@ public sealed class CycleRules : IDcaRuleSet
                 continue;
             }
 
-            var ns = type.Namespace.FullName;
-            var module = arch.ModuleRootOf(ns);
-            if (module is not null && DcaLayout.IsBelow(ns, module + "." + layerSegments))
+            var slice = sliceOfNamespace(type.Namespace.FullName);
+            if (slice is not null)
             {
-                sliceOf[type] = module;
+                sliceOf[type] = slice;
             }
         }
 

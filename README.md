@@ -221,6 +221,11 @@ dotnet pack -c Release -o artifacts              # try the packages in another p
 cd samples/MinimalConsumer && dotnet test        # the smallest consumer
 ```
 
+Without a local SDK, the same through Docker (Podman works too): `docker compose run --rm test`
+runs the Debug build and the tests with a cached package volume, `docker compose run --rm catalog`
+renders `rules.json`/`RULES.md`, and `docker build .` is the CI-style gate — the image only builds
+when build, tests and catalog succeed and then carries the `.nupkg` files and the catalog under `/out`.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

@@ -5,6 +5,24 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 ## [Unreleased]
 
 ### Added
+- **Features within a bounded context — two rules and a compatibility fixture** (ported from `dca-archunit`,
+  same ids, titles and rationales). A *feature* is an optional, domain-named group of related use cases below
+  a module's application namespace (`Application.<Feature>.<UseCase>`, e.g.
+  `Checkout.Application.Session.StartCheckout`) — a navigation and cohesion boundary inside one bounded
+  context, not a layer, module, aggregate owner or deployment unit; nothing in the library infers bounded
+  contexts or aggregate ownership from it. The pre-existing rules already saw such namespaces (they select
+  "below the layer"); `Fixtures/Features/CompatFixture.cs` runs the whole catalog against a grouped context
+  so a later change of a selector into a direct-child assumption fails there first.
+  - `DCA-USE-014` — use case namespaces within a module must use one consistent depth: flat
+    (`Application.<UseCase>`) or grouped (`Application.<Feature>.<UseCase>`). Selects the classes ending in
+    the configured `UseCaseSuffix`, ignores `Application.Shared`, abstract classes and nested types (async state
+    machines included), and reports every offending module and namespace in one violation. A module without use
+    cases is valid; a single use case may use either depth. Legibility only.
+  - `DCA-CYC-005` — the immediate child namespaces of a module's application namespace (`Shared` excepted)
+    must be free of cycles: features in a grouped layout, use cases in a flat one. Uses the same
+    deterministic slice graph as `DCA-CYC-001..004`, with slices assigned from `ModuleRootOf(...)` and the
+    first namespace segment below `Application`.
+  Catalog: 114 rules (108 ported + 6 .NET-only, 4 Java rules n/a).
 - **Context discovery at any depth.** `DcaArchitecture.RootContextNamespace` walks up from a type's
   namespace to the nearest ancestor whose marker class carries `[BoundedContext]` or `[SharedKernel]`,
   so a context may be grouped (`Acme.Shop.Sales.Order`) or be the root namespace itself. A context is

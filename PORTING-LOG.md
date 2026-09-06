@@ -180,3 +180,19 @@ Port of `contextmap/ContextMapRenderer` to `DomainCentric.ArchRules.ContextMap.C
 - Fixtures `Fixtures/Layout/*` (grouped, flat, nested, grouped module, empty context, transaction script,
   grouped cycle, isolation) and tests `ContextDiscoveryTests`, `StructuralIsolationTests` — 300 self-tests.
   `ContextDiscoveryTests.NoRuleUsesTheWildcardPatterns` greps the rule sources so the wildcard cannot creep back.
+
+## Features within a bounded context (2026-09-06, planning WP-23)
+
+- `DCA-USE-014` and `DCA-CYC-005` ported the day Java added them, same ids/titles/rationales (namespace
+  wording instead of package wording, as everywhere else). `USE-014` walks `ModuleRoots()`, takes the
+  namespace relative to `<module>.Application`, skips `Application.Shared` and nested types (`IType.IsNested`
+  — which also drops the compiler's async state machines) and collects all offenders into one
+  `DcaRuleViolationException`. `CYC-005` reuses the hand-rolled slice graph of `CYC-001..004`: `CheckSlices`
+  now takes a namespace→slice function; the layer rules pass "module root when below the layer", the new rule
+  passes "`<module>.Application.<first child>`, null for `Shared`". Neither rule is `NotApplicable` — nothing
+  here depends on a Java-only framework.
+- Fixtures `Fixtures/Features/{CompatFixture,DepthFixtures,SliceFixtures}.cs` mirror the Java
+  `fixtures.features.{compat,depth,slices}` packages one to one (`Application.Ordering.PlaceOrder`,
+  `Application.Shared`, `Adapter.Incoming.Web.Ordering`); the `UseCase/Bad` and `Cycles/Bad` fixtures gained
+  a mixed-depth use case and a `Quote ↔ Booking` cycle so the set-wide negative tests keep one failing case
+  per rule. 319 self-tests. Rule count 112 → 114.

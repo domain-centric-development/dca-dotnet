@@ -16,6 +16,7 @@ public sealed class CycleRulesTests
         "DCA-CYC-002",
         "DCA-CYC-003",
         "DCA-CYC-004",
+        "DCA-CYC-005",
     };
 
     /// <summary>Rules without a negative fixture (id → reason).</summary>

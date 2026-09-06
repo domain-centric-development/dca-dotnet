@@ -1,6 +1,6 @@
 # DCA rule catalog (.NET)
 
-Generated from `DomainCentric.ArchRules` — do not edit. 112 rules in 11 sets; 4 Java rules not applicable in .NET.
+Generated from `DomainCentric.ArchRules` — do not edit. 114 rules in 11 sets; 4 Java rules not applicable in .NET.
 
 ## `layered`
 
@@ -137,6 +137,7 @@ Not applicable in .NET:
 | `DCA-USE-009` | Use cases that save an aggregate must publish its domain events | A saved aggregate must not keep its events: unpublished, they are lost, and stored on the instance they may later be published out of context. Publishing belongs after the save, in the use case that owns the unit of work - even when the action raised no event |
 | `DCA-USE-010` | DTOs must not be used in the Domain Layer | Domain layer should not depend on DTOs (presentation concerns) - Dependency Inversion Principle |
 | `DCA-USE-011` | DTOs must not be used in the Application Layer | Application layer should use Command/Query/Response models, not presentation DTOs (Clean Architecture) |
+| `DCA-USE-014` | Use case namespaces within a module must use one consistent depth (flat or grouped by feature) | A use case namespace sits either directly below the application namespace (Application.<UseCase>) or one level deeper inside a feature (Application.<Feature>.<UseCase>). A feature is an optional, domain-named group of related use cases - a navigation boundary inside one bounded context, not a layer, module or aggregate owner. Mixing both forms in one module makes it unclear whether a namespace is a feature, a use case or a leftover; nesting deeper than a feature hides the use case. The rule checks legibility only: it does not infer bounded contexts, feature semantics or aggregate ownership. Application.Shared holds the context-wide output ports and is not a use case namespace |
 
 Not applicable in .NET:
 
@@ -170,6 +171,7 @@ Not applicable in .NET:
 | `DCA-CYC-002` | Application Layer must not have cyclic dependencies | Application services should have clear boundaries and no cycles |
 | `DCA-CYC-003` | Outgoing Adapter Namespaces must not have cyclic dependencies | Outgoing adapters should have clear boundaries and no cycles |
 | `DCA-CYC-004` | Incoming Adapter Namespaces must not have cyclic dependencies | Incoming adapters should have clear boundaries and no cycles |
+| `DCA-CYC-005` | Feature and use case namespaces within a module's application layer must not have cyclic dependencies | The namespaces directly below a module's application namespace are its features (Application.<Feature>.<UseCase>) or, in a flat layout, its use cases (Application.<UseCase>). A feature is an optional, domain-named group of related use cases; it may depend on another feature in one direction, but a cycle between two of them means the grouping does not carry its weight - the shared concept belongs in Application.Shared, in the domain, or in one of the two. Application.Shared is the context-wide port namespace and is not a slice. The rule does not infer bounded contexts or aggregate ownership from the namespaces it slices |
 
 ## `dotnet`
 
