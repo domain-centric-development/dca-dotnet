@@ -2,54 +2,25 @@
 
 All notable changes to these packages. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: SemVer.
 
-## [Unreleased]
+## [0.2.0] - 2026-09-07
 
-### Fixed
-- **`DCA-MAP-001` sees declarations on nested namespaces.** A `[Partnership]` on a marker class in
-  `Cart.Application.GetCart` was neither reported nor rendered; the rule inspected the resolved context
-  roots only. It now inspects every namespace below the root that a loaded type lives in, ancestors
-  included (`DcaArchitecture.NamespacesBelowRoot()`), and requires the declaring namespace itself to carry
-  `[BoundedContext]`.
-- **`DCA-USE-015` includes inherited members and reports every path.** A `sealed class ArchivedOrdersResult
-  : BaseListing` inherited an aggregate property from a base class without the `Result` suffix and passed
-  (`BindingFlags.DeclaredOnly`); and a global visited set reported only the first path through a part
-  record. The walker now reads all public instance members and keeps only the records on the current path,
-  so `FirstLine -> LineView.Line` and `LastLine -> LineView.Line` are both reported.
-- **`DCA-NAM-011` works for grouped and single-context layouts.** The rule built
-  `Root.<segment>.Adapter.Incoming.Web`; the allowed namespaces are now derived from the module roots.
-- **Infrastructure is selected at both levels.** `IsInfrastructureImplementation` looked at the global
-  `Root.Infrastructure` only. `DcaArchitecture.InfrastructureNamespaces()` lists it plus every isolated
-  module's own `Infrastructure` namespace (the shared kernel's excluded — shared support, not one module's
-  detail); `DCA-LAY-002`, `-003`, `DCA-HEX-004` and `-005` use it.
+**Migrating from 0.1.0.** Four things can break a consumer; everything else is stricter enforcement
+of the same rules and new rules that a 0.1.0 code base may fail.
 
-### Changed — breaking
-- **An `.ignore` property value is one regular expression.** `dca.rule.<id>.ignore` was split on commas
-  like a list of rule ids, so `Foo.{1,3}Bar` failed as an invalid expression. The value is now taken as
-  written; a second expression for the same rule uses an indexed key (`.ignore.1`, `.ignore.2`, …, applied
-  after the unindexed one). Same semantics as `dca-archunit`.
-- **`DCA-USE-009` checks the entry path, not the class.** The rule asked only that a `SaveAsync` and a
-  `PublishAndClearEventsAsync` call exist somewhere in the use case class, so a publication in an unrelated
-  method covered a saving method. It now follows the directed calls within the class (`IntraClassCalls`,
-  built from the runtime type's IL — the compiler's async state machines and lambda closures are units of
-  the graph, joined to the method that declares them): for every unit that calls `SaveAsync`, every entry
-  point reaching it must also reach a `PublishAndClearEventsAsync`. An entry point is a unit callable from
-  outside the class — any non-private method or constructor written in source, so a public method stays an
-  entry point even when another method of the class also calls it (compiler-generated units are not) — or
-  one nothing in the class calls.
-  An entry method may save through one helper and publish through another, over any number of steps; a
-  helper two entry methods share does not connect them; a saving helper shared by a publishing and a
-  non-publishing entry method is reported for the latter (`Foo.ExecuteQuietlyAsync (via PersistAsync)`); a
-  public `ExecuteAsync` that only saves is reported even when a public `CompleteAsync` calls it and publishes
-  afterwards; recursion terminates. Rationale identical to the Java rule, which reasons the same way; order of the two
-  calls and the identity of the aggregate stay outside the check. Fixtures: `Fixtures/Transactions`.
-- **`DCA-TAC-003`, `-007`, `-008` see arrays and generic base classes.** The member walk took the generic
-  arguments from the ArchUnitNET model only, so `Order[]` in an aggregate, entity or value object passed, and a
-  member inherited from a generic base (`class Base<T> { T Value; }`, `Order : Base<Customer>`) was an open
-  type parameter. `DataMembers` now adds what reflection sees in the inspected type's context — array element
-  types, generic arguments recursively, the concrete type a base's parameter is bound to. `DCA-TAC-003` keeps
-  its one tolerance exactly: a direct member of the own type passes; a container of the own type
-  (`IReadOnlyList<Category>`, `Category[]`, `IReadOnlyDictionary<string, Category>`, nested lists) holds
-  *other* instances and is reported — as the Java rule does.
+1. `dca.rule.<id>.ignore` holds **one** regular expression. Several expressions move to indexed keys
+   (`.ignore.1`, `.ignore.2`, …) or are joined with `|`.
+2. A context is identified by its namespace **relative to the root namespace** (`Sales.Order`, not
+   `Order`). `[Upstream("…")]`, `[Partnership("…")]` and ignore patterns naming a nested context change
+   accordingly; contexts that are direct children of the root are unaffected. `SimpleContextName` is
+   obsolete.
+3. Contexts are discovered by `[BoundedContext]` at any depth and the rules select over discovered
+   modules — a context that the one-segment wildcard used to skip is governed now.
+4. Four new rules (`DCA-USE-014`, `DCA-USE-015`, `DCA-HEX-012`, `DCA-CYC-005`) and the tightened
+   `DCA-TAC-003/-007/-008`, `DCA-USE-009`, `DCA-LAY-003`, `DCA-HEX-004/-005`, `DCA-MAP-001` and
+   `DCA-STR-003/-004/-006` can report code that passed 0.1.0. Lower a rule to `Warning(...)` while you
+   fix it — `dca-archunit.properties` documents the reason.
+
+Before 1.0 a minor version may tighten rules; each such change is listed under *Changed — breaking*.
 
 ### Added
 - **Shaping the result — two rules** (ported from `dca-archunit`, same ids, titles and rationales). A use case
@@ -110,6 +81,35 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 - `DcaRule.EvaluateAll(rules, arch, title, rationale)` — evaluates several fluent rules that make up one
   DCA rule and throws once with all their violations.
 
+### Changed — breaking
+- **An `.ignore` property value is one regular expression.** `dca.rule.<id>.ignore` was split on commas
+  like a list of rule ids, so `Foo.{1,3}Bar` failed as an invalid expression. The value is now taken as
+  written; a second expression for the same rule uses an indexed key (`.ignore.1`, `.ignore.2`, …, applied
+  after the unindexed one). Same semantics as `dca-archunit`.
+- **`DCA-USE-009` checks the entry path, not the class.** The rule asked only that a `SaveAsync` and a
+  `PublishAndClearEventsAsync` call exist somewhere in the use case class, so a publication in an unrelated
+  method covered a saving method. It now follows the directed calls within the class (`IntraClassCalls`,
+  built from the runtime type's IL — the compiler's async state machines and lambda closures are units of
+  the graph, joined to the method that declares them): for every unit that calls `SaveAsync`, every entry
+  point reaching it must also reach a `PublishAndClearEventsAsync`. An entry point is a unit callable from
+  outside the class — any non-private method or constructor written in source, so a public method stays an
+  entry point even when another method of the class also calls it (compiler-generated units are not) — or
+  one nothing in the class calls.
+  An entry method may save through one helper and publish through another, over any number of steps; a
+  helper two entry methods share does not connect them; a saving helper shared by a publishing and a
+  non-publishing entry method is reported for the latter (`Foo.ExecuteQuietlyAsync (via PersistAsync)`); a
+  public `ExecuteAsync` that only saves is reported even when a public `CompleteAsync` calls it and publishes
+  afterwards; recursion terminates. Rationale identical to the Java rule, which reasons the same way; order of the two
+  calls and the identity of the aggregate stay outside the check. Fixtures: `Fixtures/Transactions`.
+- **`DCA-TAC-003`, `-007`, `-008` see arrays and generic base classes.** The member walk took the generic
+  arguments from the ArchUnitNET model only, so `Order[]` in an aggregate, entity or value object passed, and a
+  member inherited from a generic base (`class Base<T> { T Value; }`, `Order : Base<Customer>`) was an open
+  type parameter. `DataMembers` now adds what reflection sees in the inspected type's context — array element
+  types, generic arguments recursively, the concrete type a base's parameter is bound to. `DCA-TAC-003` keeps
+  its one tolerance exactly: a direct member of the own type passes; a container of the own type
+  (`IReadOnlyList<Category>`, `Category[]`, `IReadOnlyDictionary<string, Category>`, nested lists) holds
+  *other* instances and is reported — as the Java rule does.
+
 ### Changed
 - **Rules select over discovered modules, not over a one-segment wildcard.** Every rule that used
   `Layout.DomainPattern` and its siblings (`Root.[^.]+.Domain`, exactly one segment) now selects through
@@ -127,6 +127,24 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 - **Cycle rules slice by module root.** `CycleRules.CheckSlices` assigned slices with a one-segment
   regex capture, so two contexts grouped below an intermediate namespace produced no slices and a cycle
   between them went unreported. Slices are now `ModuleRootOf(namespace)`, at any depth.
+
+### Fixed
+- **`DCA-MAP-001` sees declarations on nested namespaces.** A `[Partnership]` on a marker class in
+  `Cart.Application.GetCart` was neither reported nor rendered; the rule inspected the resolved context
+  roots only. It now inspects every namespace below the root that a loaded type lives in, ancestors
+  included (`DcaArchitecture.NamespacesBelowRoot()`), and requires the declaring namespace itself to carry
+  `[BoundedContext]`.
+- **`DCA-USE-015` includes inherited members and reports every path.** A `sealed class ArchivedOrdersResult
+  : BaseListing` inherited an aggregate property from a base class without the `Result` suffix and passed
+  (`BindingFlags.DeclaredOnly`); and a global visited set reported only the first path through a part
+  record. The walker now reads all public instance members and keeps only the records on the current path,
+  so `FirstLine -> LineView.Line` and `LastLine -> LineView.Line` are both reported.
+- **`DCA-NAM-011` works for grouped and single-context layouts.** The rule built
+  `Root.<segment>.Adapter.Incoming.Web`; the allowed namespaces are now derived from the module roots.
+- **Infrastructure is selected at both levels.** `IsInfrastructureImplementation` looked at the global
+  `Root.Infrastructure` only. `DcaArchitecture.InfrastructureNamespaces()` lists it plus every isolated
+  module's own `Infrastructure` namespace (the shared kernel's excluded — shared support, not one module's
+  detail); `DCA-LAY-002`, `-003`, `DCA-HEX-004` and `-005` use it.
 
 ## [0.1.0] - 2026-09-07
 

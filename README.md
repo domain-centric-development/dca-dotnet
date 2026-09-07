@@ -209,7 +209,8 @@ Semantic versioning, independent per package family:
   one a major bump.
 - `DomainCentric.ArchRules` (+ `.Xunit`, released together) — a new rule is a minor bump (it can fail
   your build — pin versions), a tightened rule is a major bump, a relaxed rule or fixed false positive
-  a patch.
+  a patch. **Before 1.0** a minor version may add and tighten rules as well; every such change is listed
+  under *Changed — breaking* in the changelog, with a migration note at the top of the release.
 
 Tags: `building-blocks/vX.Y.Z`, `archrules/vX.Y.Z`; the release procedure is in [RELEASING.md](RELEASING.md). Changelogs: [src/DomainCentric.BuildingBlocks/CHANGELOG.md](src/DomainCentric.BuildingBlocks/CHANGELOG.md), [src/DomainCentric.ArchRules/CHANGELOG.md](src/DomainCentric.ArchRules/CHANGELOG.md).
 
