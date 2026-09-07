@@ -208,7 +208,7 @@ Semantic versioning, independent per package family:
   your build — pin versions), a tightened rule is a major bump, a relaxed rule or fixed false positive
   a patch.
 
-Tags: `building-blocks/vX.Y.Z`, `archrules/vX.Y.Z`. Changelogs: [src/DomainCentric.BuildingBlocks/CHANGELOG.md](src/DomainCentric.BuildingBlocks/CHANGELOG.md), [src/DomainCentric.ArchRules/CHANGELOG.md](src/DomainCentric.ArchRules/CHANGELOG.md).
+Tags: `building-blocks/vX.Y.Z`, `archrules/vX.Y.Z`; the release procedure is in [RELEASING.md](RELEASING.md). Changelogs: [src/DomainCentric.BuildingBlocks/CHANGELOG.md](src/DomainCentric.BuildingBlocks/CHANGELOG.md), [src/DomainCentric.ArchRules/CHANGELOG.md](src/DomainCentric.ArchRules/CHANGELOG.md).
 
 ## Build
 
@@ -218,6 +218,7 @@ dotnet test                                      # rule self-tests against Good/
 dotnet run --project tools/RulesCatalog -- .     # regenerate rules.json + RULES.md
 dotnet pack -c Release -o artifacts              # try the packages in another project (local feed)
 cd samples/MinimalConsumer && dotnet test        # the smallest consumer
+./scripts/release.sh archrules 0.1.0             # release to NuGet.org — see RELEASING.md
 ```
 
 ## License

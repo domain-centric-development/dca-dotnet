@@ -1,7 +1,13 @@
 name: Release
 
-# Independent versions: tag `building-blocks/vX.Y.Z` publishes DomainCentric.BuildingBlocks,
-# tag `archrules/vX.Y.Z` publishes DomainCentric.ArchRules + DomainCentric.ArchRules.Xunit.
+# Tag-driven, one package family per tag:
+#   building-blocks/v1.2.0  -> DomainCentric.BuildingBlocks 1.2.0
+#   archrules/v3.4.1        -> DomainCentric.ArchRules + DomainCentric.ArchRules.Xunit 3.4.1
+#
+# Pushing to NuGet.org happens on the maintainer's machine (./scripts/release.sh), so no API key lives in
+# CI. This workflow verifies the tagged version — it builds, tests, checks the changelog and the projects'
+# <Version>, waits until NuGet.org serves the packages — and publishes the GitHub release with the packages
+# it packed itself. The tag is pushed after the packages are on NuGet.org.
 on:
   push:
     tags:
@@ -9,7 +15,7 @@ on:
       - 'archrules/v*'
 
 jobs:
-  publish:
+  release:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -21,28 +27,65 @@ jobs:
           dotnet-version: |
             8.0.x
             10.0.x
-      - name: Resolve project and version from tag
+
+      - name: Resolve projects and version from tag
         id: tag
         run: |
-          TAG="${GITHUB_REF_NAME}"
-          VERSION="${TAG#*/v}"
-          case "$TAG" in
-            building-blocks/*) PROJECTS="src/DomainCentric.BuildingBlocks/DomainCentric.BuildingBlocks.csproj" ;;
-            archrules/*)       PROJECTS="src/DomainCentric.ArchRules/DomainCentric.ArchRules.csproj src/DomainCentric.ArchRules.Xunit/DomainCentric.ArchRules.Xunit.csproj" ;;
-            *) echo "unknown tag prefix: $TAG" >&2; exit 1 ;;
+          TAG="${GITHUB_REF_NAME}"                 # e.g. archrules/v1.2.3
+          FAMILY="${TAG%%/*}"                      # archrules
+          VERSION="${TAG##*/v}"                    # 1.2.3
+          case "$FAMILY" in
+            building-blocks) PROJECTS="src/DomainCentric.BuildingBlocks/DomainCentric.BuildingBlocks.csproj"
+                             CHANGELOG="src/DomainCentric.BuildingBlocks/CHANGELOG.md" ;;
+            archrules)       PROJECTS="src/DomainCentric.ArchRules/DomainCentric.ArchRules.csproj src/DomainCentric.ArchRules.Xunit/DomainCentric.ArchRules.Xunit.csproj"
+                             CHANGELOG="src/DomainCentric.ArchRules/CHANGELOG.md" ;;
+            *) echo "unknown tag prefix $FAMILY"; exit 1 ;;
           esac
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "projects=$PROJECTS" >> "$GITHUB_OUTPUT"
-      - run: dotnet build
-      - run: dotnet test --no-build
-      - name: Pack
+          case "$VERSION" in
+            *-*) echo "a release tag must not carry a pre-release version: $VERSION"; exit 1 ;;
+            [0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "not a semantic version: $VERSION"; exit 1 ;;
+          esac
+          echo "family=$FAMILY"       >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION"     >> "$GITHUB_OUTPUT"
+          echo "projects=$PROJECTS"   >> "$GITHUB_OUTPUT"
+          echo "changelog=$CHANGELOG" >> "$GITHUB_OUTPUT"
+
+      - name: Projects carry this version
         run: |
           for p in ${{ steps.tag.outputs.projects }}; do
-            dotnet pack "$p" -c Release -o artifacts -p:Version=${{ steps.tag.outputs.version }}
+            PV="$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' "$p")"
+            [ "$PV" = "${{ steps.tag.outputs.version }}" ] || { echo "$p has <Version>$PV</Version>"; exit 1; }
           done
-      - name: Push to NuGet.org
-        run: dotnet nuget push "artifacts/*.nupkg" --api-key "${{ secrets.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
-      - uses: softprops/action-gh-release@v2
+
+      - name: Changelog names this version
+        run: grep -q "^## \[${{ steps.tag.outputs.version }}\]" ${{ steps.tag.outputs.changelog }}
+
+      # Architecture self-tests run against Debug builds on purpose (see README, "Run against Debug builds").
+      - run: dotnet build
+      - run: dotnet test --no-build
+
+      - name: Pack (release assets only — nothing is pushed from here)
+        run: |
+          for p in ${{ steps.tag.outputs.projects }}; do
+            dotnet pack "$p" -c Release -o artifacts
+          done
+
+      - name: Packages are on NuGet.org
+        run: |
+          for p in ${{ steps.tag.outputs.projects }}; do
+            ID="$(sed -n 's:.*<PackageId>\(.*\)</PackageId>.*:\1:p' "$p" | tr '[:upper:]' '[:lower:]')"
+            URL="https://api.nuget.org/v3-flatcontainer/$ID/${{ steps.tag.outputs.version }}/$ID.${{ steps.tag.outputs.version }}.nupkg"
+            for i in $(seq 1 30); do
+              if curl -fsSL -o /dev/null "$URL"; then echo "published: $URL"; continue 2; fi
+              echo "not on NuGet.org yet, retrying in 60s ($i/30)"; sleep 60
+            done
+            echo "still not on NuGet.org after 30 minutes: $URL"; exit 1
+          done
+
+      - name: GitHub release
+        uses: softprops/action-gh-release@v2
         with:
+          name: ${{ steps.tag.outputs.family }} ${{ steps.tag.outputs.version }}
+          body: See ${{ steps.tag.outputs.changelog }}
           files: artifacts/*
-          generate_release_notes: true

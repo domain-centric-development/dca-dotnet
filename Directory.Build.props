@@ -30,5 +30,7 @@
   <ItemGroup Condition="'$(IsPackable)' != 'false'">
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" Condition="'$(GITHUB_ACTIONS)' == 'true'" />
     <None Include="$(MSBuildThisFileDirectory)branding/icon.png" Pack="true" PackagePath="/" Visible="false" />
+    <!-- Every published package carries the licence it is released under, next to the SPDX expression. -->
+    <None Include="$(MSBuildThisFileDirectory)LICENSE" Pack="true" PackagePath="/" Visible="false" />
   </ItemGroup>
 </Project>

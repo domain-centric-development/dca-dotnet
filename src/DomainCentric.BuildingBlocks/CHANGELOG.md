@@ -2,7 +2,9 @@
 
 All notable changes to this package. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: SemVer.
 
-## [Unreleased]
+## [0.1.0] - 2026-09-07
+
+Feature parity with `dca-building-blocks` 0.1.0.
 
 ### Added
 - `Application.Transactions.ITransactionBoundary` — explicit transaction boundary inside a use case; an application-layer execution abstraction implemented by infrastructure, deliberately not an output port (remote calls stay outside the transaction).
