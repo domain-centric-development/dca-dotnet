@@ -104,6 +104,29 @@ public sealed class DcaRuleSelectionTests
         Assert.Equal(new[] { ".*backoffice.*" }, selection.IgnoredViolationPatterns("DCA-STR-003"));
     }
 
+    /// <summary>
+    /// The value of an <c>.ignore</c> key is one regular expression, commas included — <c>Foo.{1,3}Bar</c>
+    /// is a quantifier, not two patterns. Several expressions use indexed keys.
+    /// </summary>
+    [Fact]
+    public void AnIgnoreExpressionIsOneRegexCommasIncluded()
+    {
+        var selection = DcaRuleSelection.FromProperties(Properties("dca.rule.DCA-STR-003.ignore = Foo.{1,3}Bar"));
+
+        Assert.Equal(new[] { "Foo.{1,3}Bar" }, selection.IgnoredViolationPatterns("DCA-STR-003"));
+    }
+
+    [Fact]
+    public void SeveralIgnoreExpressionsUseIndexedKeys()
+    {
+        var selection = DcaRuleSelection.FromProperties(Properties(
+            "dca.rule.DCA-STR-003.ignore.2 = .*generated.*",
+            "dca.rule.DCA-STR-003.ignore.1 = .*legacy.*",
+            "dca.rule.DCA-STR-003.ignore = .*[a-z],[0-9].*"));
+
+        Assert.Equal(new[] { ".*[a-z],[0-9].*", ".*legacy.*", ".*generated.*" }, selection.IgnoredViolationPatterns("DCA-STR-003"));
+    }
+
     [Fact]
     public void ARuleLevelSettingWinsOverItsSet()
     {

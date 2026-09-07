@@ -63,4 +63,18 @@ public sealed class HexagonalRulesTests
         Assert.Contains("OrderController depends on the domain service", ex.Message);
         Assert.Contains("OrderQuoteController depends on the domain service", ex.Message);
     }
+
+    private const string Infra = "DomainCentric.ArchRules.Tests.Fixtures.Layout.Infra";
+
+    /// <summary>A module's own Infrastructure namespace counts; the shared kernel's is shared support.</summary>
+    [Fact]
+    public void OutgoingAdapterDependingOnModuleInfrastructureIsReported()
+    {
+        var rule = new HexagonalRules(DcaLayout.ForRootNamespace(Infra)).Rules.Single(r => r.Id == "DCA-HEX-005");
+        var arch = DcaArchitecture.Load(DcaLayout.ForRootNamespace(Infra), typeof(HexagonalRulesTests).Assembly);
+        var ex = Assert.Throws<DcaRuleViolationException>(() => rule.Check(arch));
+        Assert.Contains("CartStorage", ex.Message);
+        Assert.Contains("CartWiring", ex.Message);
+        Assert.DoesNotContain("Lifecycle", ex.Message);
+    }
 }

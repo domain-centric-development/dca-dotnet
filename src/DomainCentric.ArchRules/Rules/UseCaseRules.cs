@@ -2,9 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Reflection.Emit;
 using ArchUnitNET.Domain;
-using ArchUnitNET.Domain.Dependencies;
 using ArchUnitNET.Domain.Extensions;
 using DomainCentric.BuildingBlocks.Ddd.Tactical;
 using DomainCentric.BuildingBlocks.Hexagonal.Ports.Out;
@@ -148,6 +146,12 @@ public sealed class UseCaseRules : IDcaRuleSet
                     .Should()
                     .ResideInNamespaceMatching(layout.IncomingAdapterPattern));
 
+    /// <summary>
+    /// Checked per entry path over the class-internal call graph (<see cref="IntraClassCalls"/>): for every unit that
+    /// calls <c>IRepository.SaveAsync</c>, every entry point reaching it — a method callable from outside the class, or
+    /// one no method of the class calls — must also reach a <c>PublishAndClearEventsAsync</c>. An entry method may save through one helper and publish
+    /// through another; a helper two entry methods share does not connect them.
+    /// </summary>
     public static IDcaRule UseCasesPublishDomainEventsAfterSaving(DcaLayout layout) =>
         DcaRule.Check(
             "DCA-USE-009",
@@ -155,21 +159,49 @@ public sealed class UseCaseRules : IDcaRuleSet
             "A saved aggregate must not keep its events: unpublished, they are lost, and stored on the"
                 + " instance they may later be published out of context. Publishing belongs after the"
                 + " save, in the use case that owns the unit of work - even when the action raised no"
-                + " event",
+                + " event. Checked per entry path, following calls within the use case class: every"
+                + " entry point that reaches a save - a method callable from outside the class, or one"
+                + " nothing in the class calls - must also reach a publication; a wrapper that publishes"
+                + " does not cover a direct call of the public method it wraps, and a helper two methods"
+                + " share does not connect them. That the"
+                + " publication follows the save and concerns the same aggregate is not established"
+                + " statically",
             arch =>
             {
-                var violations = arch.Classes
+                var violations = new List<string>();
+                var useCases = arch.Classes
                     .Where(c => c.Namespace is not null
                         && Matches(c.Namespace.FullName, DcaLayout.AnyOf(arch.AllApplicationPatterns()))
                         && c.Name.EndsWith(arch.Layout.UseCaseSuffix, StringComparison.Ordinal))
-                    .Where(c => Calls(arch, c, "SaveAsync", typeof(IRepository))
-                        && !Calls(arch, c, "PublishAndClearEventsAsync", typeof(IDomainEventPublisher)))
-                    .Select(c => $"{c.FullName} saves an aggregate without publishing its domain events")
-                    .ToList();
+                    .OrderBy(c => c.FullName, StringComparer.Ordinal);
+                foreach (var useCase in useCases)
+                {
+                    var runtime = arch.RuntimeType(useCase);
+                    if (runtime is null)
+                    {
+                        continue;
+                    }
+
+                    var calls = new IntraClassCalls(runtime);
+                    foreach (var unit in calls.Units.Where(u => IntraClassCalls.Calls(u, "SaveAsync", typeof(IRepository))))
+                    {
+                        foreach (var entry in calls.EntryPointsOf(unit))
+                        {
+                            var publishes = calls.ReachableFrom(entry)
+                                .Any(u => IntraClassCalls.Calls(u, "PublishAndClearEventsAsync", typeof(IDomainEventPublisher)));
+                            if (!publishes)
+                            {
+                                violations.Add($"{useCase.FullName}.{IntraClassCalls.PathName(entry, unit)} saves an aggregate without"
+                                    + " publishing its domain events - no method reached from there calls PublishAndClearEventsAsync");
+                            }
+                        }
+                    }
+                }
+
                 DcaRule.Fail(
                     "Use cases that save an aggregate must publish its domain events",
-                    violations,
-                    "call IDomainEventPublisher.PublishAndClearEventsAsync(aggregate) after IRepository.SaveAsync(aggregate)");
+                    violations.Distinct().ToList(),
+                    "call IDomainEventPublisher.PublishAndClearEventsAsync(aggregate) after IRepository.SaveAsync(aggregate) on every path that saves");
             });
 
     public static IDcaRule NoDtosInDomain(DcaLayout layout) =>
@@ -337,16 +369,23 @@ public sealed class UseCaseRules : IDcaRuleSet
             "carry ids, values, read models or snapshots instead");
     }
 
-    private static void WalkResultMembers(string application, Type type, string path, ISet<Type> visited, ICollection<string> violations)
+    /// <summary>
+    /// Walks the public instance members of a result or part record — inherited ones included, a base class
+    /// need not carry the suffix. <paramref name="onPath"/> holds the records currently being walked and
+    /// guards against a self-referencing part record; it is not a global visited set, so the same part
+    /// record reached through two members is reported on both paths.
+    /// </summary>
+    private static void WalkResultMembers(string application, Type type, string path, ISet<Type> onPath, ICollection<string> violations)
     {
-        if (!visited.Add(type))
+        if (!onPath.Add(type))
         {
             return;
         }
 
-        const BindingFlags members = BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly;
+        const BindingFlags members = BindingFlags.Public | BindingFlags.Instance;
         var memberTypes = type.GetProperties(members).Select(p => (p.Name, p.PropertyType))
-            .Concat(type.GetFields(members).Select(f => (f.Name, f.FieldType)));
+            .Concat(type.GetFields(members).Select(f => (f.Name, f.FieldType)))
+            .OrderBy(m => m.Name, StringComparer.Ordinal);
         foreach (var (name, memberType) in memberTypes)
         {
             if (name == "EqualityContract")
@@ -354,8 +393,10 @@ public sealed class UseCaseRules : IDcaRuleSet
                 continue;
             }
 
-            CheckResultMemberType(application, memberType, $"{path}.{name}", visited, violations);
+            CheckResultMemberType(application, memberType, $"{path}.{name}", onPath, violations);
         }
+
+        onPath.Remove(type);
     }
 
     /// <summary>
@@ -363,7 +404,7 @@ public sealed class UseCaseRules : IDcaRuleSet
     /// instantiation through every type argument <em>and</em> its own members (a generic part record may hide an
     /// identity next to its type parameter); a part record through its members.
     /// </summary>
-    private static void CheckResultMemberType(string application, Type type, string path, ISet<Type> visited, ICollection<string> violations)
+    private static void CheckResultMemberType(string application, Type type, string path, ISet<Type> onPath, ICollection<string> violations)
     {
         var identity = IdentityMarkerOf(type);
         if (identity is not null)
@@ -374,7 +415,7 @@ public sealed class UseCaseRules : IDcaRuleSet
 
         if (type.IsArray)
         {
-            CheckResultMemberType(application, type.GetElementType()!, path, visited, violations);
+            CheckResultMemberType(application, type.GetElementType()!, path, onPath, violations);
             return;
         }
 
@@ -382,13 +423,13 @@ public sealed class UseCaseRules : IDcaRuleSet
         {
             foreach (var argument in type.GetGenericArguments())
             {
-                CheckResultMemberType(application, argument, path, visited, violations);
+                CheckResultMemberType(application, argument, path, onPath, violations);
             }
         }
 
         if (IsPartRecord(application, type))
         {
-            WalkResultMembers(application, type, $"{path} -> {PlainName(type)}", visited, violations);
+            WalkResultMembers(application, type, $"{path} -> {PlainName(type)}", onPath, violations);
         }
     }
 
@@ -439,140 +480,6 @@ public sealed class UseCaseRules : IDcaRuleSet
 
     private static bool Matches(string ns, string pattern) =>
         System.Text.RegularExpressions.Regex.IsMatch(ns, pattern);
-
-    /// <summary>
-    /// Whether <paramref name="cls"/> calls a method named <paramref name="method"/> on a type assignable to
-    /// <paramref name="marker"/>. Calls made inside <c>async</c> methods live in compiler-generated nested
-    /// state-machine types that ArchUnitNET does not load, so the IL of the runtime type and its nested
-    /// types is scanned by reflection as well.
-    /// </summary>
-    private static bool Calls(DcaArchitecture arch, Class cls, string method, Type marker)
-    {
-        var inModel = cls.Dependencies
-            .OfType<MethodCallDependency>()
-            .Any(d => MethodName(d.TargetMember.Name) == method && IsAssignableTo(arch, d.TargetMember.DeclaringType, marker));
-        if (inModel)
-        {
-            return true;
-        }
-
-        var runtime = arch.RuntimeType(cls);
-        return runtime is not null && CalledMethods(runtime).Any(m => m.Name == method && m.DeclaringType is not null && marker.IsAssignableFrom(m.DeclaringType));
-    }
-
-    /// <summary>All methods called from the IL of <paramref name="type"/> and its nested types (recursively).</summary>
-    private static IEnumerable<MethodBase> CalledMethods(Type type)
-    {
-        const BindingFlags all = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
-        foreach (var method in type.GetMethods(all).Cast<MethodBase>().Concat(type.GetConstructors(all)))
-        {
-            foreach (var called in IlCalls(method))
-            {
-                yield return called;
-            }
-        }
-
-        foreach (var nested in type.GetNestedTypes(all))
-        {
-            foreach (var called in CalledMethods(nested))
-            {
-                yield return called;
-            }
-        }
-    }
-
-    private static readonly Lazy<IReadOnlyDictionary<short, OpCode>> OpCodeTable = new(() =>
-        typeof(OpCodes).GetFields(BindingFlags.Public | BindingFlags.Static)
-            .Select(f => (OpCode)f.GetValue(null)!)
-            .ToDictionary(o => o.Value, o => o));
-
-    /// <summary>Walks the IL of one method and resolves the targets of call/callvirt/newobj instructions.</summary>
-    private static IEnumerable<MethodBase> IlCalls(MethodBase method)
-    {
-        byte[]? il;
-        try
-        {
-            il = method.GetMethodBody()?.GetILAsByteArray();
-        }
-        catch (InvalidOperationException)
-        {
-            il = null;
-        }
-
-        if (il is null)
-        {
-            yield break;
-        }
-
-        var typeArgs = method.DeclaringType is { IsGenericType: true } dt ? dt.GetGenericArguments() : null;
-        var methodArgs = method is MethodInfo { IsGenericMethod: true } mi ? mi.GetGenericArguments() : null;
-        var position = 0;
-        while (position < il.Length)
-        {
-            short code = il[position++];
-            if (code == 0xFE)
-            {
-                code = (short)(0xFE00 | il[position++]);
-            }
-
-            if (!OpCodeTable.Value.TryGetValue(code, out var opCode))
-            {
-                yield break; // unknown opcode — stop scanning this body rather than misreading operands
-            }
-
-            MethodBase? target = null;
-            switch (opCode.OperandType)
-            {
-                case OperandType.InlineMethod:
-                    var token = BitConverter.ToInt32(il, position);
-                    position += 4;
-                    try
-                    {
-                        target = method.Module.ResolveMethod(token, typeArgs, methodArgs);
-                    }
-                    catch (ArgumentException)
-                    {
-                        target = null;
-                    }
-
-                    break;
-                case OperandType.InlineSwitch:
-                    var count = BitConverter.ToInt32(il, position);
-                    position += 4 + (4 * count);
-                    break;
-                case OperandType.InlineNone:
-                    break;
-                case OperandType.ShortInlineBrTarget:
-                case OperandType.ShortInlineI:
-                case OperandType.ShortInlineVar:
-                    position += 1;
-                    break;
-                case OperandType.InlineVar:
-                    position += 2;
-                    break;
-                case OperandType.InlineI8:
-                case OperandType.InlineR:
-                    position += 8;
-                    break;
-                default:
-                    position += 4;
-                    break;
-            }
-
-            if (target is not null)
-            {
-                yield return target;
-            }
-        }
-    }
-
-    private static string MethodName(string memberName)
-    {
-        var paren = memberName.IndexOf('(');
-        var plain = paren >= 0 ? memberName.Substring(0, paren) : memberName;
-        var dot = plain.LastIndexOf('.');
-        return dot >= 0 ? plain.Substring(dot + 1) : plain;
-    }
 
     /// <summary>
     /// Assignability via the ArchUnitNET model (implemented interfaces, base classes) with a reflection

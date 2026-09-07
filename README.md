@@ -120,10 +120,12 @@ dca.rule.DCA-NAM-005.reason = no MVC controllers here
 dca.rules.warn              = DCA-TAC-009
 dca.rules.warn.sets         = naming
 dca.rule.DCA-STR-003.ignore = .*Legacy.*
+dca.rule.DCA-STR-003.ignore.1 = Generated.{1,3}Client
 ```
 
 An unknown rule id or set name fails the run immediately — a typo must never leave a rule silently
-enforced.
+enforced. The value of an `.ignore` key is **one** regular expression, commas included; a second
+expression for the same rule goes into an indexed key (`.ignore.1`, `.ignore.2`, …).
 
 Both sources combine: the file is the base, `AdditionalSelection` is merged on top, and the later entry
 wins per rule id. Override `AdditionalSelection`, not `Selection` — the latter *replaces* the file, so

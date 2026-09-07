@@ -156,7 +156,12 @@ public sealed class DcaRuleSelection
     /// dca.rules.warn.sets         = naming
     /// dca.rule.DCA-NAM-002.reason = no DI framework in this project
     /// dca.rule.DCA-STR-003.ignore = .*backoffice.*
+    /// dca.rule.DCA-STR-003.ignore.1 = .*legacy.*
+    /// dca.rule.DCA-STR-003.ignore.2 = Generated.{1,3}Client
     /// </code>
+    /// The value of an <c>.ignore</c> key is <em>one</em> regular expression, commas included; a second
+    /// expression for the same rule uses an indexed key (<c>.ignore.1</c>, <c>.ignore.2</c>, …, applied
+    /// after the unindexed one, in numeric order). Lists of rule ids and set names are comma-separated.
     /// An unknown rule identifier or set name fails immediately — a typo must not silently leave a rule
     /// enforced. <c>dca.rules.freeze*</c> is not supported on .NET and fails with an explanatory message.
     /// </summary>
@@ -207,16 +212,47 @@ public sealed class DcaRuleSelection
             selection = selection.Warning(id, Reason(properties, id));
         }
 
-        foreach (var key in properties.Keys.Where(k => k.StartsWith("dca.rule.", StringComparison.Ordinal) && k.EndsWith(".ignore", StringComparison.Ordinal)))
+        foreach (var (id, expressions) in IgnoreExpressions(properties))
         {
-            var id = key.Substring("dca.rule.".Length, key.Length - "dca.rule.".Length - ".ignore".Length);
-            foreach (var regex in Split(properties[key]))
+            foreach (var regex in expressions)
             {
                 selection = selection.IgnoringViolationsMatching(id, regex);
             }
         }
 
         return selection;
+    }
+
+    /// <summary><c>dca.rule.&lt;id&gt;.ignore</c> and <c>dca.rule.&lt;id&gt;.ignore.&lt;n&gt;</c>.</summary>
+    private static readonly Regex IgnoreKey = new(@"^dca\.rule\.(.+?)\.ignore(?:\.(\d+))?$", RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// The ignore expressions per rule id, in the order: the unindexed key first, then the indexed keys by
+    /// number. Each value is one regular expression, taken as written — a comma is part of the expression
+    /// (<c>Foo.{1,3}Bar</c>), never a separator.
+    /// </summary>
+    private static IEnumerable<(string Id, IReadOnlyList<string> Expressions)> IgnoreExpressions(IReadOnlyDictionary<string, string> properties)
+    {
+        var byRule = new SortedDictionary<string, SortedDictionary<int, string>>(StringComparer.Ordinal);
+        foreach (var (key, value) in properties)
+        {
+            var match = IgnoreKey.Match(key);
+            if (!match.Success || string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            var index = match.Groups[2].Success ? int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture) : -1;
+            if (!byRule.TryGetValue(match.Groups[1].Value, out var expressions))
+            {
+                expressions = new SortedDictionary<int, string>();
+                byRule[match.Groups[1].Value] = expressions;
+            }
+
+            expressions[index] = value.Trim();
+        }
+
+        return byRule.Select(entry => (entry.Key, (IReadOnlyList<string>)entry.Value.Values.ToList()));
     }
 
     /// <summary>Whether a rule of the given set takes part in the run at all.</summary>

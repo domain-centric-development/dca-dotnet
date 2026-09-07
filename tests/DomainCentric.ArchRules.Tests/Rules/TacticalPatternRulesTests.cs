@@ -46,4 +46,21 @@ public sealed class TacticalPatternRulesTests
         var ex = Assert.Throws<DcaRuleViolationException>(() => Rule(Bad, id).Check(Arch(Bad)));
         Assert.False(string.IsNullOrWhiteSpace(ex.Message));
     }
+
+    /// <summary>
+    /// A container of the aggregate's own type holds <em>other</em> instances of that aggregate. Only the direct
+    /// member of the own type (a self-reference) is tolerated; a container never is.
+    /// </summary>
+    [Fact]
+    public void ContainersOfTheOwnAggregateTypeAreReported()
+    {
+        var message = Assert.Throws<DcaRuleViolationException>(() => Rule(Bad, "DCA-TAC-003").Check(Arch(Bad))).Message;
+        foreach (var container in new[] { "Children", "Siblings", "ByName", "Tree" })
+        {
+            Assert.Matches($"Category has field '{container}' containing .*Category", message);
+        }
+
+        Assert.DoesNotContain("'Root'", message);
+        Assert.Matches("Order has field 'Customer' of type .*Customer", message);
+    }
 }

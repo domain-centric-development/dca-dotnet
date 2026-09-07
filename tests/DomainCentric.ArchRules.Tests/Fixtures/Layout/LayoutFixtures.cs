@@ -37,6 +37,12 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Layout.Grouped.Sales.Order.Doma
     }
 }
 
+namespace DomainCentric.ArchRules.Tests.Fixtures.Layout.Grouped.Sales.Order.Adapter.Incoming.Web
+{
+    /// <summary>DCA-NAM-011: a valid view model of a grouped context.</summary>
+    public sealed record OrderViewModel(string Id);
+}
+
 // ---------------------------------------------------------------------------------------------------
 // Flat: a single-context application whose root namespace is the context
 // ---------------------------------------------------------------------------------------------------
@@ -65,6 +71,12 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Layout.Flat.Domain.Model
     {
         public int Capacity() => FlatConfig.Capacity();
     }
+}
+
+namespace DomainCentric.ArchRules.Tests.Fixtures.Layout.Flat.Adapter.Incoming.Web
+{
+    /// <summary>DCA-NAM-011: a valid view model when the root namespace is the context.</summary>
+    public sealed record ThingViewModel(string Name);
 }
 
 // ---------------------------------------------------------------------------------------------------

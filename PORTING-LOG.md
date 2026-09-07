@@ -223,3 +223,38 @@ Port of `contextmap/ContextMapRenderer` to `DomainCentric.ArchRules.ContextMap.C
   outgoing `InMemoryOrderRepository` keeps depending on domain types and stays green. 326 self-tests.
   Rule count 114 → 116.
 
+## Review follow-up (2026-09-06)
+
+The package review of `dca-java` (`notes/dca-java-review-2026-09-06.md` in the meta-repository) found ten
+enforcement defects; four of them existed here too and are fixed the same day with the same semantics:
+`DCA-MAP-001` inspects `NamespacesBelowRoot()` (nested marker classes included); `DCA-USE-015` walks public
+instance members without `DeclaredOnly` and keeps the records on the current path instead of a global
+visited set; `DCA-NAM-011` derives the web-adapter namespaces from `ModuleRoots()`; `.ignore` values are
+one regular expression with indexed keys for several. Widened alongside Java: infrastructure means the
+global namespace plus every isolated module's `Infrastructure` (`InfrastructureNamespaces()`,
+`AllInfrastructurePatterns()`), used by `LAY-002/-003`, `HEX-004/-005`. Not needed here: the context-map
+rules already collected every violation, normalised with the invariant culture and matched
+`Equals(object)`/`GetHashCode()` exactly; `USE-012/-013` remain n/a. Fixtures: `ContextMap/Nested`,
+`Layout/Infra`, view models in `Layout/{Grouped,Flat}`, `BaseListing`/`ArchivedOrdersResult` and a second
+`LineView` in `UseCase/Bad`. Self-tests 326 → 336. Rule count unchanged (116).
+
+## Recheck follow-up (2026-09-07)
+
+The recheck of the Java follow-up (`notes/dca-java-recheck-2026-09-07.md` in the meta-repository) found that
+`DCA-USE-009` here still checked class-wide while its rationale already promised per-method reasoning. Ported
+the same day: `Rules/IntraClassCalls.cs` builds the directed call graph of a use case from the runtime type's
+IL (the `IlCalls` scanner moved there from `UseCaseRules`); the compiler's async state machines
+(`[AsyncStateMachine]` → every method of the nested type) and lambda closures (`ldftn`/`newobj` operands)
+are units of the graph, joined to the method that declares them, and are reported under that method's name
+(`ExecuteQuietlyAsync (via PersistAsync)`). `DCA-USE-009` judges every entry path to a saving unit, exactly
+like the Java rule; `USE-012/-013` remain n/a. The second recheck the same day tightened the entry-point
+definition on both sides: any non-private, non-compiler-generated unit is an entry point, called internally
+or not (`Fixtures/Transactions/…/DirectEntry`, mirroring Java's `directentry`). Fixtures `Fixtures/Transactions` mirror
+`fixtures.transactions` one to one (shared helper, split helpers, multi-step, shared save helper, recursion,
+mutual recursion, save without publish). Parity of the other two recheck findings: `DCA-USE-015` already
+resolved generic bases (reflection substitutes type arguments — `GenericResults.cs` fixtures added, green
+before any change); `DCA-TAC-003` already rejected `IReadOnlyList<Category>` inside `Category`, but missed
+`Category[]` and generic-base members — `DataMembers` now adds reflection-derived element types (arrays,
+generic arguments, bound type parameters) next to the ArchUnitNET generic arguments. Self-tests 336 → 345.
+Rule count unchanged (116).
+

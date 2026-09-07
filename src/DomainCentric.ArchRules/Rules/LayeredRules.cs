@@ -55,8 +55,9 @@ public sealed class LayeredRules : IDcaRuleSet
             "DCA-LAY-002",
             "Domain must not have dependencies on Infrastructure",
             "Domain should not depend on infrastructure concerns (Dependency Inversion Principle)",
+            // The global infrastructure namespace and every isolated module's own.
             arch => Types().That().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns()))
-                .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(Layout.InfrastructurePattern));
+                .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllInfrastructurePatterns())));
 
     public IDcaRule ApplicationMustNotUseInfrastructureImplementations() =>
         DcaRule.Of(

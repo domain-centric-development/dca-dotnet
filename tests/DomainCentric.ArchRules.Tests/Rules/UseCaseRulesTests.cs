@@ -9,6 +9,7 @@ public sealed class UseCaseRulesTests
 {
     private const string Good = "DomainCentric.ArchRules.Tests.Fixtures.UseCase.Good";
     private const string Bad = "DomainCentric.ArchRules.Tests.Fixtures.UseCase.Bad";
+    private const string Transactions = "DomainCentric.ArchRules.Tests.Fixtures.Transactions";
 
     private static readonly string[] ExpectedIds =
     {
@@ -76,4 +77,79 @@ public sealed class UseCaseRulesTests
         Assert.Contains("ListOrdersResult.Struct -> LinePart.Order : Order (IAggregateRoot)", ex.Message);
         Assert.Contains("ListOrdersResult.Boxed -> Boxed.Extra : Order (IAggregateRoot)", ex.Message);
     }
+
+    /// <summary>The same part record reached through two members is reported on both paths.</summary>
+    [Fact]
+    public void ResultRuleReportsEveryPathThroughTheSamePartRecord()
+    {
+        var ex = Assert.Throws<DcaRuleViolationException>(() => Rule(Bad, "DCA-USE-015").Check(Arch(Bad)));
+        Assert.Contains("ListOrdersResult.FirstLine -> LineView.Line : OrderLine (IEntity)", ex.Message);
+        Assert.Contains("ListOrdersResult.LastLine -> LineView.Line : OrderLine (IEntity)", ex.Message);
+    }
+
+    /// <summary>A public instance member inherited from a base class without the suffix is part of the result.</summary>
+    [Fact]
+    public void ResultRuleIncludesInheritedMembers()
+    {
+        var ex = Assert.Throws<DcaRuleViolationException>(() => Rule(Bad, "DCA-USE-015").Check(Arch(Bad)));
+        Assert.Contains("ArchivedOrdersResult.Pinned : Order (IAggregateRoot)", ex.Message);
+    }
+
+    /// <summary>
+    /// <c>GenericBase&lt;T&gt;</c> declares <c>T Value</c>; the result binds <c>T</c>. The inherited member is read in the
+    /// subclass's context, through every level of the hierarchy and inside containers bound to the parameter.
+    /// </summary>
+    [Fact]
+    public void ResultRuleResolvesInheritedGenericMembers()
+    {
+        var ex = Assert.Throws<DcaRuleViolationException>(() => Rule(Bad, "DCA-USE-015").Check(Arch(Bad)));
+        Assert.Contains("GenericOrderResult.Value : Order (IAggregateRoot)", ex.Message);
+        Assert.Contains("BatchedOrdersResult.Value : Order (IAggregateRoot)", ex.Message);
+        Assert.Contains("OrdersByRegionResult.Value : Order (IAggregateRoot)", ex.Message);
+        Assert.Contains("LineItemResult.Value : OrderLine (IEntity)", ex.Message);
+        Assert.DoesNotContain(".Count", ex.Message);
+    }
+
+    private string SaveRuleMessage() =>
+        Assert.Throws<DcaRuleViolationException>(() => Rule(Transactions, "DCA-USE-009").Check(Arch(Transactions))).Message;
+
+    [Fact]
+    public void SaveRuleSharedHelperDoesNotConnectEntryMethods() =>
+        Assert.Contains("SharedHelperUseCase.ExecuteAsync", SaveRuleMessage());
+
+    [Fact]
+    public void SaveRuleSplitHelpersPass() =>
+        Assert.DoesNotContain("SplitHelpersUseCase", SaveRuleMessage());
+
+    [Fact]
+    public void SaveRuleFollowsMultiStepDelegation() =>
+        Assert.DoesNotContain("MultiStepUseCase", SaveRuleMessage());
+
+    [Fact]
+    public void SaveRuleJudgesASharedSavingHelperPerEntryPath()
+    {
+        var message = SaveRuleMessage();
+        Assert.Contains("SharedSaveHelperUseCase.ExecuteQuietlyAsync", message);
+        Assert.DoesNotContain("SharedSaveHelperUseCase.ExecuteAsync ", message);
+    }
+
+    [Fact]
+    public void SaveRuleTerminatesOnRecursion()
+    {
+        var message = SaveRuleMessage();
+        Assert.DoesNotContain("RecursiveSaveUseCase", message);
+        Assert.Contains("MutualRecursionUseCase.PingAsync", message);
+    }
+
+    [Fact]
+    public void SaveRuleKeepsAPublicMethodAnEntryPointWhenAnotherMethodCallsIt()
+    {
+        var message = SaveRuleMessage();
+        Assert.Contains("DirectEntryUseCase.ExecuteAsync", message);
+        Assert.DoesNotContain("DirectEntryUseCase.CompleteAsync", message);
+    }
+
+    [Fact]
+    public void SaveRuleIgnoresAPublicationInAnUnreachableMethod() =>
+        Assert.Contains("SaveWithoutPublishUseCase.ExecuteAsync", SaveRuleMessage());
 }

@@ -63,7 +63,13 @@ public sealed class ContextMapRules : IDcaRuleSet
     // Declaration well-formedness
     // ---------------------------------------------------------------------------------------------
 
-    /// <summary>DCA-MAP-001.</summary>
+    /// <summary>
+    /// DCA-MAP-001. Looks at every namespace below the root that a loaded type lives in, its ancestors
+    /// included — not only at the resolved context roots — so a relationship declared on a nested namespace
+    /// (a use-case namespace, a feature, a grouping namespace) is reported instead of being silently ignored
+    /// by every other rule and by the renderer. The namespace that carries the declaration must itself be
+    /// the <c>[BoundedContext]</c>.
+    /// </summary>
     public static IDcaRule DeclarationsOnlyOnBoundedContexts() =>
         DcaRule.Check(
             "DCA-MAP-001",
@@ -73,7 +79,7 @@ public sealed class ContextMapRules : IDcaRuleSet
             arch =>
             {
                 var violations = new List<string>();
-                foreach (var ns in AllRootNamespaces(arch))
+                foreach (var ns in arch.NamespacesBelowRoot())
                 {
                     if (arch.NamespaceAttribute<BoundedContextAttribute>(ns) is not null)
                     {
@@ -92,7 +98,8 @@ public sealed class ContextMapRules : IDcaRuleSet
         if (arch.NamespaceAttributes<T>(ns).Count > 0)
         {
             violations.Add("Namespace '" + ns + "' declares " + label
-                + " but is not a [BoundedContext] — context map declarations are reserved for bounded contexts");
+                + " but is not a [BoundedContext] — context map declarations are reserved for bounded contexts;"
+                + " declare the relationship on the context's root namespace");
         }
     }
 
@@ -527,19 +534,6 @@ public sealed class ContextMapRules : IDcaRuleSet
     // Helpers
     // ---------------------------------------------------------------------------------------------
 
-
-    private static IEnumerable<string> AllRootNamespaces(DcaArchitecture arch)
-    {
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var type in arch.RuntimeTypes())
-        {
-            var root = arch.RootContextNamespace(type.Namespace!);
-            if (root is not null && seen.Add(root))
-            {
-                yield return root;
-            }
-        }
-    }
 
     private static HashSet<string> ModuleNames(DcaArchitecture arch) =>
         new(arch.BoundedContextNamespaces.Select(arch.ContextName), StringComparer.Ordinal);

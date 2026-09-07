@@ -9,6 +9,7 @@ public sealed class ContextMapRulesTests
 {
     private const string Good = "DomainCentric.ArchRules.Tests.Fixtures.ContextMap.Good";
     private const string Bad = "DomainCentric.ArchRules.Tests.Fixtures.ContextMap.Bad";
+    private const string Nested = "DomainCentric.ArchRules.Tests.Fixtures.ContextMap.Nested";
 
     private static readonly string[] ExpectedIds =
     {
@@ -57,5 +58,18 @@ public sealed class ContextMapRulesTests
         var set = Set(Bad);
         var ex = Assert.Throws<DcaRuleViolationException>(() => set.Rules.Single(r => r.Id == id).Check(Arch(Bad)));
         Assert.False(string.IsNullOrWhiteSpace(ex.Message));
+    }
+
+    /// <summary>
+    /// A relationship is a statement of the context, so the namespace that carries it must be the context
+    /// root. A declaration on a nested namespace is reported — it would otherwise be silently ignored by
+    /// every other context-map rule and by the renderer.
+    /// </summary>
+    [Fact]
+    public void DeclarationOnNestedNamespaceIsReported()
+    {
+        var ex = Assert.Throws<DcaRuleViolationException>(() => Set(Nested).Rules.Single(r => r.Id == "DCA-MAP-001").Check(Arch(Nested)));
+        Assert.Contains(Nested + ".Cart.Application.GetCart", ex.Message);
+        Assert.Contains("[Partnership]", ex.Message);
     }
 }

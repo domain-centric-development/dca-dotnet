@@ -522,9 +522,64 @@ public sealed class DcaArchitecture
     [Obsolete("Use AllDomainModelPatterns(): module roots include the shared kernel.")]
     public string[] AllDomainModelPatternsWithSharedKernel() => AllDomainModelPatterns();
 
-    /// <summary>Whether a type resides in the global infrastructure namespace (or below).</summary>
+    /// <summary>
+    /// The infrastructure namespaces of this architecture: the global one (<c>Root.Infrastructure</c>) and
+    /// every isolated module's own (<c>Root.Cart.Infrastructure</c>), each without pattern. A module's
+    /// infrastructure is not a layer — it does not make the module a root — but it is an implementation
+    /// detail like the global one, and the rules that keep implementation details out of the inner layers
+    /// treat both alike. The shared kernel's <c>Infrastructure</c> namespace is deliberately not listed:
+    /// the shared kernel is the one namespace everyone may depend on, and what it keeps there is shared
+    /// support, not a detail of one module.
+    /// </summary>
+    public IReadOnlyList<string> InfrastructureNamespaces()
+    {
+        var namespaces = new List<string> { Layout.InfrastructureNamespace };
+        foreach (var root in IsolatedModuleRoots())
+        {
+            var module = root + "." + Layout.InfrastructureSegment;
+            if (!namespaces.Contains(module))
+            {
+                namespaces.Add(module);
+            }
+        }
+
+        return namespaces;
+    }
+
+    /// <summary><see cref="InfrastructureNamespaces"/> as patterns, each namespace and below.</summary>
+    public string[] AllInfrastructurePatterns() => InfrastructureNamespaces().Select(DcaLayout.Below).ToArray();
+
+    /// <summary>
+    /// Whether a type resides in an infrastructure namespace — the namespace itself or below, with an exact
+    /// segment boundary: <c>Root.Infrastructure.Wiring</c> counts, <c>Root.InfrastructureX.Other</c> does not.
+    /// </summary>
     public bool IsInfrastructureImplementation(IType type) =>
-        type.Namespace is not null && DcaLayout.IsBelow(type.Namespace.FullName, Layout.InfrastructureNamespace);
+        type.Namespace is not null
+        && InfrastructureNamespaces().Any(ns => DcaLayout.IsBelow(type.Namespace.FullName, ns));
+
+    /// <summary>
+    /// Every namespace at or below the root namespace that a loaded type lives in, together with all its
+    /// ancestors down to the root namespace, in encounter order — the set of namespaces that may carry a
+    /// marker class with context-map declarations.
+    /// </summary>
+    public IReadOnlyList<string> NamespacesBelowRoot()
+    {
+        var root = Layout.RootNamespace;
+        var namespaces = new List<string>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var type in RootTypes())
+        {
+            for (var candidate = type.Namespace; candidate is not null; candidate = ParentNamespace(candidate, root))
+            {
+                if (seen.Add(candidate))
+                {
+                    namespaces.Add(candidate);
+                }
+            }
+        }
+
+        return namespaces;
+    }
 
     private sealed class OrderedReadOnlyDictionary<TValue> : IReadOnlyDictionary<string, TValue>
     {

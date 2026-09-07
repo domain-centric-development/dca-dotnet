@@ -114,7 +114,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 var violations = new List<string>();
                 foreach (var aggregate in ConcreteTypesAssignableTo(arch, typeof(IAggregateRoot)))
                 {
-                    foreach (var member in DataMembers(aggregate))
+                    foreach (var member in DataMembers(arch, aggregate))
                     {
                         var fieldType = member.Type;
                         if (IsAssignableTo(arch, fieldType, typeof(IRepository)) || IsAssignableTo(arch, fieldType, typeof(IOutputPort)))
@@ -140,7 +140,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 var violations = new List<string>();
                 foreach (var aggregate in ConcreteTypesAssignableTo(arch, typeof(IAggregateRoot)))
                 {
-                    foreach (var member in DataMembers(aggregate))
+                    foreach (var member in DataMembers(arch, aggregate))
                     {
                         if (IsConcreteAggregateRoot(arch, member.Type) && !member.Type.Equals(aggregate))
                         {
@@ -179,7 +179,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                         continue;
                     }
 
-                    var hasIdMember = DataMembers(entity).Any(m => IsAssignableTo(arch, m.Type, typeof(IId)))
+                    var hasIdMember = DataMembers(arch, entity).Any(m => IsAssignableTo(arch, m.Type, typeof(IId)))
                         || RuntimeDataMemberTypes(arch, entity).Any(t => typeof(IId).IsAssignableFrom(t));
                     if (!hasIdMember)
                     {
@@ -249,7 +249,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 var violations = new List<string>();
                 foreach (var entity in NonRootEntities(arch))
                 {
-                    foreach (var member in DataMembers(entity))
+                    foreach (var member in DataMembers(arch, entity))
                     {
                         if (IsConcreteAggregateRoot(arch, member.Type))
                         {
@@ -283,7 +283,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 var violations = new List<string>();
                 foreach (var valueObject in ConcreteTypesAssignableTo(arch, typeof(IValue)))
                 {
-                    foreach (var member in DataMembers(valueObject))
+                    foreach (var member in DataMembers(arch, valueObject))
                     {
                         if (IsConcreteAggregateRoot(arch, member.Type))
                         {
@@ -726,19 +726,102 @@ public sealed class TacticalPatternRules : IDcaRuleSet
     private static IEnumerable<IMember> AllMembers(IType type) =>
         type is Class cls ? cls.MembersIncludingInherited : type.Members;
 
-    /// <summary>Instance fields and properties of a type (inherited included), skipping compiler-generated and record plumbing.</summary>
-    private static IEnumerable<DataMember> DataMembers(IType type)
+    /// <summary>
+    /// Instance fields and properties of a type (inherited included), skipping compiler-generated and record
+    /// plumbing. <see cref="DataMember.ElementTypes"/> holds every type the member's type involves besides itself:
+    /// generic arguments from the ArchUnitNET model and, when the runtime type is available, what reflection sees
+    /// in the inspected type's context — array element types, generic arguments recursively, and the concrete type a
+    /// generic base class's parameter is bound to (<c>class Base&lt;T&gt; { T Value; }</c> read from
+    /// <c>Order : Base&lt;Customer&gt;</c> involves <c>Customer</c>).
+    /// </summary>
+    private static IEnumerable<DataMember> DataMembers(DcaArchitecture arch, IType type)
     {
+        var runtime = arch.RuntimeType(type);
         foreach (var member in AllMembers(type))
         {
             switch (member)
             {
                 case FieldMember field when !field.IsCompilerGenerated && !field.Name.Contains("k__BackingField", StringComparison.Ordinal):
-                    yield return new DataMember(field.Name, field.Type, field.GenericArguments.SelectMany(TypesInvolvedIn).ToList());
+                    yield return new DataMember(field.Name, field.Type, ElementTypes(arch, runtime, field.Name, field.Type, field.GenericArguments));
                     break;
                 case PropertyMember property when !property.IsCompilerGenerated && property.Name != "EqualityContract":
-                    yield return new DataMember(property.Name, property.Type, property.GenericArguments.SelectMany(TypesInvolvedIn).ToList());
+                    yield return new DataMember(property.Name, property.Type, ElementTypes(arch, runtime, property.Name, property.Type, property.GenericArguments));
                     break;
+            }
+        }
+    }
+
+    private static IReadOnlyList<IType> ElementTypes(DcaArchitecture arch, Type? runtime, string memberName, IType memberType, IEnumerable<GenericArgument> genericArguments)
+    {
+        var elements = new List<IType>(genericArguments.SelectMany(TypesInvolvedIn));
+        var runtimeMemberType = runtime is null ? null : RuntimeMemberType(runtime, memberName);
+        if (runtimeMemberType is not null)
+        {
+            // ArchUnitNET models an array member by its element type, so the element is an *element* here only
+            // when the member really is an array or a generic instantiation - never for a plain member.
+            var plain = runtimeMemberType is { IsArray: false, IsGenericType: false };
+            foreach (var involved in InvolvedRuntimeTypes(runtimeMemberType))
+            {
+                var modelled = arch.Types.FirstOrDefault(t => t.FullName == involved.FullName);
+                if (modelled is not null && !(plain && modelled.Equals(memberType)) && !elements.Contains(modelled))
+                {
+                    elements.Add(modelled);
+                }
+            }
+        }
+
+        return elements;
+    }
+
+    /// <summary>The declared type of the named instance field or property, as reflection sees it on the inspected type.</summary>
+    private static Type? RuntimeMemberType(Type runtime, string memberName)
+    {
+        const BindingFlags own = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+        for (var t = runtime; t is not null && t != typeof(object); t = t.BaseType)
+        {
+            var property = t.GetProperty(memberName, own);
+            if (property is not null)
+            {
+                return property.PropertyType;
+            }
+
+            var field = t.GetField(memberName, own);
+            if (field is not null)
+            {
+                return field.FieldType;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>A type, its array element types and its generic arguments, recursively; open type parameters excluded.</summary>
+    private static IEnumerable<Type> InvolvedRuntimeTypes(Type type)
+    {
+        if (type.IsGenericParameter)
+        {
+            yield break;
+        }
+
+        if (type.IsArray)
+        {
+            foreach (var involved in InvolvedRuntimeTypes(type.GetElementType()!))
+            {
+                yield return involved;
+            }
+
+            yield break;
+        }
+
+        yield return type.IsGenericType ? type.GetGenericTypeDefinition() : type;
+        if (type.IsGenericType)
+        {
+            foreach (var argument in type.GetGenericArguments())
+            {
+                foreach (var involved in InvolvedRuntimeTypes(argument))
+                {
+                    yield return involved;
+                }
             }
         }
     }

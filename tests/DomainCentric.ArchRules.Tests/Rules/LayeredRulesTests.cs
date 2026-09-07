@@ -56,4 +56,32 @@ public sealed class LayeredRulesTests
         var ex = Assert.Throws<DcaRuleViolationException>(() => rule.Check(Arch(Bad)));
         Assert.False(string.IsNullOrWhiteSpace(ex.Message));
     }
+
+    private const string Infra = "DomainCentric.ArchRules.Tests.Fixtures.Layout.Infra";
+
+    private static IDcaRule InfraRule(string id) => new LayeredRules(DcaLayout.ForRootNamespace(Infra)).Rules.Single(r => r.Id == id);
+
+    private static DcaArchitecture InfraArch() => DcaArchitecture.Load(DcaLayout.ForRootNamespace(Infra), typeof(LayeredRulesTests).Assembly);
+
+    /// <summary>
+    /// Infrastructure is selected by exact namespace: the global <c>Root.Infrastructure</c> namespace itself,
+    /// every isolated module's own <c>Infrastructure</c> namespace, and never a namespace whose name merely
+    /// starts with the segment.
+    /// </summary>
+    [Fact]
+    public void UseCaseDependingOnInfrastructureAtEitherLevelIsReported()
+    {
+        var ex = Assert.Throws<DcaRuleViolationException>(() => InfraRule("DCA-LAY-003").Check(InfraArch()));
+        Assert.Contains("GetCartUseCase", ex.Message);
+        Assert.Contains("Infrastructure.Wiring", ex.Message);
+        Assert.Contains("Cart.Infrastructure.CartWiring", ex.Message);
+        Assert.DoesNotContain("NotInfrastructure", ex.Message);
+    }
+
+    [Fact]
+    public void DomainDependingOnModuleInfrastructureIsReported()
+    {
+        var ex = Assert.Throws<DcaRuleViolationException>(() => InfraRule("DCA-LAY-002").Check(InfraArch()));
+        Assert.Contains("CartWiring", ex.Message);
+    }
 }

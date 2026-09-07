@@ -202,11 +202,13 @@ public sealed class NamingRules : IDcaRuleSet
                     .Should()
                     .NotHaveNameMatching("(Manager|Helper|Utils?|Impl|Implementation)$"));
 
-    public static IDcaRule ViewModelsResideInIncomingWebAdapters(DcaLayout layout)
-    {
-        var incomingWebPattern = DcaLayout.Below(
-            $"{layout.RootNamespace}.{DcaLayout.Segment}.{layout.AdapterSegment}.{layout.IncomingSegment}.Web");
-        return DcaRule.Of(
+    /// <summary>
+    /// The web-adapter namespaces are derived from the discovered module roots
+    /// (<c>Root.Adapter.Incoming.Web</c> and below, per module), so a grouped context and a single-context
+    /// application whose root namespace is the context are governed like a flat layout.
+    /// </summary>
+    public static IDcaRule ViewModelsResideInIncomingWebAdapters(DcaLayout layout) =>
+        DcaRule.Of(
             "DCA-NAM-011",
             "ViewModels must reside in Adapter.Incoming.Web namespaces",
             "ViewModels are presentation concerns and must reside in incoming web adapter namespaces",
@@ -217,8 +219,8 @@ public sealed class NamingRules : IDcaRuleSet
                     .And()
                     .ResideInNamespaceMatching(DcaLayout.Below(layout.RootNamespace))
                     .Should()
-                    .ResideInNamespaceMatching(incomingWebPattern));
-    }
+                    .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.ModuleRoots().Select(root =>
+                        DcaLayout.Below($"{root}.{layout.AdapterSegment}.{layout.IncomingSegment}.Web")))));
 
     // ---------------------------------------------------------------------------------------------
     // Helpers

@@ -56,6 +56,10 @@ public sealed class ContextDiscoveryTests
         [Fact]
         public void KeepsADomainNamedAdapterNamespaceInsideItsContext() =>
             Assert.Equal(Root + ".Sales.Order", Arch(Root).RootContextNamespace(Root + ".Sales.Order.Adapter.Outgoing.Domain"));
+
+        /// <summary>The web-adapter namespace of a grouped context is derived from its module root.</summary>
+        [Fact]
+        public void ItsViewModelsAreInTheRightPlace() => Rule("DCA-NAM-011", Root).Check(Arch(Root));
     }
 
     public sealed class Flat
@@ -73,6 +77,10 @@ public sealed class ContextDiscoveryTests
         [Fact]
         public void IsGovernedByTheLayerRules() =>
             Assert.Throws<DcaRuleViolationException>(() => Rule("DCA-LAY-002", Root).Check(Arch(Root)));
+
+        /// <summary><c>Root.Adapter.Incoming.Web</c> is a web-adapter namespace when the root is the context.</summary>
+        [Fact]
+        public void ItsViewModelsAreInTheRightPlace() => Rule("DCA-NAM-011", Root).Check(Arch(Root));
     }
 
     public sealed class Undeclared
