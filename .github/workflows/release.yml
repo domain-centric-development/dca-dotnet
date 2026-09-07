@@ -1,7 +1,14 @@
 name: Release
 
-# Independent versions: tag `building-blocks/vX.Y.Z` publishes DomainCentric.BuildingBlocks,
-# tag `archrules/vX.Y.Z` publishes DomainCentric.ArchRules + DomainCentric.ArchRules.Xunit.
+# Tag-driven, one package family per tag:
+#   building-blocks/v1.2.0  -> DomainCentric.BuildingBlocks 1.2.0
+#   archrules/v3.4.1        -> DomainCentric.ArchRules + DomainCentric.ArchRules.Xunit 3.4.1
+#
+# Publishes to NuGet.org via Trusted Publishing: the job presents its GitHub OIDC token to NuGet.org
+# (NuGet/login) and receives a short-lived API key — no long-lived credential exists anywhere. NuGet.org
+# accepts the token only from the repository, workflow file and environment named in the Trusted
+# Publishing policy of the package owner (see RELEASING.md). The environment `nuget` lets GitHub add
+# protection rules (required reviewers) in front of the push.
 on:
   push:
     tags:
@@ -9,10 +16,12 @@ on:
       - 'archrules/v*'
 
 jobs:
-  publish:
+  release:
     runs-on: ubuntu-latest
+    environment: nuget
     permissions:
-      contents: write
+      contents: write   # GitHub release
+      id-token: write   # OIDC token for NuGet.org
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -21,28 +30,102 @@ jobs:
           dotnet-version: |
             8.0.x
             10.0.x
-      - name: Resolve project and version from tag
+
+      - name: Resolve projects and version from tag
         id: tag
         run: |
-          TAG="${GITHUB_REF_NAME}"
-          VERSION="${TAG#*/v}"
-          case "$TAG" in
-            building-blocks/*) PROJECTS="src/DomainCentric.BuildingBlocks/DomainCentric.BuildingBlocks.csproj" ;;
-            archrules/*)       PROJECTS="src/DomainCentric.ArchRules/DomainCentric.ArchRules.csproj src/DomainCentric.ArchRules.Xunit/DomainCentric.ArchRules.Xunit.csproj" ;;
-            *) echo "unknown tag prefix: $TAG" >&2; exit 1 ;;
+          TAG="${GITHUB_REF_NAME}"                 # e.g. archrules/v1.2.3
+          FAMILY="${TAG%%/*}"                      # archrules
+          VERSION="${TAG##*/v}"                    # 1.2.3
+          case "$FAMILY" in
+            building-blocks) PROJECTS="src/DomainCentric.BuildingBlocks/DomainCentric.BuildingBlocks.csproj"
+                             CHANGELOG="src/DomainCentric.BuildingBlocks/CHANGELOG.md" ;;
+            archrules)       PROJECTS="src/DomainCentric.ArchRules/DomainCentric.ArchRules.csproj src/DomainCentric.ArchRules.Xunit/DomainCentric.ArchRules.Xunit.csproj"
+                             CHANGELOG="src/DomainCentric.ArchRules/CHANGELOG.md" ;;
+            *) echo "unknown tag prefix $FAMILY"; exit 1 ;;
           esac
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "projects=$PROJECTS" >> "$GITHUB_OUTPUT"
+          case "$VERSION" in
+            *-*) echo "a release tag must not carry a pre-release version: $VERSION"; exit 1 ;;
+            [0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "not a semantic version: $VERSION"; exit 1 ;;
+          esac
+          echo "family=$FAMILY"       >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION"     >> "$GITHUB_OUTPUT"
+          echo "projects=$PROJECTS"   >> "$GITHUB_OUTPUT"
+          echo "changelog=$CHANGELOG" >> "$GITHUB_OUTPUT"
+
+      # Versions live in the csproj files, never in -p:Version — a global property would also re-version
+      # the referenced DomainCentric.BuildingBlocks and package a dependency that does not exist.
+      - name: Projects carry this version
+        run: |
+          for p in ${{ steps.tag.outputs.projects }}; do
+            PV="$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' "$p")"
+            [ "$PV" = "${{ steps.tag.outputs.version }}" ] || { echo "$p has <Version>$PV</Version>"; exit 1; }
+          done
+
+      - name: Changelog names this version
+        run: grep -q "^## \[${{ steps.tag.outputs.version }}\]" ${{ steps.tag.outputs.changelog }}
+
+      - name: ArchRules depends on a released BuildingBlocks
+        if: steps.tag.outputs.family == 'archrules'
+        run: |
+          BB="$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' src/DomainCentric.BuildingBlocks/DomainCentric.BuildingBlocks.csproj)"
+          URL="https://api.nuget.org/v3-flatcontainer/domaincentric.buildingblocks/$BB/domaincentric.buildingblocks.$BB.nupkg"
+          curl -fsSL -o /dev/null "$URL" || { echo "DomainCentric.BuildingBlocks $BB is not on NuGet.org — release it first"; exit 1; }
+          echo "depends on DomainCentric.BuildingBlocks $BB"
+
+      # Architecture self-tests run against Debug builds on purpose (see README, "Run against Debug builds").
       - run: dotnet build
       - run: dotnet test --no-build
+
+      - name: Rule catalog is current
+        run: |
+          dotnet run --project tools/RulesCatalog --no-build -- .
+          git diff --exit-code -- rules.json RULES.md
+
       - name: Pack
         run: |
           for p in ${{ steps.tag.outputs.projects }}; do
-            dotnet pack "$p" -c Release -o artifacts -p:Version=${{ steps.tag.outputs.version }}
+            dotnet pack "$p" -c Release -o artifacts
           done
-      - name: Push to NuGet.org
-        run: dotnet nuget push "artifacts/*.nupkg" --api-key "${{ secrets.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
-      - uses: softprops/action-gh-release@v2
+          for n in artifacts/*.nupkg; do
+            for f in LICENSE README.md icon.png; do
+              unzip -l "$n" | grep -q " $f\$" || { echo "$n lacks $f"; exit 1; }
+            done
+          done
+          ls -1 artifacts
+
+      # Exchanges the job's OIDC token for a short-lived NuGet.org API key. NUGET_USER is the NuGet.org
+      # account that owns the Trusted Publishing policy (a repository secret — not sensitive, but the
+      # action's documented shape).
+      - name: NuGet.org login (Trusted Publishing)
+        id: login
+        uses: NuGet/login@v1
         with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Push to NuGet.org
+        run: |
+          for n in artifacts/*.nupkg; do
+            dotnet nuget push "$n" --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" \
+              --source https://api.nuget.org/v3/index.json --skip-duplicate
+          done
+
+      - name: Packages are listed on NuGet.org
+        run: |
+          for p in ${{ steps.tag.outputs.projects }}; do
+            ID="$(sed -n 's:.*<PackageId>\(.*\)</PackageId>.*:\1:p' "$p" | tr '[:upper:]' '[:lower:]')"
+            URL="https://api.nuget.org/v3-flatcontainer/$ID/${{ steps.tag.outputs.version }}/$ID.${{ steps.tag.outputs.version }}.nupkg"
+            for i in $(seq 1 30); do
+              if curl -fsSL -o /dev/null "$URL"; then echo "published: $URL"; continue 2; fi
+              echo "not indexed yet, retrying in 60s ($i/30)"; sleep 60
+            done
+            echo "still not on NuGet.org after 30 minutes: $URL"; exit 1
+          done
+
+      - name: GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ steps.tag.outputs.family }} ${{ steps.tag.outputs.version }}
+          body: See ${{ steps.tag.outputs.changelog }}
           files: artifacts/*
-          generate_release_notes: true

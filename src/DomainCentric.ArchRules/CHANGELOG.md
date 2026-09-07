@@ -127,6 +127,14 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 - **Cycle rules slice by module root.** `CycleRules.CheckSlices` assigned slices with a one-segment
   regex capture, so two contexts grouped below an intermediate namespace produced no slices and a cycle
   between them went unreported. Slices are now `ModuleRootOf(namespace)`, at any depth.
+
+## [0.1.0] - 2026-09-07
+
+Feature parity with `dca-archunit` 0.1.0 (same rule ids and rationales; 4 Java rules not applicable, 6 .NET-only rules).
+
+### Added
+- Initial .NET port of `dca-archunit` (Java) on ArchUnitNET: same rule ids `DCA-<SET>-<NNN>`; `DcaLayout`, `DcaArchitecture`, `DcaRule`, `DcaRules`, `ContextMapRenderer`; xUnit base class `DcaArchitectureTest`.
+- .NET-only rule set `dotnet` (`DCA-NET-001…`): synchronous domain, `Async` suffix on port methods, one `ExecuteAsync` per use case, records for values and ids.
 - **Configurable rule selection.** `DcaRuleSelection` decides which rules run and how strictly:
   `OnlySets` / `OnlyIds` narrow the run, `Excluding(id, reason)` switches a rule off,
   `Warning(id, reason)` reports it without failing the build, and
@@ -158,7 +166,3 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 ### Fixed
 - `DCA-LAY-005` ignores compiler-generated nested types (closures, async state machines of default interface methods) in `Ports.Out`.
 - `DCA-CYC-001…004` sliced with ArchUnitNET's `Slices().Matching("Root.(*).Layer")`, which ignores the segments after `(*)` and slices every sub-namespace of a context — all four rules reported the same intra-context pairs (e.g. `Domain.Model` ↔ `Domain.Event`) as cycles. The rules now build one slice per context from the layer's types only and search elementary cycles between slices themselves (Java semantics of `Root.(*).layer..`). Found by the first real consumer (`dca-ecommerce-sample-dotnet`).
-
-### Added
-- Initial .NET port of `dca-archunit` (Java) on ArchUnitNET: same rule ids `DCA-<SET>-<NNN>`; `DcaLayout`, `DcaArchitecture`, `DcaRule`, `DcaRules`, `ContextMapRenderer`; xUnit base class `DcaArchitectureTest`.
-- .NET-only rule set `dotnet` (`DCA-NET-001…`): synchronous domain, `Async` suffix on port methods, one `ExecuteAsync` per use case, records for values and ids.
