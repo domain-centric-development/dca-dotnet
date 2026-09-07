@@ -222,7 +222,7 @@ dotnet test                                      # rule self-tests against Good/
 dotnet run --project tools/RulesCatalog -- .     # regenerate rules.json + RULES.md
 dotnet pack -c Release -o artifacts              # try the packages in another project (local feed)
 cd samples/MinimalConsumer && dotnet test        # the smallest consumer
-git tag archrules/v0.1.0 && git push origin archrules/v0.1.0   # release to NuGet.org — see RELEASING.md
+git tag archrules/v0.2.0 && git push origin archrules/v0.2.0   # release to NuGet.org — see RELEASING.md
 ```
 
 Without a local SDK, the same through Docker (Podman works too): `docker compose run --rm test`

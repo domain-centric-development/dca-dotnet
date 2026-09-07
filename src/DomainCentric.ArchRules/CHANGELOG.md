@@ -2,6 +2,8 @@
 
 All notable changes to these packages. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: SemVer.
 
+## [Unreleased]
+
 ## [0.2.0] - 2026-09-07
 
 **Migrating from 0.1.0.** Four things can break a consumer; everything else is stricter enforcement

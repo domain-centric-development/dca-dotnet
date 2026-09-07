@@ -4,7 +4,7 @@
     <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
     <RootNamespace>DomainCentric.ArchRules.Xunit</RootNamespace>
     <PackageId>DomainCentric.ArchRules.Xunit</PackageId>
-    <Version>0.2.0</Version>
+    <Version>0.3.0</Version>
     <Description>xUnit base class that runs the whole DomainCentric.ArchRules catalog as one theory per rule.</Description>
     <PackageTags>ddd;hexagonal;architecture-tests;archunitnet;xunit</PackageTags>
     <IsPackable>true</IsPackable>

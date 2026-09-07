@@ -4,7 +4,7 @@
     <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
     <RootNamespace>DomainCentric.ArchRules</RootNamespace>
     <PackageId>DomainCentric.ArchRules</PackageId>
-    <Version>0.2.0</Version>
+    <Version>0.3.0</Version>
     <Description>Executable architecture rules of Domain-Centric Architecture on ArchUnitNET: layered, onion, hexagonal, DDD tactical and strategic patterns, context map, use cases, naming, cycles. Rule ids DCA-&lt;SET&gt;-&lt;NNN&gt; shared with dca-archunit (Java).</Description>
     <PackageTags>ddd;hexagonal;architecture-tests;archunitnet;clean-architecture;fitness-functions</PackageTags>
     <IsPackable>true</IsPackable>
