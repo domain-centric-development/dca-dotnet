@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 #
-# Releases one package family to NuGet.org from this machine.
+# Releases one package family to NuGet.org from this machine — the FALLBACK path. The regular release is
+# a pushed tag, which release.yml publishes through Trusted Publishing (no API key anywhere); see
+# RELEASING.md. This script needs an API key and runs the same checks.
 #
 #   ./scripts/release.sh building-blocks 0.1.0     # DomainCentric.BuildingBlocks
 #   ./scripts/release.sh archrules 0.1.0           # DomainCentric.ArchRules + DomainCentric.ArchRules.Xunit
