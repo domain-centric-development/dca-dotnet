@@ -43,6 +43,8 @@ on_nuget()        { curl -fsSL -o /dev/null "https://api.nuget.org/v3-flatcontai
 # --- preflight -------------------------------------------------------------------------------------
 
 command -v dotnet >/dev/null || die "dotnet SDK not on PATH"
+command -v unzip  >/dev/null || die "unzip not on PATH (used to inspect the packed .nupkg)"
+command -v curl   >/dev/null || die "curl not on PATH (used to query NuGet.org)"
 [ -z "$(git status --porcelain)" ] || die "working tree is dirty — commit the changelog first"
 
 git rev-parse -q --verify "refs/tags/$FAMILY/v$VERSION" >/dev/null \
