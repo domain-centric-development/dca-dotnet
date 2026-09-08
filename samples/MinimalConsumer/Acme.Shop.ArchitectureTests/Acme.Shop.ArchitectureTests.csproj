@@ -16,7 +16,7 @@
     <ProjectReference Include="../../../src/DomainCentric.ArchRules.Xunit/DomainCentric.ArchRules.Xunit.csproj" />
   </ItemGroup>
   <ItemGroup Condition="!Exists('../../../src/DomainCentric.ArchRules.Xunit/DomainCentric.ArchRules.Xunit.csproj')">
-    <PackageReference Include="DomainCentric.ArchRules.Xunit" Version="0.1.0" />
+    <PackageReference Include="DomainCentric.ArchRules.Xunit" Version="0.3.0" />
   </ItemGroup>
 
 </Project>
