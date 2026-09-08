@@ -4,6 +4,40 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Added
+
+- Every rule describes its mechanics: `IDcaRule.Selects` names the types the rule looks at, `IDcaRule.Checks`
+  what it asserts about them - including what does not count and what is deliberately not established. Twin of
+  `dca-archunit`'s `selects()`/`checks()`, same ids, same wording wherever the .NET reading is the same;
+  `rules.json` carries both as `selects`/`checks`, `RULES.md` shows them as two columns.
+
+### Fixed
+
+- Twelve rules still selected through the layout's one-segment wildcard patterns (`Root.[^.]+.Domain.Model` and
+  siblings) and therefore saw only modules that are direct children of the root namespace: `DCA-TAC-001`,
+  `DCA-TAC-009`, `DCA-TAC-013`, `DCA-TAC-014`, `DCA-TAC-015`, `DCA-TAC-019`, `DCA-TAC-020`, `DCA-TAC-022`,
+  `DCA-NAM-007`, `DCA-NAM-008`, `DCA-NAM-010`, `DCA-USE-008`. They now select over `DcaArchitecture.ModuleRoots()`
+  (`AllDomainModelPatterns()` etc.) like every other rule, so a module two segments deep (`Acme.Shop.Sales.Order`)
+  is governed. A flat layout sees no difference. `DCA-ONI-003` and `DCA-TAC-001/009` no longer add the whole
+  `SharedKernel.Domain` namespace on top - the shared kernel is a module root when it owns a domain layer, and
+  `Domain.Model` is what the Java twin checks.
+- `DCA-STR-002` evaluated one fluent rule per bounded context and threw at the first context with violations;
+  it now collects all contexts (`EvaluateAll`) and reports them together, as the Java twin does.
+- Parity with `dca-archunit` (each a real difference in what was reported, not wording): `DCA-TAC-022` selects
+  interfaces named `Enriched*` too (reported, since an interface is no record); `DCA-ONI-002` no longer lets the
+  domain depend on the strategic annotations or the input ports just because the default allow-list names the
+  whole `DomainCentric.BuildingBlocks` namespace - of the building blocks only `Ddd.Tactical` and
+  `Hexagonal.Ports.Out` are allowed; `DCA-NAM-001` selects only classes that implement `IUseCase<,>`, not every
+  class assignable to `IInputPort`; `DCA-USE-015` walks non-public members as well and skips nested classes;
+  `DCA-STR-007` no longer selects interfaces that extend `IIntegrationEvent`; `DCA-STR-008` checks `record struct`
+  events (previously never selected because structs are no `Class` in the model).
+
+### Changed
+
+- **Rule authors:** `DcaRule.Of(...)` and `DcaRule.Check(...)` return `DcaRule.Undescribed`; the rule is
+  completed with `.Selecting(string).Checking(string)`, both mandatory (blank text throws). Consumers that only
+  run the catalog (`DcaArchitectureTest`, `DcaRules.CheckAll`) are unaffected.
+
 ## [0.2.0] - 2026-09-07
 
 **Migrating from 0.1.0.** Four things can break a consumer; everything else is stricter enforcement

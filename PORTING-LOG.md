@@ -5,6 +5,7 @@ Append-only. One section per rule set; the core section is written by the coordi
 ## Core
 
 - `DcaLayout` mirrors the Java class; patterns are regular expressions (ArchUnitNET has no `..` syntax). Defaults are PascalCase namespace segments (`Domain`, `Application`, `Adapter.Incoming`, …), controller suffix `Controller` (ASP.NET), use-case suffix `UseCase`.
+- `IDcaRule.Selects` / `IDcaRule.Checks` mirror Java's `selects()` / `checks()`; `DcaRule.Of`/`Check` return `DcaRule.Undescribed`, completed with `.Selecting(...).Checking(...)` (both mandatory). Texts follow the Java wording sentence by sentence and deviate only where the .NET reading differs (namespaces, `I`-prefixed markers, attributes, async ports - `PublishAndClearEventsAsync`); the rule catalog tool writes them as `selects`/`checks`, the knowledge catalog shows a **.NET reading** block wherever the texts differ.
 - `FrameworkAnnotations` (Spring names) → `FrameworkTypes` (ASP.NET Core `ControllerBase`, `[ApiController]`, `PageModel`, `System.Transactions.TransactionScope`). .NET has no `@Service`/`@Component`/`@EventListener`/`@ApplicationModule` counterpart; the affected rules are n/a and listed per set.
 - `package-info` annotations → attributes on a **marker class residing directly in the context root namespace** (`[BoundedContext("Cart")] public static class CartContext {}`); read by reflection (`DcaArchitecture.NamespaceAttribute(s)<T>`). Repeatable annotations → `AllowMultiple = true`, no container attributes.
 - `DcaRule.of` → `DcaRule.Of` evaluates the ArchUnitNET rule; failed `EvaluationResult`s become violation lines; an empty selection passes (ArchUnitNET would fail it — "requires positive evaluation").
@@ -257,4 +258,27 @@ before any change); `DCA-TAC-003` already rejected `IReadOnlyList<Category>` ins
 `Category[]` and generic-base members — `DataMembers` now adds reflection-derived element types (arrays,
 generic arguments, bound type parameters) next to the ArchUnitNET generic arguments. Self-tests 336 → 345.
 Rule count unchanged (116).
+
+## Structural parity (WP-26 Part A, 2026-09-08)
+
+Writing the `Selecting`/`Checking` texts (WP-25) showed twelve rules still selecting via `layout.*Pattern`
+(`Root.[^.]+.X`, direct children of the root only) although WP-20 had made discovery depth-independent:
+`TAC-001/009/013/014/015/019/020/022`, `NAM-007/008/010`, `USE-008`. All now go through `arch.All*Patterns()`;
+`ONI-003` and `TAC-001/009` dropped the extra `SharedKernel.Domain` scope (the shared kernel is a module root).
+`STR-002` moved from per-context `Evaluate` (first failure wins) to `EvaluateAll`. Pinned by
+`ContextDiscoveryTests.Undeclared.IsGovernedByTheTacticalAndNamingRulesAtDepthTwo` (a module two segments deep,
+one offender per selection shape). The class remark in `DcaLayout.cs` - "The rules do not use them" - is true
+again. Remaining Java↔.NET differences are semantic and listed in `planning/WP-26-dotnet-rule-parity.md` Part B.
+
+## Semantic parity (WP-26 Part B, 2026-09-08)
+
+Decided per row, .NET changed where the porting had drifted: `TAC-022` (interfaces selected), `ONI-002` (building
+blocks: only `Ddd.Tactical` + `Ports.Out`), `NAM-001` (`IUseCase<,>` implementors only), `USE-015` (all
+visibilities, no nested classes), `STR-007` (no interfaces), `STR-008` (`arch.Types` minus interfaces, so record
+structs count). Kept as deliberate .NET readings, documented in the catalog: fields **and** properties in
+`TAC-002..011`; `TAC-009` selects records and demands `sealed`; the attribute allow-list in `ONI-003`/`ADV-004/011/
+015/018` (no stereotype attributes to name in .NET); `HEX-003` selects controllers by base class and
+`[ApiController]` too; `STR-005` keeps `Types()` - the attribute allows interfaces and ArchUnit's `classes()`
+includes interfaces as well, so this was never an asymmetry. Java moved for `ADV-012/016` (inherited fields) and
+`NAM-010` (`Implementation`).
 

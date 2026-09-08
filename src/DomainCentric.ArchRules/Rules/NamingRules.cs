@@ -56,7 +56,7 @@ public sealed class NamingRules : IDcaRuleSet
                 var violations = arch.Classes
                     .Where(c => InNamespace(c, DcaLayout.AnyOf(arch.AllApplicationPatterns()))
                         && c.IsRecord != true
-                        && IsAssignableTo(arch, c, typeof(IInputPort))
+                        && ImplementsUseCase(arch, c)
                         && !c.Name.EndsWith(arch.Layout.UseCaseSuffix, StringComparison.Ordinal))
                     .Select(c => $"{c.FullName} implements an input port but does not end with '{arch.Layout.UseCaseSuffix}'")
                     .ToList();
@@ -64,7 +64,15 @@ public sealed class NamingRules : IDcaRuleSet
                     $"Application layer InputPort implementations must end with '{arch.Layout.UseCaseSuffix}'",
                     violations,
                     $"rename the class to *{arch.Layout.UseCaseSuffix}");
-            });
+            })
+        .Selecting(
+            "Non-record classes in <module>.Application of every module root that implement"
+                + " IUseCase<TInput, TOutput> - directly or through an I*InputPort interface that"
+                + " extends it.")
+        .Checking(
+            "The name ends with the configured use-case suffix. Interfaces and records are"
+                + " not selected; a class implementing only IInputPort without IUseCase is not"
+                + " selected either. An empty selection passes.");
 
     public static IDcaRule InputPortInterfacesEndWithInputPort(DcaLayout layout) =>
         // Matched by marker, not by namespace: DCA places each input port in its own use-case
@@ -87,7 +95,14 @@ public sealed class NamingRules : IDcaRuleSet
                     "InputPort interfaces must end with 'InputPort'",
                     violations,
                     "rename the interface to I<UseCaseName>InputPort");
-            });
+            })
+        .Selecting(
+            "Interfaces in <module>.Application of every module root that are assignable to"
+                + " IInputPort, except those named exactly InputPort, IInputPort, UseCase or IUseCase.")
+        .Checking(
+            "The name starts with I and ends with InputPort (IPlaceOrderInputPort). Classes and"
+                + " records are not selected, and an interface extending IInputPort outside an"
+                + " application namespace is not checked. An empty selection passes.");
 
     public static IDcaRule RepositoryInterfacesEndWithRepository(DcaLayout layout) =>
         DcaRule.Check(
@@ -105,7 +120,15 @@ public sealed class NamingRules : IDcaRuleSet
                     .Select(i => $"{i.FullName} does not end with 'Repository'")
                     .ToList();
                 DcaRule.Fail("Repository Interfaces must end with 'Repository'", violations, "rename the interface to I<Aggregate>Repository");
-            });
+            })
+        .Selecting(
+            "Interfaces in <module>.Application of every module root whose name contains"
+                + " Repository, except one named exactly Repository or IRepository.")
+        .Checking(
+            "The name ends with Repository (IRepositoryPort or IProductRepositoryAdapter is"
+                + " reported). Selection is by name only - whether the interface extends the"
+                + " IRepository marker is not checked, and classes are not selected. An empty"
+                + " selection passes.");
 
     public static IDcaRule ControllersEndWithController(DcaLayout layout) =>
         // Java: @Controller (MVC). .NET: MVC controllers (derive from ControllerBase without [ApiController])
@@ -123,7 +146,16 @@ public sealed class NamingRules : IDcaRuleSet
                     .Select(c => $"{c.FullName} is a controller but does not end with 'Controller'")
                     .ToList();
                 DcaRule.Fail("Controller classes must end with 'Controller'", violations, "rename the class to *Controller");
-            });
+            })
+        .Selecting(
+            "Classes in <module>.Adapter.Incoming of every module root that derive from the"
+                + " configured controller base class without carrying the configured API-controller"
+                + " attribute, or that derive from the configured page-model base class.")
+        .Checking(
+            "The name ends with the literal Controller - this suffix is not configurable. A"
+                + " class carrying the API-controller attribute is not selected here, and a"
+                + " controller outside an incoming-adapter namespace is not checked. An empty"
+                + " selection passes.");
 
     public static IDcaRule RestControllersEndWithRestControllerSuffix(DcaLayout layout) =>
         // Java: @RestController. .NET: classes carrying [ApiController].
@@ -143,7 +175,14 @@ public sealed class NamingRules : IDcaRuleSet
                     $"REST Controllers must end with '{arch.Layout.RestControllerSuffix}'",
                     violations,
                     $"rename the class to *{arch.Layout.RestControllerSuffix}");
-            });
+            })
+        .Selecting(
+            "Classes in <module>.Adapter.Incoming of every module root that carry the"
+                + " configured API-controller attribute ([ApiController] by default).")
+        .Checking(
+            "The name ends with the configured REST-controller suffix. Controllers without the"
+                + " attribute are not selected, and an API controller outside an incoming-adapter"
+                + " namespace is not checked. An empty selection passes.");
 
     public static IDcaRule DtosResideInAdapterLayer(DcaLayout layout) =>
         DcaRule.Of(
@@ -157,7 +196,14 @@ public sealed class NamingRules : IDcaRuleSet
                     .And()
                     .ResideInNamespaceMatching(DcaLayout.Below(layout.RootNamespace))
                     .Should()
-                    .ResideInNamespaceMatching(layout.AdapterPattern));
+                    .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllAdapterPatterns())))
+        .Selecting(
+            "Types under the root namespace whose name ends with Dto.")
+        .Checking(
+            "Each resides in an adapter namespace of some module root (<module>.Adapter or"
+                + " below), incoming or outgoing. A Dto in a domain,"
+                + " application or infrastructure namespace is reported; what the type contains is"
+                + " not checked. An empty selection passes.");
 
     public static IDcaRule ConvertersResideInAdapterLayer(DcaLayout layout) =>
         DcaRule.Of(
@@ -171,7 +217,14 @@ public sealed class NamingRules : IDcaRuleSet
                     .And()
                     .ResideInNamespaceMatching(DcaLayout.Below(layout.RootNamespace))
                     .Should()
-                    .ResideInNamespaceMatching(layout.AdapterPattern));
+                    .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllAdapterPatterns())))
+        .Selecting(
+            "Types under the root namespace whose name ends with Converter.")
+        .Checking(
+            "Each resides in an adapter namespace of some module root (<module>.Adapter or"
+                + " below), incoming or outgoing. Only the Converter"
+                + " suffix is checked - a type named *Mapper or *Assembler is not selected by this"
+                + " rule. An empty selection passes.");
 
     public static IDcaRule NoTechnicalBucketPackages(DcaLayout layout) =>
         // Top-level structure must scream business capabilities (screaming architecture).
@@ -186,7 +239,14 @@ public sealed class NamingRules : IDcaRuleSet
                     .That()
                     .ResideInNamespaceMatching(DcaLayout.Below(layout.RootNamespace))
                     .Should()
-                    .NotResideInNamespaceMatching(TechnicalBucketPattern));
+                    .NotResideInNamespaceMatching(TechnicalBucketPattern))
+        .Selecting(
+            "Every type under the root namespace.")
+        .Checking(
+            "No type resides in a namespace with a segment Entities, ValueObjects, Helpers,"
+                + " Util or Utils, in any casing and at any depth. Only these five segments are"
+                + " checked; other technical names such as Model, Service or Impl are not reported."
+                + " An empty selection passes.");
 
     public static IDcaRule NoTechnicalSuffixesInDomain(DcaLayout layout) =>
         // Domain concepts carry ubiquitous-language names. 'Manager'/'Helper'/'Util' signal
@@ -198,9 +258,16 @@ public sealed class NamingRules : IDcaRuleSet
             arch =>
                 Types()
                     .That()
-                    .ResideInNamespaceMatching(layout.DomainPattern)
+                    .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns()))
                     .Should()
-                    .NotHaveNameMatching("(Manager|Helper|Utils?|Impl|Implementation)$"));
+                    .NotHaveNameMatching("(Manager|Helper|Utils?|Impl|Implementation)$"))
+        .Selecting(
+            "Types in <module>.Domain of every module root.")
+        .Checking(
+            "No name ends with Manager, Helper, Util, Utils, Impl or Implementation. Only"
+                + " these six suffixes are checked, only in domain namespaces - a *Service or"
+                + " *Factory in the domain is not reported, and an Impl in an adapter namespace is"
+                + " not checked. An empty selection passes.");
 
     /// <summary>
     /// The web-adapter namespaces are derived from the discovered module roots
@@ -220,7 +287,14 @@ public sealed class NamingRules : IDcaRuleSet
                     .ResideInNamespaceMatching(DcaLayout.Below(layout.RootNamespace))
                     .Should()
                     .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.ModuleRoots().Select(root =>
-                        DcaLayout.Below($"{root}.{layout.AdapterSegment}.{layout.IncomingSegment}.Web")))));
+                        DcaLayout.Below($"{root}.{layout.AdapterSegment}.{layout.IncomingSegment}.Web")))))
+        .Selecting(
+            "Types under the root namespace whose name ends with ViewModel.")
+        .Checking(
+            "Each resides in <module>.Adapter.Incoming.Web of some module root - the adapter"
+                + " and incoming segments are the configured ones, the Web segment is fixed. A"
+                + " ViewModel in a domain or application namespace, or in a non-web incoming adapter"
+                + " such as Adapter.Incoming.Mcp, is reported. An empty selection passes.");
 
     // ---------------------------------------------------------------------------------------------
     // Helpers
@@ -231,6 +305,22 @@ public sealed class NamingRules : IDcaRuleSet
 
     private static bool IsBaseInputPortName(string name) =>
         name is "InputPort" or "IInputPort" or "UseCase" or "IUseCase";
+
+    /// <summary>
+    /// Whether the class implements <c>IUseCase&lt;,&gt;</c> - by reflection on the runtime type when the assembly
+    /// is loaded, by the ArchUnitNET interface list (generic name prefix) otherwise.
+    /// </summary>
+    private static bool ImplementsUseCase(DcaArchitecture arch, Class c)
+    {
+        var runtime = arch.RuntimeType(c);
+        if (runtime is not null)
+        {
+            return runtime.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IUseCase<,>));
+        }
+
+        var prefix = typeof(IUseCase<,>).FullName!.Split('`')[0];
+        return c.ImplementedInterfaces.Any(i => i.FullName.StartsWith(prefix, StringComparison.Ordinal));
+    }
 
     private static bool InNamespace(IType type, string pattern) =>
         type.Namespace is not null && Regex.IsMatch(type.Namespace.FullName, pattern);

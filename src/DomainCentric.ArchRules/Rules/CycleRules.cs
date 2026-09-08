@@ -42,28 +42,58 @@ public sealed class CycleRules : IDcaRuleSet
             "DCA-CYC-001",
             "Domain Namespaces must not have cyclic dependencies",
             "Domain model namespaces should have clear boundaries and no cycles (Acyclic Dependencies Principle)",
-            arch => CheckSlices(arch, layout, $"{layout.DomainSegment}.Model", "Domain Namespaces must not have cyclic dependencies"));
+            arch => CheckSlices(arch, layout, $"{layout.DomainSegment}.Model", "Domain Namespaces must not have cyclic dependencies"))
+            .Selecting(
+                "One slice per module root, holding the types in <module>.Domain.Model of that module and "
+                + "below. A module root is the shortest namespace prefix whose next segment is a layer "
+                + "segment, so modules are found at any depth; types outside every module or outside "
+                + "Domain.Model are ignored.")
+            .Checking(
+                "The slices form no dependency cycle - no two modules' domain models depend on each "
+                + "other, directly or via further modules' domain models. Cycles between types inside one "
+                + "module's domain model do not count, and dependencies into other layers do not count. "
+                + "Fewer than two slices pass.");
 
     public static IDcaRule ApplicationLayerFreeOfCycles(DcaLayout layout) =>
         DcaRule.Check(
             "DCA-CYC-002",
             "Application Layer must not have cyclic dependencies",
             "Application services should have clear boundaries and no cycles",
-            arch => CheckSlices(arch, layout, layout.ApplicationSegment, "Application Layer must not have cyclic dependencies"));
+            arch => CheckSlices(arch, layout, layout.ApplicationSegment, "Application Layer must not have cyclic dependencies"))
+            .Selecting(
+                "One slice per module root, holding the types in <module>.Application of that module and "
+                + "below (Application.Shared included); types outside every module or outside the "
+                + "application layer are ignored.")
+            .Checking(
+                "The slices form no dependency cycle between modules' application layers. Cycles between "
+                + "use cases or features inside one module do not count here (see DCA-CYC-005), nor do "
+                + "dependencies into domain or adapter types.");
 
     public static IDcaRule OutgoingAdaptersFreeOfCycles(DcaLayout layout) =>
         DcaRule.Check(
             "DCA-CYC-003",
             "Outgoing Adapter Namespaces must not have cyclic dependencies",
             "Outgoing adapters should have clear boundaries and no cycles",
-            arch => CheckSlices(arch, layout, $"{layout.AdapterSegment}.{layout.OutgoingSegment}", "Outgoing Adapter Namespaces must not have cyclic dependencies"));
+            arch => CheckSlices(arch, layout, $"{layout.AdapterSegment}.{layout.OutgoingSegment}", "Outgoing Adapter Namespaces must not have cyclic dependencies"))
+            .Selecting(
+                "One slice per module root, holding the types in <module>.Adapter.Outgoing of that module "
+                + "and below; everything else is ignored.")
+            .Checking(
+                "The slices form no dependency cycle between modules' outgoing adapters. Cycles inside "
+                + "one module's outgoing adapters and dependencies into other layers do not count.");
 
     public static IDcaRule IncomingAdaptersFreeOfCycles(DcaLayout layout) =>
         DcaRule.Check(
             "DCA-CYC-004",
             "Incoming Adapter Namespaces must not have cyclic dependencies",
             "Incoming adapters should have clear boundaries and no cycles",
-            arch => CheckSlices(arch, layout, $"{layout.AdapterSegment}.{layout.IncomingSegment}", "Incoming Adapter Namespaces must not have cyclic dependencies"));
+            arch => CheckSlices(arch, layout, $"{layout.AdapterSegment}.{layout.IncomingSegment}", "Incoming Adapter Namespaces must not have cyclic dependencies"))
+            .Selecting(
+                "One slice per module root, holding the types in <module>.Adapter.Incoming of that module "
+                + "and below; everything else is ignored.")
+            .Checking(
+                "The slices form no dependency cycle between modules' incoming adapters. Cycles inside "
+                + "one module's incoming adapters and dependencies into other layers do not count.");
 
     /// <summary>
     /// One slice per module for the given layer: <c>module.Layer</c> and everything below it, where the module
@@ -101,7 +131,18 @@ public sealed class CycleRules : IDcaRuleSet
             arch => CheckSlices(
                 arch,
                 ns => ApplicationChildSlice(arch, layout, ns),
-                "Feature and use case namespaces within a module's application layer must not have cyclic dependencies"));
+                "Feature and use case namespaces within a module's application layer must not have cyclic dependencies"))
+            .Selecting(
+                "One slice per immediate child namespace of <module>.Application, for every module root: "
+                + "a feature in a grouped layout, a use case in a flat one, each with everything below it. "
+                + "Types directly in the application namespace and everything below Application.Shared are "
+                + "ignored.")
+            .Checking(
+                "The slices form no dependency cycle: two features or two use cases that depend on each "
+                + "other, directly or through further slices, are reported. Dependencies on "
+                + "Application.Shared, the domain or an adapter do not count. Slices of all modules are "
+                + "checked together, so a cycle through another module's use-case namespace is reported "
+                + "here as well.");
 
     /// <summary>
     /// The slice of a namespace for <c>DCA-CYC-005</c>: <c>module.Application.&lt;child&gt;</c>, where the module is

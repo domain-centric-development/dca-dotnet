@@ -107,6 +107,34 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Layout.Nested.Contexts.Todo.Dom
     }
 }
 
+namespace DomainCentric.ArchRules.Tests.Fixtures.Layout.Nested.Contexts.Todo.Domain.Model
+{
+    /// <summary>
+    /// Named *AggregateRoot without the marker: DCA-TAC-001 must see it although the module sits two
+    /// segments below the root — the tactical rules select over module roots, not over
+    /// <c>Root.[^.]+.Domain.Model</c>.
+    /// </summary>
+    public sealed class TodoListAggregateRoot
+    {
+        public string Name { get; } = "todo";
+    }
+}
+
+namespace DomainCentric.ArchRules.Tests.Fixtures.Layout.Nested.Contexts.Todo.Domain
+{
+    /// <summary>A DTO in the domain layer of the nested module; DCA-NAM-007 must report it.</summary>
+    public sealed record TodoDto(string Id);
+}
+
+namespace DomainCentric.ArchRules.Tests.Fixtures.Layout.Nested.Contexts.Todo.Application.Shared
+{
+    /// <summary>Named *Repository without extending IRepository; DCA-TAC-013 must report it.</summary>
+    public interface ITodoListRepository
+    {
+        int Count();
+    }
+}
+
 // ---------------------------------------------------------------------------------------------------
 // GroupedModule: a module that is deliberately not a bounded context, grouped below an intermediate namespace
 // ---------------------------------------------------------------------------------------------------

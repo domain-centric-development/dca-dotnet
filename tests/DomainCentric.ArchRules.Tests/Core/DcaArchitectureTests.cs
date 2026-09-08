@@ -45,16 +45,19 @@ public sealed class DcaArchitectureTests
     {
         var arch = Arch();
         var rule = DcaRule.Of("DCA-TEST-001", "domain classes are aggregate roots", "test",
-            a => Classes().That().ResideInNamespaceMatching(a.Layout.DomainModelPattern).Should().BeAssignableTo(typeof(IAggregateRoot)));
+            a => Classes().That().ResideInNamespaceMatching(a.Layout.DomainModelPattern).Should().BeAssignableTo(typeof(IAggregateRoot)))
+            .Selecting("test").Checking("test");
         rule.Check(arch);
 
         var failing = DcaRule.Of("DCA-TEST-002", "domain classes are sealed records", "test",
-            a => Classes().That().ResideInNamespaceMatching(a.Layout.DomainModelPattern).Should().BeRecord());
+            a => Classes().That().ResideInNamespaceMatching(a.Layout.DomainModelPattern).Should().BeRecord())
+            .Selecting("test").Checking("test");
         var ex = Assert.Throws<DcaRuleViolationException>(() => failing.Check(arch));
         Assert.Contains("Cart", ex.Message, System.StringComparison.Ordinal);
 
         var empty = DcaRule.Of("DCA-TEST-003", "nothing selected passes", "test",
-            a => Classes().That().HaveNameEndingWith("Nothing").Should().BeSealed());
+            a => Classes().That().HaveNameEndingWith("Nothing").Should().BeSealed())
+            .Selecting("test").Checking("test");
         empty.Check(arch);
     }
 

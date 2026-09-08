@@ -106,6 +106,22 @@ public sealed class ContextDiscoveryTests
         public void IsFoundAsAModuleRootDespiteItsDepth() =>
             Assert.Equal(new[] { Root + ".Contexts.Todo" }, Arch(Root).ModuleRoots());
 
+        /// <summary>
+        /// The tactical, naming and use-case rules select over module roots too — not over the layout's
+        /// one-segment wildcard, which would leave a module two segments deep unseen. One test per shape of
+        /// selection: a hand-written loop (TAC-001), a namespace match on a collected set (TAC-013), a fluent
+        /// rule (NAM-007).
+        /// </summary>
+        [Theory]
+        [InlineData("DCA-TAC-001", "TodoListAggregateRoot")]
+        [InlineData("DCA-TAC-013", "ITodoListRepository")]
+        [InlineData("DCA-NAM-007", "TodoDto")]
+        public void IsGovernedByTheTacticalAndNamingRulesAtDepthTwo(string ruleId, string offender)
+        {
+            var ex = Assert.Throws<DcaRuleViolationException>(() => Rule(ruleId, Root).Check(Arch(Root)));
+            Assert.Contains(offender, ex.Message, System.StringComparison.Ordinal);
+        }
+
         /// <summary>Isolation is structural too: no declaration needed to be a subject of the isolation rules.</summary>
         [Fact]
         public void IsASubjectOfTheIsolationRules() =>

@@ -48,7 +48,15 @@ public sealed class LayeredRules : IDcaRuleSet
             "Traditional layering (application accessed only by incoming adapters) contradicts Ports"
                 + " and Adapters, where outgoing adapters implement application-level output ports;"
                 + " the hexagonal rules cover the intended dependency direction",
-            arch => { });
+            arch => { })
+            .Selecting(
+                "Informational - selects nothing. A classic layered-architecture definition (adapter "
+                + "layer accesses application, application accesses domain, domain accesses nothing) is not "
+                + "built, because in Ports and Adapters outgoing adapters implement application-level "
+                + "output ports.")
+            .Checking(
+                "Informational - selects nothing and never fails; it carries doctrine only. The "
+                + "dependency direction is enforced by the hexagonal rules.");
 
     public IDcaRule DomainMustNotDependOnInfrastructure() =>
         DcaRule.Of(
@@ -57,7 +65,14 @@ public sealed class LayeredRules : IDcaRuleSet
             "Domain should not depend on infrastructure concerns (Dependency Inversion Principle)",
             // The global infrastructure namespace and every isolated module's own.
             arch => Types().That().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns()))
-                .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllInfrastructurePatterns())));
+                .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllInfrastructurePatterns())))
+            .Selecting(
+                "Types in <module>.Domain of every module root, the shared kernel's domain included.")
+            .Checking(
+                "No dependency on a type in the global infrastructure namespace (<root>.Infrastructure or "
+                + "below) or in any isolated module's own infrastructure namespace (<module>.Infrastructure "
+                + "or below). The shared kernel's infrastructure namespace is not in that list. A module "
+                + "without a domain layer selects nothing and passes.");
 
     public IDcaRule ApplicationMustNotUseInfrastructureImplementations() =>
         DcaRule.Of(
@@ -67,7 +82,14 @@ public sealed class LayeredRules : IDcaRuleSet
                 + " infrastructure implementation details",
             arch => Types().That().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllApplicationPatterns()))
                 .Should().NotDependOnAnyTypesThat()
-                .FollowCustomPredicate(arch.IsInfrastructureImplementation, "are infrastructure implementations"));
+                .FollowCustomPredicate(arch.IsInfrastructureImplementation, "are infrastructure implementations"))
+            .Selecting(
+                "Types in <module>.Application of every module root.")
+            .Checking(
+                "No dependency on a type residing in the global infrastructure namespace or in any "
+                + "isolated module's own infrastructure namespace, sub-namespaces included, with an exact "
+                + "segment boundary. Dependencies on outgoing adapters are not checked here - only "
+                + "infrastructure namespaces count.");
 
     /// <summary>
     /// Every type that uses the configured transaction type (<c>TransactionScope</c>) must reside in the
@@ -95,7 +117,18 @@ public sealed class LayeredRules : IDcaRuleSet
                     .Select(t => $"{t.FullName} uses {transactionType} outside the application layer")
                     .ToList();
                 DcaRule.Fail($"Transaction boundaries belong to the application layer\nbecause {rationale}", violations);
-            });
+            })
+            .Selecting(
+                "Types under scan that have any dependency on the configured transaction type (by default "
+                + "System.Transactions.TransactionScope) - a field, a local, a method call or a using block "
+                + "all count.")
+            .Checking(
+                "Each resides in an application namespace of some module root (<module>.Application or "
+                + "below) or in an outgoing adapter namespace of some module root "
+                + "(<module>.Adapter.Outgoing or below). A use in a domain, incoming-adapter or "
+                + "infrastructure namespace is reported; all findings are collected into one violation. The "
+                + "check is per type, not per method, and other transaction APIs (a DbContext transaction, "
+                + "TransactionScope subclasses) are not looked for.");
     }
 
     /// <summary>
@@ -123,6 +156,14 @@ public sealed class LayeredRules : IDcaRuleSet
                     .Select(t => $"{t.FullName} is not an interface")
                     .ToList();
                 DcaRule.Fail($"{title}\nbecause {rationale}", violations);
-            });
+            })
+            .Selecting(
+                "Types declared in the building-blocks namespace "
+                + "DomainCentric.BuildingBlocks.Hexagonal.Ports.Out, read by reflection from the "
+                + "building-blocks assembly rather than from the scanned architecture. Compiler-generated "
+                + "types (closures, async state machines of default interface methods) are not selected.")
+            .Checking(
+                "Each is an interface. The project's own output ports in Application.Shared are not "
+                + "selected; the rule passes when no non-interface type is found.");
     }
 }

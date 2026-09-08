@@ -63,7 +63,12 @@ public sealed class UseCaseRules : IDcaRuleSet
                     .That()
                     .HaveNameMatching("^I?InputPort$")
                     .Should()
-                    .ResideInNamespaceMatching(DcaLayout.Exactly(DcaLayout.BuildingBlocksPortsInNamespace)));
+                    .ResideInNamespaceMatching(DcaLayout.Exactly(DcaLayout.BuildingBlocksPortsInNamespace)))
+        .Selecting(
+            "Interfaces named InputPort or IInputPort anywhere in the loaded assemblies.")
+        .Checking(
+            "The interface resides in the building-blocks namespace Hexagonal.Ports.In - the"
+                + " generic contract is not redeclared in the project.");
 
     public static IDcaRule CommandsResideInApplication(DcaLayout layout) =>
         DcaRule.Of(
@@ -77,7 +82,13 @@ public sealed class UseCaseRules : IDcaRuleSet
                     .And()
                     .ResideInNamespaceMatching(DcaLayout.Below(layout.RootNamespace))
                     .Should()
-                    .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllApplicationPatterns())));
+                    .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllApplicationPatterns())))
+        .Selecting(
+            "Types under the root namespace whose name ends with Command.")
+        .Checking(
+            "Each resides in an application namespace of some module root"
+                + " (<module>.Application). A Command in a domain, adapter or infrastructure"
+                + " namespace is reported.");
 
     public static IDcaRule QueriesResideInApplication(DcaLayout layout) =>
         DcaRule.Of(
@@ -91,21 +102,38 @@ public sealed class UseCaseRules : IDcaRuleSet
                     .And()
                     .ResideInNamespaceMatching(DcaLayout.Below(layout.RootNamespace))
                     .Should()
-                    .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllApplicationPatterns())));
+                    .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllApplicationPatterns())))
+        .Selecting(
+            "Types under the root namespace whose name ends with Query.")
+        .Checking(
+            "Each resides in an application namespace of some module root"
+                + " (<module>.Application).");
 
     public static IDcaRule CommandsAreImmutable(DcaLayout layout) =>
         DcaRule.Check(
             "DCA-USE-004",
             "Use Case Commands should be immutable (sealed or records)",
             "Use case commands should be immutable (value objects)",
-            arch => ImmutableApplicationModels(arch, "Command"));
+            arch => ImmutableApplicationModels(arch, "Command"))
+        .Selecting(
+            "Non-record classes in <module>.Application of every module root whose name ends"
+                + " with Command.")
+        .Checking(
+            "The class is sealed. Records and interfaces are not selected, so a record"
+                + " Command always passes; an abstract class is reported like any other unsealed"
+                + " class.");
 
     public static IDcaRule QueriesAreImmutable(DcaLayout layout) =>
         DcaRule.Check(
             "DCA-USE-005",
             "Use Case Queries should be immutable (sealed or records)",
             "Use case queries should be immutable (value objects)",
-            arch => ImmutableApplicationModels(arch, "Query"));
+            arch => ImmutableApplicationModels(arch, "Query"))
+        .Selecting(
+            "Non-record classes in <module>.Application of every module root whose name ends"
+                + " with Query.")
+        .Checking(
+            "The class is sealed. Records and interfaces are not selected.");
 
     public static IDcaRule ResultsResideInApplication(DcaLayout layout) =>
         DcaRule.Of(
@@ -121,14 +149,26 @@ public sealed class UseCaseRules : IDcaRuleSet
                     .And()
                     .DoNotImplementInterface(typeof(IValue))
                     .Should()
-                    .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllApplicationPatterns())));
+                    .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllApplicationPatterns())))
+        .Selecting(
+            "Types under the root namespace whose name ends with Result and that do not"
+                + " implement IValue.")
+        .Checking(
+            "Each resides in an application namespace of some module root"
+                + " (<module>.Application). A domain value object named *Result is exempt because it"
+                + " implements IValue.");
 
     public static IDcaRule ResultsAreImmutable(DcaLayout layout) =>
         DcaRule.Check(
             "DCA-USE-007",
             "Use Case Result Models should be immutable (sealed or records)",
             "Use case result models should be immutable (value objects)",
-            arch => ImmutableApplicationModels(arch, "Result"));
+            arch => ImmutableApplicationModels(arch, "Result"))
+        .Selecting(
+            "Non-record classes in <module>.Application of every module root whose name ends"
+                + " with Result.")
+        .Checking(
+            "The class is sealed. Records and interfaces are not selected.");
 
     public static IDcaRule ResponsesResideInIncomingAdapters(DcaLayout layout) =>
         // Matched by pattern: every incoming adapter, in any context or none, including the shared
@@ -144,7 +184,12 @@ public sealed class UseCaseRules : IDcaRuleSet
                     .And()
                     .ResideInNamespaceMatching(DcaLayout.Below(layout.RootNamespace))
                     .Should()
-                    .ResideInNamespaceMatching(layout.IncomingAdapterPattern));
+                    .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllIncomingAdapterPatterns())))
+        .Selecting(
+            "Types under the root namespace whose name ends with Response.")
+        .Checking(
+            "Each resides in an incoming-adapter namespace of some module root"
+                + " (<module>.Adapter.Incoming or below), the shared kernel's included.");
 
     /// <summary>
     /// Checked per entry path over the class-internal call graph (<see cref="IntraClassCalls"/>): for every unit that
@@ -202,7 +247,19 @@ public sealed class UseCaseRules : IDcaRuleSet
                     "Use cases that save an aggregate must publish its domain events",
                     violations.Distinct().ToList(),
                     "call IDomainEventPublisher.PublishAndClearEventsAsync(aggregate) after IRepository.SaveAsync(aggregate) on every path that saves");
-            });
+            })
+        .Selecting(
+            "Classes in <module>.Application of every module root whose name ends with the"
+                + " configured use-case suffix and whose runtime type is in the loaded assemblies.")
+        .Checking(
+            "For every method of the class that calls IRepository.SaveAsync, every entry point"
+                + " reaching it (a method callable from outside the class, or one nothing in the"
+                + " class calls) also reaches, through calls within the class, a call of"
+                + " IDomainEventPublisher.PublishAndClearEventsAsync. Calls are read from the IL of"
+                + " the class and its nested state-machine and closure types, so async methods and"
+                + " lambdas are followed. Only PublishAndClearEventsAsync counts - PublishAsync(event),"
+                + " even followed by ClearDomainEvents(), does not. A use case without a save (a query,"
+                + " a bulk delete) is selected but has nothing to check and passes.");
 
     public static IDcaRule NoDtosInDomain(DcaLayout layout) =>
         DcaRule.Of(
@@ -215,7 +272,11 @@ public sealed class UseCaseRules : IDcaRuleSet
                     .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns()))
                     .Should()
                     .NotDependOnAnyTypesThat()
-                    .HaveNameEndingWith("Dto"));
+                    .HaveNameEndingWith("Dto"))
+        .Selecting(
+            "Types in <module>.Domain of every module root.")
+        .Checking(
+            "No dependency on a type whose name ends with Dto.");
 
     public static IDcaRule NoDtosInApplication(DcaLayout layout) =>
         DcaRule.Of(
@@ -228,7 +289,12 @@ public sealed class UseCaseRules : IDcaRuleSet
                     .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllApplicationPatterns()))
                     .Should()
                     .NotDependOnAnyTypesThat()
-                    .HaveNameEndingWith("Dto"));
+                    .HaveNameEndingWith("Dto"))
+        .Selecting(
+            "Types in <module>.Application of every module root.")
+        .Checking(
+            "No dependency on a type whose name ends with Dto. Command, Query and Result"
+                + " models are not DTOs by this rule's definition - only the Dto suffix is checked.");
 
     // ---------------------------------------------------------------------------------------------
     // Helpers
@@ -257,7 +323,16 @@ public sealed class UseCaseRules : IDcaRuleSet
                 + " case. The rule checks legibility only: it does not infer bounded contexts, feature semantics or"
                 + " aggregate ownership. Application.Shared holds the context-wide output ports and is not a use"
                 + " case namespace",
-            arch => CheckUseCaseDepth(arch, layout));
+            arch => CheckUseCaseDepth(arch, layout))
+        .Selecting(
+            "Per module root: non-abstract, non-nested classes below <module>.Application"
+                + " whose name ends with the configured use-case suffix, excluding Application.Shared"
+                + " and everything below it.")
+        .Checking(
+            "All of them sit at one depth: Application.<UseCase> (flat) or"
+                + " Application.<Feature>.<UseCase> (grouped). Reported are a use case directly in the"
+                + " application namespace, one nested deeper than a feature, and a module mixing both"
+                + " depths. What a feature means is not checked.");
 
     private static void CheckUseCaseDepth(DcaArchitecture arch, DcaLayout layout)
     {
@@ -341,7 +416,18 @@ public sealed class UseCaseRules : IDcaRuleSet
                 + " the port; values, enriched models and read models may cross. Checked transitively through"
                 + " nested records, part records anywhere in the application layer (Application.Shared included),"
                 + " arrays and generic type arguments (IReadOnlyList<T>, T?, IReadOnlyDictionary<K,V>)",
-            CheckResultsCarryNoIdentities);
+            CheckResultsCarryNoIdentities)
+        .Selecting(
+            "Non-nested classes in <module>.Application of every module root whose name ends with"
+                + " Result and that are not assignable to IValue; the runtime type must be in the"
+                + " loaded assemblies.")
+        .Checking(
+            "No instance property or field of any visibility - inherited ones included, walked"
+                + " through array element types and generic type arguments (IReadOnlyList<T>, T?,"
+                + " IReadOnlyDictionary<K,V>), and transitively into every record that lives in an"
+                + " application namespace - has a type assignable to IAggregateRoot or IEntity."
+                + " Records outside the application layer (domain value objects, read models) are"
+                + " not walked. Every offending path is reported.");
 
     private static void CheckResultsCarryNoIdentities(DcaArchitecture arch)
     {
@@ -350,6 +436,7 @@ public sealed class UseCaseRules : IDcaRuleSet
         foreach (var result in arch.Classes
             .Where(c => c.Namespace is not null
                 && Matches(c.Namespace.FullName, application)
+                && !c.IsNested
                 && c.Name.EndsWith("Result", StringComparison.Ordinal)
                 && !IsAssignableTo(arch, c, typeof(IValue)))
             .OrderBy(c => c.FullName, StringComparer.Ordinal))
@@ -370,7 +457,7 @@ public sealed class UseCaseRules : IDcaRuleSet
     }
 
     /// <summary>
-    /// Walks the public instance members of a result or part record — inherited ones included, a base class
+    /// Walks the instance members (any visibility) of a result or part record — inherited ones included, a base class
     /// need not carry the suffix. <paramref name="onPath"/> holds the records currently being walked and
     /// guards against a self-referencing part record; it is not a global visited set, so the same part
     /// record reached through two members is reported on both paths.
@@ -382,9 +469,9 @@ public sealed class UseCaseRules : IDcaRuleSet
             return;
         }
 
-        const BindingFlags members = BindingFlags.Public | BindingFlags.Instance;
+        const BindingFlags members = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
         var memberTypes = type.GetProperties(members).Select(p => (p.Name, p.PropertyType))
-            .Concat(type.GetFields(members).Select(f => (f.Name, f.FieldType)))
+            .Concat(type.GetFields(members).Where(f => !f.Name.EndsWith("k__BackingField", StringComparison.Ordinal)).Select(f => (f.Name, f.FieldType)))
             .OrderBy(m => m.Name, StringComparer.Ordinal);
         foreach (var (name, memberType) in memberTypes)
         {

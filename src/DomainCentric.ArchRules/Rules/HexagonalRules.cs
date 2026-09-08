@@ -75,7 +75,14 @@ public sealed class HexagonalRules : IDcaRuleSet
             "Classes from the domain should not access port adapters",
             "Domain should not depend on adapters (ports and adapters pattern)",
             arch => Types().That().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainModelPatterns()))
-                .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllAdapterPatterns())));
+                .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllAdapterPatterns())))
+        .Selecting(
+            "Types in <module>.Domain.Model of every module root - the domain model"
+                + " namespace, not the whole domain layer.")
+        .Checking(
+            "No dependency on a type in <module>.Adapter of any module root, incoming or"
+                + " outgoing. Domain types outside the model namespace (domain services, events) are"
+                + " not selected. An empty selection passes.");
 
     public IDcaRule ApplicationMustNotAccessAdapters() =>
         DcaRule.Of(
@@ -83,7 +90,13 @@ public sealed class HexagonalRules : IDcaRuleSet
             "Application Services should not access port adapters",
             "Application services should only depend on domain and outbound ports, not adapters",
             arch => Types().That().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllApplicationPatterns()))
-                .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllAdapterPatterns())));
+                .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllAdapterPatterns())))
+        .Selecting(
+            "Types in <module>.Application of every module root, Application.Shared"
+                + " included.")
+        .Checking(
+            "No dependency on a type in <module>.Adapter of any module root. An empty"
+                + " selection passes.");
 
     public IDcaRule ControllersMustNotAccessRepositories() =>
         DcaRule.Of(
@@ -92,7 +105,17 @@ public sealed class HexagonalRules : IDcaRuleSet
             "Controllers must go through use cases (input ports), never directly to repositories",
             arch => Classes().That().FollowCustomPredicate(c => IsController(c, Layout), "are controllers")
                 .Should().NotDependOnAnyTypesThat()
-                .FollowCustomPredicate(t => t.IsAssignableTo(typeof(IRepository).FullName!), "are repositories"));
+                .FollowCustomPredicate(t => t.IsAssignableTo(typeof(IRepository).FullName!), "are repositories"))
+        .Selecting(
+            "Controller classes anywhere in the loaded assemblies: a class whose name ends with"
+                + " the literal Controller or with the configured REST-controller suffix, one deriving"
+                + " from the configured controller or page-model base class, or one carrying the"
+                + " configured API-controller attribute. Not restricted to adapter namespaces.")
+        .Checking(
+            "No dependency on a type assignable to IRepository - the port interface or an"
+                + " implementation. Other output ports (IStore, event publishers) are not checked; a"
+                + " controller that reaches a repository through another class is not reported. An"
+                + " empty selection passes.");
 
     public IDcaRule IncomingAdaptersMustNotUseInfrastructureImplementations() =>
         DcaRule.Of(
@@ -102,7 +125,15 @@ public sealed class HexagonalRules : IDcaRuleSet
                 + " infrastructure implementation details",
             arch => Types().That().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllIncomingAdapterPatterns()))
                 .Should().NotDependOnAnyTypesThat()
-                .FollowCustomPredicate(arch.IsInfrastructureImplementation, "are infrastructure implementations"));
+                .FollowCustomPredicate(arch.IsInfrastructureImplementation, "are infrastructure implementations"))
+        .Selecting(
+            "Types in <module>.Adapter.Incoming of every module root.")
+        .Checking(
+            "No dependency on a type in an infrastructure namespace: the global"
+                + " Root.Infrastructure or an isolated module's own <module>.Infrastructure, the"
+                + " namespace itself or any sub-namespace with an exact segment boundary. The shared"
+                + " kernel's infrastructure namespace does not count as an infrastructure"
+                + " implementation. An empty selection passes.");
 
     public IDcaRule OutgoingAdaptersMustNotUseInfrastructureImplementations() =>
         DcaRule.Of(
@@ -112,7 +143,15 @@ public sealed class HexagonalRules : IDcaRuleSet
                 + " infrastructure implementation details",
             arch => Types().That().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllOutgoingAdapterPatterns()))
                 .Should().NotDependOnAnyTypesThat()
-                .FollowCustomPredicate(arch.IsInfrastructureImplementation, "are infrastructure implementations"));
+                .FollowCustomPredicate(arch.IsInfrastructureImplementation, "are infrastructure implementations"))
+        .Selecting(
+            "Types in <module>.Adapter.Outgoing of every module root.")
+        .Checking(
+            "No dependency on a type in an infrastructure namespace: the global"
+                + " Root.Infrastructure or an isolated module's own <module>.Infrastructure, the"
+                + " namespace itself or any sub-namespace with an exact segment boundary. The shared"
+                + " kernel's infrastructure namespace does not count as an infrastructure"
+                + " implementation. An empty selection passes.");
 
     public IDcaRule AdaptersMustNotCommunicateDirectly() =>
         DcaRule.Of(
@@ -123,7 +162,15 @@ public sealed class HexagonalRules : IDcaRuleSet
                 + " consumers are the exception)",
             arch => Types().That().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllIncomingAdapterPatterns()))
                 .And().DoNotResideInNamespaceMatching(EventConsumerPattern())
-                .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllOutgoingAdapterPatterns())));
+                .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllOutgoingAdapterPatterns())))
+        .Selecting(
+            "Types in <module>.Adapter.Incoming of every module root, excluding those"
+                + " below an Adapter.Incoming.Event namespace (event consumers).")
+        .Checking(
+            "No dependency on a type in <module>.Adapter.Outgoing of any module root. The"
+                + " reverse direction (an outgoing adapter using an incoming one) and dependencies"
+                + " between two incoming or two outgoing adapters are not checked. An empty"
+                + " selection passes.");
 
     /// <summary>
     /// DCA-HEX-007. Structural, over every module that owns a DCA layer (<see cref="DcaArchitecture.IsolatedModuleRoots"/>),
@@ -159,7 +206,18 @@ public sealed class HexagonalRules : IDcaRuleSet
                 }
 
                 DcaRule.EvaluateAll(perModule, arch, title, rationale);
-            });
+            })
+            .Selecting(
+                "Per isolated module root - every module root except the shared kernel, declared"
+                + " a bounded context or not: types in <module>.Adapter.Incoming, excluding"
+                + " those below an Adapter.Incoming.Event namespace (event consumers). A module that"
+                + " is the only isolated module is skipped.")
+            .Checking(
+                "No dependency on any type in another isolated module root (<other> and below), its"
+                + " published Api and Events namespaces included. Dependencies on the shared kernel"
+                + " and on namespaces outside every module root are not checked. Findings of all"
+                + " modules are collected and reported together; a module without incoming adapters"
+                + " passes.");
     }
 
     public IDcaRule RepositoryClassesResideInOutgoingAdapter() =>
@@ -168,7 +226,15 @@ public sealed class HexagonalRules : IDcaRuleSet
             "Classes named *Repository must reside in the outgoing adapter namespace",
             "Repository implementations are secondary adapters (outgoing ports)",
             arch => Classes().That().HaveNameEndingWith("Repository")
-                .Should().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllOutgoingAdapterPatterns())));
+                .Should().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllOutgoingAdapterPatterns())))
+        .Selecting(
+            "Classes anywhere in the loaded assemblies whose name ends with Repository -"
+                + " implementations and abstract base classes alike. The IRepository port interfaces"
+                + " themselves are not selected.")
+        .Checking(
+            "Each resides in <module>.Adapter.Outgoing of some module root. Whether the"
+                + " class implements an IRepository port is not checked - only the name is. An empty"
+                + " selection passes.");
 
     public IDcaRule SharedOutputPortsExtendOutputPort() =>
         DcaRule.Of(
@@ -179,7 +245,16 @@ public sealed class HexagonalRules : IDcaRuleSet
                 + " are part of their enclosing port's contract, not ports themselves",
             arch => Interfaces().That().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllSharedOutputPortPatterns()))
                 .And().FollowCustomPredicate(i => !i.IsNested, "are top-level interfaces")
-                .Should().BeAssignableTo(typeof(IOutputPort)));
+                .Should().BeAssignableTo(typeof(IOutputPort)))
+        .Selecting(
+            "Top-level interfaces in <module>.Application.Shared of every module root."
+                + " Nested interfaces are not selected - they belong to their enclosing port's"
+                + " contract.")
+        .Checking(
+            "The interface is assignable to IOutputPort, directly or through IRepository,"
+                + " IStore, IDomainEventPublisher, IIntegrationEventPublisher or another IOutputPort"
+                + " sub-interface. Classes, records and enums in Application.Shared are not checked."
+                + " An empty selection passes.");
 
     public IDcaRule OutputPortsMustNotResideInDomain() =>
         DcaRule.Of(
@@ -188,7 +263,14 @@ public sealed class HexagonalRules : IDcaRuleSet
             "output ports (IRepository, IStore, IOutputPort) are an application-layer concern and must live"
                 + " in Application/Shared/, not Domain/",
             arch => Interfaces().That().AreAssignableTo(typeof(IOutputPort))
-                .Should().NotResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns())));
+                .Should().NotResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns())))
+        .Selecting(
+            "Interfaces anywhere in the loaded assemblies that are assignable to"
+                + " IOutputPort - the building-block port interfaces themselves included.")
+        .Checking(
+            "None resides in <module>.Domain of any module root. Classes implementing an"
+                + " output port are not selected; where an interface outside the domain has to live"
+                + " is not checked here. An empty selection passes.");
 
     public IDcaRule IncomingAdaptersMustDependOnInputPortsNotUseCaseClasses() =>
         DcaRule.Check(
@@ -213,7 +295,15 @@ public sealed class HexagonalRules : IDcaRuleSet
                     "Incoming Adapters must depend on input port interfaces, not on use case classes",
                     violations,
                     "inject the I<UseCaseName>InputPort interface instead of the <UseCaseName> class");
-            });
+            })
+        .Selecting(
+            "Classes in <module>.Adapter.Incoming of every module root, event consumers"
+                + " included.")
+        .Checking(
+            "No dependency on a use case implementation: a class assignable to"
+                + " IInputPort, directly or through an I*InputPort interface - abstract base classes"
+                + " included. Depending on the input port interfaces themselves is what the rule"
+                + " expects. An empty selection passes.");
 
     /// <summary>
     /// DCA-HEX-012. Selects every class in an incoming adapter namespace (event consumers included) and reports each
@@ -259,7 +349,17 @@ public sealed class HexagonalRules : IDcaRuleSet
                     "Incoming Adapters must not depend on domain services",
                     violations.Distinct().OrderBy(v => v, StringComparer.Ordinal).ToList(),
                     "move the collaboration into the use case and carry its outcome in the result");
-            });
+            })
+        .Selecting(
+            "Classes in <module>.Adapter.Incoming of every module root, event consumers"
+                + " included. Outgoing adapters are not selected.")
+        .Checking(
+            "No dependency on a type assignable to IDomainService - the building-block marker"
+                + " interface, any sub-interface of it and every class implementing one. A domain"
+                + " class without the marker is not a domain service by this rule. Injecting it,"
+                + " calling it or naming it in a signature all count as a dependency; constructor"
+                + " parameters are read from the runtime type as well, so a service injected into an"
+                + " adapter whose members are all async is still found. An empty selection passes.");
 
     /// <summary>A use case implementation: a class (never an interface) behind an <see cref="IInputPort"/>.</summary>
     private static bool IsUseCaseImplementation(DcaArchitecture arch, IType type) =>

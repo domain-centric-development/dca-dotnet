@@ -10,21 +10,74 @@ public static class DcaRule
 {
     /// <summary>
     /// A rule built from a single ArchUnitNET rule derived from the architecture. The rule is evaluated
-    /// and every failed result becomes one violation line. An empty selection passes.
+    /// and every failed result becomes one violation line. An empty selection passes. Complete it with
+    /// <see cref="Undescribed.Selecting"/> and <see cref="Selected.Checking"/>.
     /// </summary>
-    public static IDcaRule Of(string id, string title, string rationale, Func<DcaArchitecture, IArchRule> rule)
+    public static Undescribed Of(string id, string title, string rationale, Func<DcaArchitecture, IArchRule> rule)
     {
         if (rule is null)
         {
             throw new ArgumentNullException(nameof(rule));
         }
 
-        return new SimpleRule(id, title, rationale, arch => Evaluate(rule(arch), arch, title, rationale));
+        return new Undescribed(id, title, rationale, arch => Evaluate(rule(arch), arch, title, rationale));
     }
 
-    /// <summary>A rule with custom check logic (loops over contexts, reflective checks, …).</summary>
-    public static IDcaRule Check(string id, string title, string rationale, Action<DcaArchitecture> check) =>
-        new SimpleRule(id, title, rationale, check);
+    /// <summary>
+    /// A rule with custom check logic (loops over contexts, reflective checks, …). Complete it with
+    /// <see cref="Undescribed.Selecting"/> and <see cref="Selected.Checking"/>.
+    /// </summary>
+    public static Undescribed Check(string id, string title, string rationale, Action<DcaArchitecture> check) =>
+        new Undescribed(id, title, rationale, check ?? throw new ArgumentNullException(nameof(check)));
+
+    /// <summary>A rule whose mechanics are not yet described; not an <see cref="IDcaRule"/> until they are.</summary>
+    public sealed class Undescribed
+    {
+        private readonly string _id;
+        private readonly string _title;
+        private readonly string _rationale;
+        private readonly Action<DcaArchitecture> _check;
+
+        internal Undescribed(string id, string title, string rationale, Action<DcaArchitecture> check)
+        {
+            _id = id ?? throw new ArgumentNullException(nameof(id));
+            _title = title ?? throw new ArgumentNullException(nameof(title));
+            _rationale = rationale ?? throw new ArgumentNullException(nameof(rationale));
+            _check = check;
+        }
+
+        /// <summary>Names the types the rule looks at; see <see cref="IDcaRule.Selects"/>.</summary>
+        public Selected Selecting(string selects) => new(this, RequireText(selects, "selects", _id));
+
+        internal IDcaRule Complete(string selects, string checks) =>
+            new SimpleRule(_id, _title, _rationale, selects, RequireText(checks, "checks", _id), _check);
+    }
+
+    /// <summary>A rule with its selection described; <see cref="Checking"/> completes it.</summary>
+    public sealed class Selected
+    {
+        private readonly Undescribed _rule;
+        private readonly string _selects;
+
+        internal Selected(Undescribed rule, string selects)
+        {
+            _rule = rule;
+            _selects = selects;
+        }
+
+        /// <summary>Names what the rule asserts about each selected type; see <see cref="IDcaRule.Checks"/>.</summary>
+        public IDcaRule Checking(string checks) => _rule.Complete(_selects, checks);
+    }
+
+    private static string RequireText(string text, string field, string id)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            throw new ArgumentException($"{id}: {field} must not be blank", field);
+        }
+
+        return text.Trim();
+    }
 
     /// <summary>
     /// Evaluates an ArchUnitNET rule against the architecture and throws
@@ -89,11 +142,13 @@ public static class DcaRule
     {
         private readonly Action<DcaArchitecture> _check;
 
-        internal SimpleRule(string id, string title, string rationale, Action<DcaArchitecture> check)
+        internal SimpleRule(string id, string title, string rationale, string selects, string checks, Action<DcaArchitecture> check)
         {
             Id = id ?? throw new ArgumentNullException(nameof(id));
             Title = title ?? throw new ArgumentNullException(nameof(title));
             Rationale = rationale ?? throw new ArgumentNullException(nameof(rationale));
+            Selects = selects ?? throw new ArgumentNullException(nameof(selects));
+            Checks = checks ?? throw new ArgumentNullException(nameof(checks));
             _check = check ?? throw new ArgumentNullException(nameof(check));
         }
 
@@ -102,6 +157,10 @@ public static class DcaRule
         public string Title { get; }
 
         public string Rationale { get; }
+
+        public string Selects { get; }
+
+        public string Checks { get; }
 
         public void Check(DcaArchitecture architecture) => _check(architecture);
 

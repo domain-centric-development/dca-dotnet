@@ -80,7 +80,14 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                     arch,
                     t => t is not Interface && IsDomainEvent(t),
                     t => !IsRecordLike(t),
-                    t => $"{t.FullName} implements IDomainEvent but is not a record")));
+                    t => $"{t.FullName} implements IDomainEvent but is not a record")))
+            .Selecting(
+                "Non-interface types anywhere under scan that are assignable to IDomainEvent - directly "
+                + "or through a supertype.")
+            .Checking(
+                "The type is a record class or a struct (a record struct is a struct to the analysis, so "
+                + "any struct counts). A plain class implementing IDomainEvent is reported, sealed or not; "
+                + "interfaces are not selected. An empty selection passes.");
 
     public IDcaRule DomainEventsResideInDomain() =>
         DcaRule.Of(
@@ -93,7 +100,13 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 .And()
                 .FollowCustomPredicate(t => t is not Interface, "are not interfaces")
                 .Should()
-                .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns())));
+                .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns())))
+            .Selecting(
+                "Non-interface types anywhere under scan that are assignable to IDomainEvent.")
+            .Checking(
+                "Each resides in a domain namespace of some module root (<module>.Domain or below). An "
+                + "event in an application, adapter or infrastructure namespace is reported. An empty "
+                + "selection passes.");
 
     public IDcaRule DomainEventsAreImmutable() =>
         DcaRule.Check(
@@ -106,7 +119,13 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                     arch,
                     t => t is Class c && c.IsRecord != true && InDomain(arch, t) && IsDomainEvent(t),
                     t => ((Class)t).IsSealed != true,
-                    t => $"{t.FullName} is neither a record nor sealed")));
+                    t => $"{t.FullName} is neither a record nor sealed")))
+            .Selecting(
+                "Non-record classes in <module>.Domain of every module root that are assignable to "
+                + "IDomainEvent. Records, structs and interfaces are not selected.")
+            .Checking(
+                "The class is sealed. A record event is not selected, so it always passes here. An empty "
+                + "selection passes.");
 
     public IDcaRule DomainEventsHaveNoFrameworkAttributes() =>
         DcaRule.Check(
@@ -116,7 +135,17 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
             arch => FailOnFrameworkAttributes(
                 arch,
                 t => InDomain(arch, t) && IsDomainEvent(t),
-                "Domain Events must not carry framework attributes:"));
+                "Domain Events must not carry framework attributes:"))
+            .Selecting(
+                "Non-interface types in <module>.Domain of every module root that are assignable to "
+                + "IDomainEvent.")
+            .Checking(
+                "Every attribute on the type itself - not on members, not inherited - has a type whose "
+                + "namespace lies below an allowed prefix: the configured third-party namespaces the domain "
+                + "may use (by default System, Microsoft.Extensions.Logging.Abstractions and "
+                + "DomainCentric.BuildingBlocks), the building blocks, or a domain namespace of some module "
+                + "root. Any other attribute is a framework attribute and is reported; a type without a "
+                + "loadable runtime type is skipped. An empty selection passes.");
 
     public IDcaRule IntegrationEventsAreAnnotatedWithIntegrationEventType() =>
         DcaRule.Check(
@@ -131,7 +160,14 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                     arch,
                     t => t is not Interface && IsIntegrationEvent(t),
                     t => !t.HasAttribute(typeof(IntegrationEventTypeAttribute).FullName!),
-                    t => $"{t.FullName} is not annotated with [IntegrationEventType]")));
+                    t => $"{t.FullName} is not annotated with [IntegrationEventType]")))
+            .Selecting(
+                "Non-interface types anywhere under scan that are assignable to IIntegrationEvent - "
+                + "records, structs and abstract classes included.")
+            .Checking(
+                "The type itself carries [IntegrationEventType]. An attribute on a supertype does not "
+                + "count; the attribute's name and version values are not checked. An empty selection "
+                + "passes.");
 
     public IDcaRule IntegrationEventsHaveNoVersionField() =>
         DcaRule.Check(
@@ -147,7 +183,14 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                     t => t is not Interface && IsIntegrationEvent(t),
                     t => HasVersionField(arch, t),
                     t => $"{t.FullName} carries a version data field — declare the version in"
-                        + " [IntegrationEventType] instead")));
+                        + " [IntegrationEventType] instead")))
+            .Selecting(
+                "Non-interface types anywhere under scan that are assignable to IIntegrationEvent.")
+            .Checking(
+                "No field named version, compared case-insensitively - declared by the type or inherited "
+                + "from a base type, static or not, of any type. An auto-property named Version counts "
+                + "through its backing field, and so does a positional record parameter. Every offender is "
+                + "reported in one violation; an empty selection passes.");
 
     public IDcaRule DomainOnlyEventsHaveNoVersionField() =>
         DcaRule.Check(
@@ -163,7 +206,15 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                     t => t is not Interface && IsDomainEvent(t) && !IsIntegrationEvent(t),
                     t => HasVersionField(arch, t),
                     t => $"{t.FullName} has a version field but is not an IIntegrationEvent — only"
-                        + " IIntegrationEvents need versioning")));
+                        + " IIntegrationEvents need versioning")))
+            .Selecting(
+                "Non-interface types anywhere under scan that are assignable to IDomainEvent but not to "
+                + "IIntegrationEvent. A type assignable to both is not selected.")
+            .Checking(
+                "No field named version, compared case-insensitively - declared by the type or inherited "
+                + "from a base type, static or not, of any type; an auto-property or positional record "
+                + "parameter named Version counts. Every offender is reported in one violation; an empty "
+                + "selection passes.");
 
     public IDcaRule DomainEventsHaveTimestampField() =>
         DcaRule.Check(
@@ -177,7 +228,18 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                     arch,
                     t => t is not Interface && IsDomainEvent(t),
                     t => !HasTimestampField(arch, t),
-                    t => $"{t.FullName} does not have a timestamp field")));
+                    t => $"{t.FullName} does not have a timestamp field")))
+            .Selecting(
+                "Non-interface types anywhere under scan that are assignable to IDomainEvent. "
+                + "IIntegrationEvent does not extend IDomainEvent, so an integration event is selected only "
+                + "when it also implements IDomainEvent.")
+            .Checking(
+                "At least one field - declared by the type or inherited from a base type, static or not, "
+                + "of any name - has the type System.DateTimeOffset or System.DateTime; an auto-property or "
+                + "positional record parameter of one of these types counts through its backing field. "
+                + "DateOnly, TimeSpan, long or string fields do not satisfy it, and a computed property "
+                + "without a backing field does not either. Every offender is reported in one violation; an "
+                + "empty selection passes.");
 
     // ============================================================================
     // DOMAIN SERVICES PATTERN
@@ -195,7 +257,14 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 .And()
                 .FollowCustomPredicate(t => t is not Interface, "are not interfaces")
                 .Should()
-                .ResideInNamespaceMatching(DomainServicePattern()));
+                .ResideInNamespaceMatching(DomainServicePattern()))
+            .Selecting(
+                "Non-interface types anywhere under scan that are assignable to IDomainService.")
+            .Checking(
+                "Each resides in a namespace matching .<domain segment>.Service or below - the configured "
+                + "domain segment followed by Service, anywhere in the namespace path, not tied to a module "
+                + "root. A domain service directly in Domain or in Domain.Model is reported. An empty "
+                + "selection passes.");
 
     public IDcaRule DomainServicesResideInDomain() =>
         DcaRule.Of(
@@ -208,7 +277,12 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 .And()
                 .FollowCustomPredicate(t => t is not Interface, "are not interfaces")
                 .Should()
-                .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns())));
+                .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns())))
+            .Selecting(
+                "Non-interface types anywhere under scan that are assignable to IDomainService.")
+            .Checking(
+                "Each resides in a domain namespace of some module root (<module>.Domain or below). An "
+                + "empty selection passes.");
 
     public IDcaRule DomainServicesHaveNoFrameworkAttributes() =>
         DcaRule.Check(
@@ -218,7 +292,16 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
             arch => FailOnFrameworkAttributes(
                 arch,
                 t => t is not Interface && t.IsAssignableTo(typeof(IDomainService).FullName!),
-                "Domain Services must not carry framework attributes:"));
+                "Domain Services must not carry framework attributes:"))
+            .Selecting(
+                "Non-interface types anywhere under scan that are assignable to IDomainService.")
+            .Checking(
+                "Every attribute on the type itself - not on members, not inherited - has a type whose "
+                + "namespace lies below an allowed prefix: the configured third-party namespaces the domain "
+                + "may use (by default System, Microsoft.Extensions.Logging.Abstractions and "
+                + "DomainCentric.BuildingBlocks), the building blocks, or a domain namespace of some module "
+                + "root. Any other attribute is a framework attribute and is reported; a type without a "
+                + "loadable runtime type is skipped. An empty selection passes.");
 
     public IDcaRule DomainServicesAreStateless() =>
         DcaRule.Check(
@@ -229,7 +312,15 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 "Domain Services must have only readonly fields:",
                 NonReadonlyFieldViolations(
                     arch,
-                    t => t is not Interface && InDomain(arch, t) && t.IsAssignableTo(typeof(IDomainService).FullName!))));
+                    t => t is not Interface && InDomain(arch, t) && t.IsAssignableTo(typeof(IDomainService).FullName!))))
+            .Selecting(
+                "Non-interface types in <module>.Domain of every module root that are assignable to "
+                + "IDomainService.")
+            .Checking(
+                "Every field - declared by the type or inherited from a base type, static fields included "
+                + "- is readonly or const. A settable auto-property is reported through its backing field; "
+                + "a get-only one passes. Field types are not inspected, so a readonly field holding "
+                + "mutable state passes. An empty selection passes.");
 
     // ============================================================================
     // FACTORIES PATTERN
@@ -246,7 +337,12 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 .And()
                 .FollowCustomPredicate(t => t is not Interface, "are not interfaces")
                 .Should()
-                .HaveNameEndingWith("Factory"));
+                .HaveNameEndingWith("Factory"))
+            .Selecting(
+                "Non-interface types anywhere under scan that are assignable to IFactory.")
+            .Checking(
+                "The simple name ends with Factory. Only the suffix is checked. An empty selection "
+                + "passes.");
 
     public IDcaRule FactoriesResideInDomain() =>
         DcaRule.Of(
@@ -259,7 +355,12 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 .And()
                 .FollowCustomPredicate(t => t is not Interface, "are not interfaces")
                 .Should()
-                .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns())));
+                .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns())))
+            .Selecting(
+                "Non-interface types anywhere under scan that are assignable to IFactory.")
+            .Checking(
+                "Each resides in a domain namespace of some module root (<module>.Domain or below). An "
+                + "empty selection passes.");
 
     public IDcaRule FactoriesHaveNoFrameworkAttributes() =>
         DcaRule.Check(
@@ -269,7 +370,17 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
             arch => FailOnFrameworkAttributes(
                 arch,
                 t => t is not Interface && InDomain(arch, t) && t.IsAssignableTo(typeof(IFactory).FullName!),
-                "Factories must not carry framework attributes:"));
+                "Factories must not carry framework attributes:"))
+            .Selecting(
+                "Non-interface types in <module>.Domain of every module root that are assignable to "
+                + "IFactory.")
+            .Checking(
+                "Every attribute on the type itself - not on members, not inherited - has a type whose "
+                + "namespace lies below an allowed prefix: the configured third-party namespaces the domain "
+                + "may use (by default System, Microsoft.Extensions.Logging.Abstractions and "
+                + "DomainCentric.BuildingBlocks), the building blocks, or a domain namespace of some module "
+                + "root. Any other attribute is a framework attribute and is reported; a type without a "
+                + "loadable runtime type is skipped. An empty selection passes.");
 
     public IDcaRule FactoriesAreStateless() =>
         DcaRule.Check(
@@ -280,7 +391,14 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 "Factories must have only readonly fields:",
                 NonReadonlyFieldViolations(
                     arch,
-                    t => t is not Interface && InDomain(arch, t) && t.IsAssignableTo(typeof(IFactory).FullName!))));
+                    t => t is not Interface && InDomain(arch, t) && t.IsAssignableTo(typeof(IFactory).FullName!))))
+            .Selecting(
+                "Non-interface types in <module>.Domain of every module root that are assignable to "
+                + "IFactory.")
+            .Checking(
+                "Every field - declared by the type or inherited from a base type, static fields included "
+                + "- is readonly or const. A settable auto-property is reported through its backing field. "
+                + "Field types are not inspected. An empty selection passes.");
 
     // ============================================================================
     // SPECIFICATION PATTERN
@@ -299,7 +417,14 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 .And()
                 .DoNotHaveName("Specification")
                 .Should()
-                .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns())));
+                .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns())))
+            .Selecting(
+                "Non-interface types anywhere under scan whose simple name ends with Specification, "
+                + "excluding a type named exactly Specification. No marker is involved - only the name "
+                + "selects.")
+            .Checking(
+                "Each resides in a domain namespace of some module root (<module>.Domain or below). An "
+                + "empty selection passes.");
 
     public IDcaRule SpecificationsHaveNoFrameworkAttributes() =>
         DcaRule.Check(
@@ -309,7 +434,17 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
             arch => FailOnFrameworkAttributes(
                 arch,
                 t => InDomain(arch, t) && t.Name.EndsWith("Specification", StringComparison.Ordinal),
-                "Specifications must not carry framework attributes:"));
+                "Specifications must not carry framework attributes:"))
+            .Selecting(
+                "Types in <module>.Domain of every module root whose simple name ends with Specification "
+                + "- interfaces included.")
+            .Checking(
+                "Every attribute on the type itself - not on members, not inherited - has a type whose "
+                + "namespace lies below an allowed prefix: the configured third-party namespaces the domain "
+                + "may use (by default System, Microsoft.Extensions.Logging.Abstractions and "
+                + "DomainCentric.BuildingBlocks), the building blocks, or a domain namespace of some module "
+                + "root. Any other attribute is a framework attribute and is reported; a type without a "
+                + "loadable runtime type is skipped. An empty selection passes.");
 
     // ============================================================================
     // HELPERS

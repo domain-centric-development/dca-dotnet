@@ -1,5 +1,6 @@
 // Renders the DCA rule catalog of DomainCentric.ArchRules to rules.json and RULES.md — the same
-// shape dca-archunit's `rulesCatalog` Gradle task produces, so the knowledge catalog can merge both.
+// shape dca-archunit's `rulesCatalog` Gradle task produces (id, title, rationale, selects, checks), so the
+// knowledge catalog can merge both.
 //
 //   dotnet run --project tools/RulesCatalog -- <repo-root>
 using System.Collections;
@@ -18,12 +19,12 @@ foreach (var set in ruleSets)
 {
     foreach (var rule in set.Rules)
     {
-        entries.Add(new Entry(set.Name, rule.Id, rule.Title, rule.Rationale, "ported", null));
+        entries.Add(new Entry(set.Name, rule.Id, rule.Title, rule.Rationale, rule.Selects, rule.Checks, "ported", null));
     }
 
     foreach (var (id, reason) in NotApplicable(set))
     {
-        entries.Add(new Entry(set.Name, id, "(not applicable in .NET)", reason, "n/a", reason));
+        entries.Add(new Entry(set.Name, id, "(not applicable in .NET)", reason, "", "", "n/a", reason));
     }
 }
 
@@ -31,7 +32,7 @@ entries = entries.OrderBy(e => ruleSets.ToList().FindIndex(s => s.Name == e.Set)
 
 var json = JsonSerializer.Serialize(
     entries.Select(e => e.Status == "ported"
-        ? (object)new { set = e.Set, id = e.Id, title = e.Title, rationale = e.Rationale, implementation = "dotnet" }
+        ? (object)new { set = e.Set, id = e.Id, title = e.Title, rationale = e.Rationale, selects = e.Selects, checks = e.Checks, implementation = "dotnet" }
         : new { set = e.Set, id = e.Id, status = "n/a", reason = e.Reason }),
     new JsonSerializerOptions { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
 File.WriteAllText(Path.Combine(root, "rules.json"), json + "\n");
@@ -43,10 +44,10 @@ md.Append("# DCA rule catalog (.NET)\n\n");
 md.Append($"Generated from `DomainCentric.ArchRules` — do not edit. {ported} rules in {ruleSets.Count} sets; {na} Java rules not applicable in .NET.\n\n");
 foreach (var set in ruleSets)
 {
-    md.Append($"## `{set.Name}`\n\n| Id | Rule | Rationale |\n|----|------|-----------|\n");
+    md.Append($"## `{set.Name}`\n\n| Id | Rule | Rationale | Selects | Checks |\n|----|------|-----------|---------|--------|\n");
     foreach (var e in entries.Where(e => e.Set == set.Name && e.Status == "ported"))
     {
-        md.Append($"| `{e.Id}` | {Cell(e.Title)} | {Cell(e.Rationale)} |\n");
+        md.Append($"| `{e.Id}` | {Cell(e.Title)} | {Cell(e.Rationale)} | {Cell(e.Selects)} | {Cell(e.Checks)} |\n");
     }
 
     var skipped = entries.Where(e => e.Set == set.Name && e.Status != "ported").ToList();
@@ -81,4 +82,4 @@ static IEnumerable<(string, string)> NotApplicable(IDcaRuleSet set)
     }
 }
 
-sealed record Entry(string Set, string Id, string Title, string Rationale, string Status, string? Reason);
+sealed record Entry(string Set, string Id, string Title, string Rationale, string Selects, string Checks, string Status, string? Reason);

@@ -90,7 +90,16 @@ public sealed class ContextMapRules : IDcaRuleSet
                     RequireNoDeclaration<PartnershipAttribute>(arch, ns, "[Partnership]", violations);
                 }
                 DcaRule.Fail("Context map declarations are reserved for bounded contexts", violations);
-            });
+            })
+        .Selecting(
+            "Every namespace at or below the root namespace that a loaded type lives in,"
+                + " its ancestors included, that carries no marker class with [BoundedContext]."
+                + " The resolved context roots themselves are skipped.")
+        .Checking(
+            "No class residing exactly in the namespace declares [Upstream], [ExternalUpstream] or"
+                + " [Partnership]. A declaration on a nested namespace (a use-case, feature or grouping"
+                + " namespace) is reported; whether a declaration is well-formed is left to the other"
+                + " rules.");
 
     private static void RequireNoDeclaration<T>(DcaArchitecture arch, string ns, string label, List<string> violations)
         where T : Attribute
@@ -139,7 +148,17 @@ public sealed class ContextMapRules : IDcaRuleSet
                     }
                 }
                 DcaRule.Fail("ExternalUpstream declarations must be well-formed and unique per name and interaction", violations);
-            });
+            })
+        .Selecting(
+            "Every [ExternalUpstream] declaration on the marker class of every namespace"
+                + " carrying [BoundedContext], reading Name and Interaction. Planned"
+                + " declarations are included.")
+        .Checking(
+            "Name is not blank and is not the name of an internal bounded context (a"
+                + " context's namespace relative to the root namespace), and the pair (name,"
+                + " interaction) occurs at most once per declaring context. The same external"
+                + " system declared by two different contexts is not reported; Translation"
+                + " and ContractNamespaces are not checked here.");
 
     /// <summary>DCA-MAP-003.</summary>
     public static IDcaRule ExternalSystemNamesDistinctAfterNormalization() =>
@@ -167,7 +186,15 @@ public sealed class ContextMapRules : IDcaRuleSet
                     }
                 }
                 DcaRule.Fail("Distinct external system names must not collide after mermaid id normalization", violations);
-            });
+            })
+        .Selecting(
+            "Every [ExternalUpstream] declaration on the marker class of every namespace"
+                + " carrying [BoundedContext], across all contexts, reading Name. Planned"
+                + " declarations are included.")
+        .Checking(
+            "Two declarations whose Name differs but normalizes to the same node id of"
+                + " the generated context map (the renderer's own normalization) are reported"
+                + " as a collision. Repeating one spelling of a name is not a collision.");
 
     /// <summary>DCA-MAP-004.</summary>
     public static IDcaRule UpstreamsReferenceExistingContexts() =>
@@ -197,7 +224,15 @@ public sealed class ContextMapRules : IDcaRuleSet
                     }
                 }
                 DcaRule.Fail("Upstream declarations must reference an existing bounded context", violations);
-            });
+            })
+        .Selecting(
+            "Every [Upstream] declaration on the marker class of every namespace carrying"
+                + " [BoundedContext], reading Context. Planned declarations are included.")
+        .Checking(
+            "Context names an existing bounded context - a namespace whose marker class carries"
+                + " [BoundedContext], identified by its name relative to the root namespace - and"
+                + " is not the declaring context itself. Whether any code depends on the target"
+                + " is not established here.");
 
     /// <summary>DCA-MAP-005.</summary>
     public static IDcaRule UpstreamsUniquePerContextAndChannel() =>
@@ -234,7 +269,17 @@ public sealed class ContextMapRules : IDcaRuleSet
                     }
                 }
                 DcaRule.Fail("Upstream declarations must be unique per context and channel", violations);
-            });
+            })
+        .Selecting(
+            "Every [Upstream] declaration on the marker class of every namespace carrying"
+                + " [BoundedContext], reading Context and Via. Planned declarations are"
+                + " included.")
+        .Checking(
+            "Via holds at least one channel, and the pair (context, channel) - the"
+                + " channel resolved to the layout's Api or Events segment name - occurs at"
+                + " most once among the declarations of one context. Two declarations towards"
+                + " the same context on different channels are allowed; the same context and"
+                + " channel declared twice, even with different translations, is reported.");
 
     // ---------------------------------------------------------------------------------------------
     // Consistency with the code
@@ -274,7 +319,17 @@ public sealed class ContextMapRules : IDcaRuleSet
                     }
                 }
                 DcaRule.Fail("Implemented Upstream declarations must be backed by an actual code dependency", violations);
-            });
+            })
+        .Selecting(
+            "Every [Upstream] declaration with Status Implemented on the marker class"
+                + " of every namespace carrying [BoundedContext] whose Context names an existing"
+                + " bounded context, reading Via. Planned declarations and declarations"
+                + " towards an unknown context are skipped.")
+        .Checking(
+            "For every channel in Via, at least one type anywhere below the declaring"
+                + " context's namespace has a direct dependency on a type in the target"
+                + " context's channel namespace (Api or Events per the layout) or below."
+                + " Which layer holds the dependency is not checked here.");
 
     // ---------------------------------------------------------------------------------------------
     // Translation enforcement (channel-dependent)
@@ -320,7 +375,20 @@ public sealed class ContextMapRules : IDcaRuleSet
                     }
                 }
                 DcaRule.Fail("Anti-Corruption Layer: upstream contract types must stay inside the matching adapter", violations);
-            });
+            })
+        .Selecting(
+            "Every [Upstream] declaration with Translation AntiCorruptionLayer on the"
+                + " marker class of every namespace carrying [BoundedContext] whose Context"
+                + " names an existing bounded context, reading Via. Status is not"
+                + " consulted, so Planned declarations are checked too; declarations towards an"
+                + " unknown context are skipped.")
+        .Checking(
+            "No type below the declaring context's namespace outside the matching adapter"
+                + " depends on a type in the target context's channel namespace or below:"
+                + " the outgoing adapter (<context>.Adapter.Outgoing) for the Api channel,"
+                + " the incoming adapter (<context>.Adapter.Incoming) for the Events channel."
+                + " That the adapter actually translates the contract into the context's own"
+                + " model is not established.");
 
     /// <summary>DCA-MAP-009.</summary>
     public IDcaRule ConformistNeverReachesDomain() =>
@@ -357,7 +425,18 @@ public sealed class ContextMapRules : IDcaRuleSet
                     }
                 }
                 DcaRule.Fail("Conformist: upstream contract types must never reach the domain layer", violations);
-            });
+            })
+        .Selecting(
+            "Every [Upstream] declaration with Translation Conformist on the"
+                + " marker class of every namespace carrying [BoundedContext] whose Context"
+                + " names an existing bounded context, reading Via. Status is not"
+                + " consulted, so Planned declarations are checked too; declarations towards an"
+                + " unknown context are skipped.")
+        .Checking(
+            "No type in the declaring context's domain layer (<context>.Domain and below)"
+                + " depends on a type in the target context's channel namespace (Api or"
+                + " Events per the layout) or below. Application and adapter types may use"
+                + " the upstream's contract types.");
 
     /// <summary>DCA-MAP-010.</summary>
     public IDcaRule ExternalContractTypesRespectTranslation() =>
@@ -410,7 +489,20 @@ public sealed class ContextMapRules : IDcaRuleSet
                     }
                 }
                 DcaRule.Fail("External system contract types must respect the declared translation and interaction", violations);
-            });
+            })
+        .Selecting(
+            "Every [ExternalUpstream] declaration on the marker class of every namespace"
+                + " carrying [BoundedContext] whose ContractNamespaces is not empty, reading"
+                + " Translation and Interaction. Status is not consulted. A declaration"
+                + " without ContractNamespaces (wire-level contract, no vendor SDK) is skipped"
+                + " - it only documents the relationship.")
+        .Checking(
+            "With AntiCorruptionLayer, no type below the declaring context's namespace"
+                + " outside the matching adapter - <context>.Adapter.Outgoing for Outbound,"
+                + " <context>.Adapter.Incoming for Inbound - depends on a type in any of the"
+                + " contract namespaces or below. With any other translation (Conformist), no type in"
+                + " <context>.Domain does. That the adapter actually translates the contract"
+                + " is not established.");
 
     /// <summary>DCA-MAP-011.</summary>
     public static IDcaRule CrossContextDependenciesRequireDeclaration() =>
@@ -451,7 +543,18 @@ public sealed class ContextMapRules : IDcaRuleSet
                     }
                 }
                 DcaRule.Fail("Cross-context dependencies on published interfaces require an Upstream declaration", violations);
-            });
+            })
+        .Selecting(
+            "Every ordered pair of two distinct namespaces carrying [BoundedContext],"
+                + " combined with each published segment of the layout (Api, Events), for"
+                + " which the source context declares no [Upstream] with Context naming the"
+                + " target and Via containing that channel. Planned declarations count as"
+                + " declared.")
+        .Checking(
+            "No type below the source context's namespace depends on a type in the"
+                + " target context's channel namespace or below. Dependencies on a foreign"
+                + " context's other namespaces (Domain, Application, Adapter) are not reported by"
+                + " this rule.");
 
     // ---------------------------------------------------------------------------------------------
     // Partnership symmetry
@@ -493,7 +596,16 @@ public sealed class ContextMapRules : IDcaRuleSet
                     }
                 }
                 DcaRule.Fail("Partnership declarations must be symmetric and reference existing contexts", violations);
-            });
+            })
+        .Selecting(
+            "Every [Partnership] declaration on the marker class of every namespace"
+                + " carrying [BoundedContext], reading Context.")
+        .Checking(
+            "Context names an existing bounded context and is not the declaring"
+                + " context itself, and the target context's marker class carries a"
+                + " [Partnership] whose Context names the declaring context in turn. A"
+                + " partnership grants no dependency permission - whether any code dependency"
+                + " exists between the two contexts is not checked.");
 
     // ---------------------------------------------------------------------------------------------
     // Diagnostic
@@ -528,7 +640,15 @@ public sealed class ContextMapRules : IDcaRuleSet
                     }
                 }
                 Console.WriteLine("==============================");
-            });
+            })
+        .Selecting(
+            "Every [Upstream], [ExternalUpstream] and [Partnership] declaration on the"
+                + " marker class of every namespace carrying [BoundedContext], reading Context"
+                + " or Name, Translation, and Via or Interaction.")
+        .Checking(
+            "Informational - prints every declared edge to standard output and never"
+                + " fails; it carries no assertion. Status is not printed, so a Planned edge"
+                + " is listed like an implemented one.");
 
     // ---------------------------------------------------------------------------------------------
     // Helpers

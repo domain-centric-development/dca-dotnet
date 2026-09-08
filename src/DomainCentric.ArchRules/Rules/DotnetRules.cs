@@ -77,7 +77,15 @@ public sealed class DotnetRules : IDcaRuleSet
                     "Application layer must not use persistence or transaction frameworks\nbecause the transaction boundary belongs to a decorator or ITransactionBoundary",
                     violations,
                     "Inject ITransactionBoundary (or let the composition root decorate the use case) and move the framework call into infrastructure.");
-            });
+            })
+        .Selecting(
+            "Types in <module>.Application of every module root.")
+        .Checking(
+            "No dependency on a type whose full name starts with Microsoft.EntityFrameworkCore,"
+                + " System.Transactions, System.Data, Dapper, NHibernate or MongoDB.Driver. Only"
+                + " these six namespace prefixes are checked - another persistence library is not"
+                + " reported, and the domain and adapter layers are not selected. An empty selection"
+                + " passes.");
 
     private static readonly string[] PersistenceFrameworkNamespaces =
     {
@@ -120,7 +128,13 @@ public sealed class DotnetRules : IDcaRuleSet
                     "Domain layer must stay synchronous\nbecause async is an I/O concern of ports and adapters",
                     violations,
                     "Move the awaiting code into a use case or adapter and pass plain values into the domain.");
-            });
+            })
+        .Selecting(
+            "Types in <module>.Domain of every module root.")
+        .Checking(
+            "No dependency on Task, Task<T>, ValueTask, ValueTask<T> or CancellationToken -"
+                + " in a signature, a field or a method body. Other awaitables and IAsyncEnumerable<T>"
+                + " are not checked. An empty selection passes.");
 
     /// <summary>DCA-NET-002: awaitable port methods end with <c>Async</c>, and only those.</summary>
     public static IDcaRule PortMethodsReturningTaskMustEndWithAsync() =>
@@ -158,7 +172,16 @@ public sealed class DotnetRules : IDcaRuleSet
                     "Port methods returning Task must end with Async\nbecause the Async suffix tells callers a method is awaitable",
                     violations,
                     "Name every Task/ValueTask-returning port method *Async and make every *Async method return Task or ValueTask.");
-            });
+            })
+        .Selecting(
+            "Interfaces under the root namespace that are assignable to IInputPort or"
+                + " IOutputPort and whose runtime type is in the loaded assemblies.")
+        .Checking(
+            "Every public method declared on the interface itself (inherited members, property"
+                + " accessors and operators excluded) returns Task, Task<T>, ValueTask or ValueTask<T>"
+                + " exactly when its name ends with Async. Both directions are reported: an awaitable"
+                + " method without the suffix and a suffixed method that returns something else. An"
+                + " empty selection passes.");
 
     /// <summary>DCA-NET-003: a use case has exactly one public <c>ExecuteAsync(…, CancellationToken)</c> returning <c>Task&lt;T&gt;</c>.</summary>
     public static IDcaRule UseCasesMustExposeExactlyOneExecuteAsync() =>
@@ -202,7 +225,16 @@ public sealed class DotnetRules : IDcaRuleSet
                     "Use cases must expose exactly one ExecuteAsync\nbecause the input port is the only way in",
                     violations,
                     "Implement IUseCase<TInput, TOutput>.ExecuteAsync(input, cancellationToken) once and keep every other member non-public.");
-            });
+            })
+        .Selecting(
+            "Non-abstract classes under the root namespace that implement"
+                + " IUseCase<TInput, TOutput> and whose runtime type is in the loaded assemblies -"
+                + " in any namespace, not only the application layer.")
+        .Checking(
+            "The class declares exactly one public instance method named ExecuteAsync, which"
+                + " returns Task<T> (a plain Task is reported) and takes a CancellationToken as its"
+                + " last parameter. Inherited methods are not counted; other public members with a"
+                + " different name are not reported. An empty selection passes.");
 
     /// <summary>DCA-NET-004: value objects are records or (record) structs.</summary>
     public static IDcaRule ValueObjectsShouldBeRecords() =>
@@ -232,7 +264,15 @@ public sealed class DotnetRules : IDcaRuleSet
                     "Value objects should be records or readonly record structs\nbecause records are the C# way to write a Value Object",
                     violations,
                     "Declare the value object as `public sealed record X(...)` or `public readonly record struct X(...)`.");
-            });
+            })
+        .Selecting(
+            "Non-interface, non-abstract types in <module>.Domain of every module root that"
+                + " are assignable to IValue and whose runtime type is in the loaded assemblies.")
+        .Checking(
+            "The type is a record class, a record struct or any other struct. A plain class"
+                + " implementing IValue is reported. Whether a struct is declared readonly is not"
+                + " checked, and an IValue type outside a domain namespace is not selected. An"
+                + " empty selection passes.");
 
     /// <summary>DCA-NET-005: identifiers are record structs.</summary>
     public static IDcaRule IdentifiersShouldBeReadonlyRecordStructs() =>
@@ -265,7 +305,14 @@ public sealed class DotnetRules : IDcaRuleSet
                     "Identifiers should be readonly record structs\nbecause a readonly record struct costs no allocation and cannot be confused with a raw Guid or string",
                     violations,
                     "Declare the identifier as `public readonly record struct XId(Guid Value) : IId`.");
-            });
+            })
+        .Selecting(
+            "Non-interface, non-abstract types anywhere under the root namespace that are"
+                + " assignable to IId and whose runtime type is in the loaded assemblies.")
+        .Checking(
+            "The type is a record struct: a reference type (a record class included) is"
+                + " reported as such, a plain struct as not being a record. Whether the struct is"
+                + " declared readonly is not checked. An empty selection passes.");
 
     // ---------------------------------------------------------------------------------------------
     // Helpers

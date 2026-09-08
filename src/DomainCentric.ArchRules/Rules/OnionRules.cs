@@ -41,7 +41,16 @@ public sealed class OnionRules : IDcaRuleSet
             "Domain must not access Application Services (Onion Architecture - Domain is innermost layer)",
             "Domain is the innermost layer in onion architecture and should not depend on application services",
             arch => Types().That().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns()))
-                .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllApplicationPatterns())));
+                .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllApplicationPatterns())))
+            .Selecting(
+                "Types whose namespace lies under <Module>.Domain of every module root - "
+                + "declared bounded contexts, the shared kernel when it owns a domain layer, "
+                + "and undeclared modules alike, at any depth below the root namespace.")
+            .Checking(
+                "No dependency on a type whose namespace lies under <Module>.Application of "
+                + "any module root, the module's own included. Dependencies on adapters or "
+                + "infrastructure are covered by other rules, not this one; an empty selection "
+                + "passes.");
 
     /// <summary>
     /// Domain types may depend only on domain namespaces (matched by pattern, which also covers the
@@ -59,7 +68,11 @@ public sealed class OnionRules : IDcaRuleSet
             arch =>
             {
                 var domain = new Regex(DcaLayout.AnyOf(arch.AllDomainPatterns()));
+                // The layout's allow-list may name the whole building-blocks namespace (the default does, so
+                // that attribute rules accept every marker); for *dependencies* only the tactical markers and
+                // the output ports belong in the domain - strategic annotations and input ports do not.
                 var allowedPrefixes = Layout.ThirdPartyNamespacesAllowedInDomain
+                    .Where(p => !DcaLayout.IsBelow(p, DcaLayout.BuildingBlocksNamespace))
                     .Concat(new[] { DcaLayout.BuildingBlocksTacticalNamespace, DcaLayout.BuildingBlocksPortsOutNamespace })
                     .ToList();
                 bool Allowed(string ns) => domain.IsMatch(ns) || allowedPrefixes.Any(p => DcaLayout.IsBelow(ns, p));
@@ -74,7 +87,18 @@ public sealed class OnionRules : IDcaRuleSet
                     .Distinct()
                     .ToList();
                 DcaRule.Fail($"{title}\nbecause {rationale}", violations);
-            });
+            })
+            .Selecting(
+                "Types below the root namespace whose namespace lies under <Module>.Domain of "
+                + "every module root; the building-blocks types themselves are not selected.")
+            .Checking(
+                "Every dependency whose target has a namespace points into one of those same "
+                + "domain namespaces or below an allowed prefix: the layout's third-party "
+                + "allow-list (by default System and Microsoft.Extensions.Logging.Abstractions, "
+                + "plus whatever the layout adds) and, of the building blocks, only Ddd.Tactical "
+                + "and Hexagonal.Ports.Out - a building-blocks entry in the allow-list is ignored "
+                + "here, so the strategic annotations and the input ports are not allowed in the "
+                + "domain. A dependency on any other namespace is reported, each distinct pair once.");
     }
 
     /// <summary>
@@ -91,7 +115,7 @@ public sealed class OnionRules : IDcaRuleSet
             rationale,
             arch =>
             {
-                var domainModel = new Regex(DcaLayout.AnyOf(arch.AllDomainModelPatterns().Append(Layout.SharedKernelDomainPattern)));
+                var domainModel = new Regex(DcaLayout.AnyOf(arch.AllDomainModelPatterns()));
                 bool Allowed(ArchUnitNET.Domain.Attribute a) =>
                     a.Namespace is not null && Layout.ThirdPartyNamespacesAllowedInDomain.Any(p => DcaLayout.IsBelow(a.Namespace.FullName, p));
 
@@ -104,6 +128,16 @@ public sealed class OnionRules : IDcaRuleSet
                     .Distinct()
                     .ToList();
                 DcaRule.Fail($"{title}\nbecause {rationale}", violations);
-            });
+            })
+            .Selecting(
+                "Types in <module>.Domain.Model of every module root, the shared kernel's "
+                + "included when it owns a domain layer.")
+            .Checking(
+                "Every attribute on the type or on one of its own, non-inherited members has "
+                + "a namespace below a prefix of the layout's third-party allow-list - by "
+                + "default System, Microsoft.Extensions.Logging.Abstractions and "
+                + "DomainCentric.BuildingBlocks. Any other attribute is reported, whatever "
+                + "framework it comes from; types elsewhere in the domain layer "
+                + "(Domain.Service, Domain.Event) are not selected.");
     }
 }

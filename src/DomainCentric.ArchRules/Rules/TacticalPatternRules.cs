@@ -89,7 +89,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 {
                     if (!type.Name.EndsWith("AggregateRoot", StringComparison.Ordinal)
                         || type.Name == "AggregateRoot"
-                        || !ResidesInAny(type, layout.DomainModelPattern, layout.SharedKernelDomainPattern))
+                        || !ResidesInAny(type, arch.AllDomainModelPatterns()))
                     {
                         continue;
                     }
@@ -101,7 +101,15 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 }
 
                 DcaRule.Fail("Classes named *AggregateRoot must implement the IAggregateRoot marker.", violations);
-            });
+            })
+            .Selecting(
+                "Non-interface types - classes, structs and enums - in <module>.Domain.Model of "
+                + "every module root whose name ends with AggregateRoot; the type named exactly "
+                + "AggregateRoot is excluded.")
+            .Checking(
+                "The type implements the IAggregateRoot marker. Only the name suffix triggers "
+                + "selection - an aggregate root not named *AggregateRoot is never reported, "
+                + "and an empty selection passes.");
 
     public static IDcaRule AggregateRootsHoldNoOutputPorts() =>
         DcaRule.Check(
@@ -127,7 +135,16 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 DcaRule.Fail(
                     "Aggregates must not have injected repositories or output ports - pass dependencies as method parameters.",
                     violations);
-            });
+            })
+            .Selecting(
+                "Non-interface types below the root namespace assignable to IAggregateRoot, "
+                + "abstract ones included.")
+            .Checking(
+                "No field or property of the type - inherited and static ones included, "
+                + "record plumbing skipped - has a type assignable to IRepository or to any "
+                + "other IOutputPort. Only the member's own type is inspected; a port hidden in "
+                + "a generic type argument is not seen. A port passed as a method parameter is "
+                + "not a member and passes.");
 
     public static IDcaRule AggregateRootsReferenceOtherAggregatesById() =>
         DcaRule.Check(
@@ -158,7 +175,18 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 }
 
                 DcaRule.Fail("Aggregates must reference other aggregates by ID only (Vernon's Rule #2).", violations);
-            });
+            })
+            .Selecting(
+                "Non-interface types below the root namespace assignable to IAggregateRoot, "
+                + "abstract ones included.")
+            .Checking(
+                "No field or property - inherited ones included, walked through the member's "
+                + "own type, array element and generic type arguments, a generic base class's "
+                + "type parameters resolved as the aggregate binds them - involves a "
+                + "non-interface type assignable to IAggregateRoot. A member whose own type is "
+                + "the inspected aggregate itself (a parent, a predecessor) is tolerated; a "
+                + "container of that same type is not. An interface type assignable to "
+                + "IAggregateRoot is not reported.");
 
     // ---------------------------------------------------------------------------------------------
     // Entity pattern
@@ -188,7 +216,15 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 }
 
                 DcaRule.Fail("Entities must have an identity field typed as an IId value object (DDD pattern).", violations);
-            });
+            })
+            .Selecting(
+                "Non-interface, non-abstract types below the root namespace assignable to "
+                + "IEntity - aggregate roots included, since IAggregateRoot extends IEntity.")
+            .Checking(
+                "At least one field or property - inherited ones included, private fields of "
+                + "base classes seen through reflection - has a type assignable to the IId "
+                + "marker. A string or Guid identity does not count, and the member's name "
+                + "plays no role.");
 
     public static IDcaRule EntitiesHaveNoPublicConstructors() =>
         DcaRule.Check(
@@ -215,7 +251,14 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 DcaRule.Fail(
                     "Entities should not have public constructors (access only through aggregate root).\nNote: Records are excluded from this rule.",
                     violations);
-            });
+            })
+            .Selecting(
+                "Non-interface classes below the root namespace assignable to IEntity but not "
+                + "to IAggregateRoot; abstract ones included, records and structs excluded.")
+            .Checking(
+                "The class declares no public constructor; internal, protected and private "
+                + "constructors pass. Records and structs are skipped entirely, and aggregate "
+                + "roots are not selected.");
 
     public static IDcaRule DomainModelHasNoPublicSetters() =>
         DcaRule.Check(
@@ -237,7 +280,17 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 DcaRule.Fail(
                     "Domain model classes must not expose public setters - use intention-revealing methods from the ubiquitous language.",
                     violations);
-            });
+            })
+            .Selecting(
+                "Non-interface types below the root namespace assignable to IEntity - "
+                + "aggregate roots included.")
+            .Checking(
+                "No member - inherited ones included - is a public setter: a property with a "
+                + "public, writable set accessor (an init accessor does not count), or a public "
+                + "method named Set followed by an upper-case letter with exactly one parameter "
+                + "and return type void. A non-public setter, a fluent setter returning the "
+                + "instance, or a Set-prefixed method with zero or two parameters does not "
+                + "count.");
 
     public static IDcaRule EntitiesReferenceAggregatesById() =>
         DcaRule.Check(
@@ -267,7 +320,17 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 }
 
                 DcaRule.Fail("Entities must not contain references to aggregate roots (reference by ID only).", violations);
-            });
+            })
+            .Selecting(
+                "Non-interface types below the root namespace assignable to IEntity but not "
+                + "to IAggregateRoot; records, structs and abstract classes included.")
+            .Checking(
+                "No field or property - inherited ones included, walked through the member's "
+                + "own type, array element and generic type arguments, a generic base class's "
+                + "type parameters resolved as the entity binds them - involves a non-interface "
+                + "type assignable to IAggregateRoot. There is no self-reference exemption: a "
+                + "member typed as the entity's own aggregate root is reported. An interface "
+                + "type assignable to IAggregateRoot is not reported.");
 
     // ---------------------------------------------------------------------------------------------
     // Value Object pattern
@@ -311,7 +374,16 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 }
 
                 DcaRule.Fail("Value Objects must only contain other Value Objects or primitives (Vernon's DDD).", violations);
-            });
+            })
+            .Selecting(
+                "Non-interface types below the root namespace assignable to IValue - records, "
+                + "structs, enums and hand-written classes alike.")
+            .Checking(
+                "No field or property - inherited ones included, walked through the member's "
+                + "own type, array element and generic type arguments - involves a "
+                + "non-interface type assignable to IAggregateRoot or to IEntity. A type that "
+                + "is both is reported once, as an aggregate root; an interface type extending "
+                + "IEntity is not reported.");
 
     public static IDcaRule ValueObjectClassesAreFinal(DcaLayout layout) =>
         DcaRule.Check(
@@ -325,7 +397,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 foreach (var valueObject in arch.Classes)
                 {
                     if (valueObject.IsCompilerGenerated
-                        || !ResidesInAny(valueObject, layout.DomainModelPattern, layout.SharedKernelDomainPattern)
+                        || !ResidesInAny(valueObject, arch.AllDomainModelPatterns())
                         || !IsAssignableTo(arch, valueObject, typeof(IValue)))
                     {
                         continue;
@@ -338,7 +410,15 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 }
 
                 DcaRule.Fail("Value Object classes and records must be sealed (or be structs).", violations);
-            });
+            })
+            .Selecting(
+                "Classes - record classes included, structs and enums not - in "
+                + "<module>.Domain.Model of every module root that are assignable to IValue; "
+                + "compiler-generated classes excluded.")
+            .Checking(
+                "The class is sealed or abstract. A non-sealed record class is reported like "
+                + "a non-sealed class; structs and enums are never selected and so always pass, "
+                + "as does a value object outside <module>.Domain.Model. An empty selection passes.");
 
     public static IDcaRule ValueObjectFieldsAreFinal() =>
         DcaRule.Check(
@@ -384,7 +464,15 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 }
 
                 DcaRule.Fail("Value Object fields must be readonly for deep immutability (Vernon's DDD).", violations);
-            });
+            })
+            .Selecting(
+                "Non-interface types below the root namespace assignable to IValue that are "
+                + "neither record classes, structs nor enums.")
+            .Checking(
+                "Every non-static instance field - inherited ones included, "
+                + "compiler-generated ones skipped - is readonly, and every property that has a "
+                + "set accessor is init-only rather than writable. A get-only property passes; "
+                + "static fields are not part of the object's state and pass.");
 
     public static IDcaRule ValueObjectsHaveNoSetters() =>
         DcaRule.Check(
@@ -403,7 +491,16 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 }
 
                 DcaRule.Fail("Value Objects must be immutable and should not have setter methods.", violations);
-            });
+            })
+            .Selecting(
+                "Non-interface types below the root namespace assignable to IValue - records, "
+                + "structs and enums included.")
+            .Checking(
+                "No member - inherited ones included - is a setter, regardless of visibility: "
+                + "a property with a writable (non-init) set accessor, or a method named Set "
+                + "followed by an upper-case letter with exactly one parameter and return type "
+                + "void. A wither that returns a new instance is not a setter; a record's "
+                + "init-only properties pass.");
 
     public static IDcaRule ValueObjectsAreRecordsOrHaveAttributeEquality() =>
         DcaRule.Check(
@@ -434,7 +531,16 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 DcaRule.Fail(
                     "Value Objects are records by preference; an immutable class is allowed, but it must implement attribute equality itself.",
                     violations);
-            });
+            })
+            .Selecting(
+                "Non-interface types below the root namespace assignable to IValue that are "
+                + "neither record classes, structs nor enums.")
+            .Checking(
+                "The runtime type, or a base class other than object and ValueType, overrides "
+                + "both Equals(object) and GetHashCode(). Overriding only one of the two is "
+                + "reported, an overload such as Equals(Money) does not count, and a type whose "
+                + "runtime Type cannot be loaded from the scanned assemblies is reported as "
+                + "well.");
 
     // ---------------------------------------------------------------------------------------------
     // Repository pattern
@@ -450,7 +556,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 var violations = new List<string>();
                 foreach (var candidate in arch.Interfaces)
                 {
-                    if (!Regex.IsMatch(NamespaceOf(candidate), layout.ApplicationPattern)
+                    if (!ResidesInAny(candidate, arch.AllApplicationPatterns())
                         || !HasSuffixButIsNotMarker(candidate, RepositorySuffix))
                     {
                         continue;
@@ -463,14 +569,27 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 }
 
                 DcaRule.Fail("Repository interfaces must extend the IRepository marker.", violations);
-            });
+            })
+            .Selecting(
+                "Interfaces in <module>.Application of every module root whose name ends with "
+                + "Repository; interfaces named exactly Repository or IRepository excluded.")
+            .Checking(
+                "The interface is assignable to the IRepository marker. A *Repository "
+                + "interface elsewhere is not selected; an empty selection passes.");
 
     public static IDcaRule RepositoryInterfacesResideInSharedOutputPorts(DcaLayout layout) =>
         DcaRule.Check(
             "DCA-TAC-014",
             "Repository interfaces must reside in the application layer's shared output-port namespace",
             "Repository interfaces are output ports in the application layer (Hexagonal Architecture)",
-            arch => RequireNamespace(RepositoryInterfaces(arch), layout.SharedOutputPortPattern, "Repository interfaces", "the application layer's Shared namespace"));
+            arch => RequireNamespace(RepositoryInterfaces(arch), DcaLayout.AnyOf(arch.AllSharedOutputPortPatterns()), "Repository interfaces", "the application layer's Shared namespace"))
+            .Selecting(
+                "Interfaces below the root namespace assignable to IRepository, whatever "
+                + "their name; an interface named exactly Repository excluded.")
+            .Checking(
+                "The interface resides in <module>.Application.Shared of some module root, the "
+                + "shared kernel's included. Implementations are not selected; an empty "
+                + "selection passes.");
 
     public static IDcaRule RepositoryImplementationsResideInOutgoingAdapters(DcaLayout layout) =>
         DcaRule.Check(
@@ -479,7 +598,14 @@ public sealed class TacticalPatternRules : IDcaRuleSet
             "Repository implementations are outgoing adapters in bounded contexts",
             arch => RequireNamespace(
                 ConcreteTypesAssignableTo(arch, typeof(IRepository)),
-                layout.OutgoingAdapterPattern, "Repository implementations", "the outgoing adapter namespace"));
+                DcaLayout.AnyOf(arch.AllOutgoingAdapterPatterns()), "Repository implementations", "the outgoing adapter namespace"))
+            .Selecting(
+                "Non-interface types below the root namespace assignable to IRepository, "
+                + "abstract base classes included.")
+            .Checking(
+                "The type resides in <module>.Adapter.Outgoing of some module root. An "
+                + "implementation anywhere else below the root - a test double, say - is "
+                + "reported; an empty selection passes.");
 
     public static IDcaRule RepositoriesOnlyForAggregateRoots() =>
         DcaRule.Check(
@@ -524,7 +650,19 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 }
 
                 DcaRule.Fail("Repositories should only exist for Aggregate Roots, not for Entities (DDD pattern).", violations);
-            });
+            })
+            .Selecting(
+                "Interfaces below the root namespace assignable to IRepository whose name "
+                + "ends with Repository; an interface named exactly Repository excluded.")
+            .Checking(
+                "The aggregate name is the interface's name minus a leading I followed by an "
+                + "upper-case letter and minus 'Repository'. Among all non-interface types "
+                + "below the root with exactly that name and in the same context - the nearest "
+                + "enclosing namespace carrying a [BoundedContext] or [SharedKernel] marker "
+                + "class, falling back to the first segment below the root namespace - at least "
+                + "one must exist and every one must be assignable to IAggregateRoot. No such "
+                + "type and a type that is not an aggregate root are both reported; the "
+                + "interface's methods play no role.");
 
     public static IDcaRule RepositoriesReturnNoNonRootEntities() =>
         DcaRule.Check(
@@ -552,7 +690,16 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 DcaRule.Fail(
                     "Repository methods must not expose an Entity that is not an Aggregate Root: a caller could mutate part of an aggregate without passing its root (DDD pattern).",
                     violations);
-            });
+            })
+            .Selecting(
+                "Interfaces below the root namespace assignable to IRepository; an interface "
+                + "named exactly Repository excluded.")
+            .Checking(
+                "No return type of a method declared on the interface itself - walked through "
+                + "generic type arguments, so Task<T?>, IReadOnlyList<T> and "
+                + "IAsyncEnumerable<T> are seen through - involves a type assignable to IEntity "
+                + "that is not also assignable to IAggregateRoot. Inherited methods, property "
+                + "accessors and parameter types are not inspected.");
 
     // ---------------------------------------------------------------------------------------------
     // Store pattern (Repository's sibling for non-aggregate operational data)
@@ -585,14 +732,28 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 }
 
                 DcaRule.Fail("Store interfaces must extend IStore and must not extend IRepository.", violations);
-            });
+            })
+            .Selecting(
+                "Interfaces below the root namespace whose name ends with Store; interfaces "
+                + "named exactly Store or IStore excluded.")
+            .Checking(
+                "The interface is assignable to the IStore marker and not assignable to "
+                + "IRepository; both must hold, and each failing alone is reported. An "
+                + "interface not named *Store is never reported; an empty selection passes.");
 
     public static IDcaRule StoreInterfacesResideInSharedOutputPorts(DcaLayout layout) =>
         DcaRule.Check(
             "DCA-TAC-019",
             "Store interfaces must reside in the application layer's shared output-port namespace",
             "Store interfaces are output ports in the application layer (Hexagonal Architecture)",
-            arch => RequireNamespace(StoreInterfaces(arch), layout.SharedOutputPortPattern, "Store interfaces", "the application layer's Shared namespace"));
+            arch => RequireNamespace(StoreInterfaces(arch), DcaLayout.AnyOf(arch.AllSharedOutputPortPatterns()), "Store interfaces", "the application layer's Shared namespace"))
+            .Selecting(
+                "Interfaces below the root namespace assignable to IStore, whatever their "
+                + "name; an interface named exactly Store excluded.")
+            .Checking(
+                "The interface resides in <module>.Application.Shared of some module root, the "
+                + "shared kernel's included. Implementations are not selected; an empty "
+                + "selection passes.");
 
     public static IDcaRule StoreImplementationsResideInOutgoingAdapters(DcaLayout layout) =>
         DcaRule.Check(
@@ -601,7 +762,13 @@ public sealed class TacticalPatternRules : IDcaRuleSet
             "Store implementations are outgoing adapters in bounded contexts",
             arch => RequireNamespace(
                 ConcreteTypesAssignableTo(arch, typeof(IStore)),
-                layout.OutgoingAdapterPattern, "Store implementations", "the outgoing adapter namespace"));
+                DcaLayout.AnyOf(arch.AllOutgoingAdapterPatterns()), "Store implementations", "the outgoing adapter namespace"))
+            .Selecting(
+                "Non-interface types below the root namespace assignable to IStore, abstract "
+                + "base classes included.")
+            .Checking(
+                "The type resides in <module>.Adapter.Outgoing of some module root; an empty "
+                + "selection passes.");
 
     public static IDcaRule StoreInterfacesHaveNoRepositorySemantics() =>
         DcaRule.Check(
@@ -628,7 +795,17 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                     "Store interfaces use Record/Count/Exists semantics, not FindById/Save.",
                     violations,
                     "rename to *Repository if the stored object is an Aggregate Root, otherwise rename the methods to RecordAsync(...), CountAsync(...), ExistsAsync(...).");
-            });
+            })
+            .Selecting(
+                "Interfaces below the root namespace assignable to IStore; an interface named "
+                + "exactly Store excluded.")
+            .Checking(
+                "No method declared on the interface itself is named FindByIdAsync, "
+                + "SaveAsync, DeleteByIdAsync or DeleteAsync, nor their synchronous forms "
+                + "FindById, Save, DeleteById and Delete, nor the camel-cased findById, save, "
+                + "deleteById and delete - matched by name alone, parameters and return type "
+                + "disregarded. Inherited methods are not inspected, and no particular "
+                + "vocabulary (Record, Count, Exists) is required.");
 
     // ---------------------------------------------------------------------------------------------
     // Enriched domain model pattern
@@ -642,10 +819,10 @@ public sealed class TacticalPatternRules : IDcaRuleSet
             arch =>
             {
                 var violations = new List<string>();
-                foreach (var type in NonInterfaceTypes(arch))
+                foreach (var type in arch.Types.Where(t => !t.IsCompilerGenerated && !t.IsGenericParameter))
                 {
                     if (!type.Name.StartsWith("Enriched", StringComparison.Ordinal)
-                        || !Regex.IsMatch(NamespaceOf(type), layout.DomainModelPattern)
+                        || !ResidesInAny(type, arch.AllDomainModelPatterns())
                         || IsAssignableTo(arch, type, typeof(IFactory)))
                     {
                         continue;
@@ -663,7 +840,16 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 }
 
                 DcaRule.Fail("Enriched domain models must be records implementing IValue.", violations);
-            });
+            })
+            .Selecting(
+                "Types in <module>.Domain.Model of every module root whose name starts with "
+                + "Enriched and that do not implement IFactory; interfaces included, "
+                + "compiler-generated types excluded.")
+            .Checking(
+                "The type is a record class or a struct and is assignable to IValue; both "
+                + "must hold, and each failing alone is reported - an interface named Enriched* "
+                + "is reported because it is no record. An Enriched*Factory is excluded because "
+                + "it implements IFactory. An empty selection passes.");
 
     // ---------------------------------------------------------------------------------------------
     // Helpers
@@ -695,7 +881,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
         type is not Interface && IsAssignableTo(arch, type, typeof(IEntity)) && !IsAssignableTo(arch, type, typeof(IAggregateRoot));
 
     /// <summary>A record class, a struct (record structs are structs) — the .NET reading of Java's "record".</summary>
-    private static bool IsRecordLike(IType type) => type is Struct || type is Class { IsRecord: true };
+    internal static bool IsRecordLike(IType type) => type is Struct || type is Class { IsRecord: true };
 
     private static string NamespaceOf(IType type) => type.Namespace?.FullName ?? string.Empty;
 
