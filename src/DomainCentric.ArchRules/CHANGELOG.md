@@ -4,6 +4,10 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-08
+
+Depends on `DomainCentric.BuildingBlocks` 0.1.0 (unchanged).
+
 ### Added
 
 - Every rule describes its mechanics: `IDcaRule.Selects` names the types the rule looks at, `IDcaRule.Checks`
