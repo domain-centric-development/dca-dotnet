@@ -63,7 +63,7 @@ public sealed class HexagonalRules : IDcaRuleSet
     /// the API-controller attribute, or its name ends with <c>Controller</c> or the layout's controller suffix.
     /// </summary>
     internal static bool IsController(Class type, DcaLayout layout) =>
-        type.Name.EndsWith("Controller", StringComparison.Ordinal)
+        type.Name.EndsWith(layout.ControllerSuffix, StringComparison.Ordinal)
         || type.Name.EndsWith(layout.RestControllerSuffix, StringComparison.Ordinal)
         || type.IsAssignableTo(layout.FrameworkTypes.ControllerBase)
         || type.IsAssignableTo(layout.FrameworkTypes.PageModelBase)
@@ -108,7 +108,7 @@ public sealed class HexagonalRules : IDcaRuleSet
                 .FollowCustomPredicate(t => t.IsAssignableTo(typeof(IRepository).FullName!), "are repositories"))
         .Selecting(
             "Controller classes anywhere in the loaded assemblies: a class whose name ends with"
-                + " the literal Controller or with the configured REST-controller suffix, one deriving"
+                + " the configured controller suffix or the configured REST-controller suffix, one deriving"
                 + " from the configured controller or page-model base class, or one carrying the"
                 + " configured API-controller attribute. Not restricted to adapter namespaces.")
         .Checking(

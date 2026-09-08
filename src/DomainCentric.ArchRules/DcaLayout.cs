@@ -62,6 +62,7 @@ public sealed class DcaLayout
         string apiSegment,
         string eventsSegment,
         string useCaseSuffix,
+        string controllerSuffix,
         string restControllerSuffix,
         IReadOnlyList<string> thirdPartyNamespacesAllowedInDomain,
         FrameworkTypes frameworkTypes)
@@ -82,6 +83,7 @@ public sealed class DcaLayout
         }
 
         UseCaseSuffix = RequireSegment(useCaseSuffix, nameof(useCaseSuffix));
+        ControllerSuffix = RequireSegment(controllerSuffix, nameof(controllerSuffix));
         RestControllerSuffix = RequireSegment(restControllerSuffix, nameof(restControllerSuffix));
         ThirdPartyNamespacesAllowedInDomain = thirdPartyNamespacesAllowedInDomain.ToArray();
         FrameworkTypes = frameworkTypes ?? throw new ArgumentNullException(nameof(frameworkTypes));
@@ -101,6 +103,7 @@ public sealed class DcaLayout
             "Api",
             "Events",
             "UseCase",
+            "Controller",
             "Controller",
             DefaultThirdPartyAllowedInDomain,
             FrameworkTypes.AspNetCore());
@@ -144,7 +147,10 @@ public sealed class DcaLayout
     /// <summary>Suffix of use-case implementations, e.g. <c>UseCase</c> or <c>ApplicationService</c>.</summary>
     public string UseCaseSuffix { get; }
 
-    /// <summary>Suffix of REST/MVC controllers, e.g. <c>Controller</c> or <c>Resource</c>.</summary>
+    /// <summary>Suffix of MVC (server-rendered) controllers and page models, e.g. <c>Controller</c> (default) or <c>Page</c>. Read by the naming rule for MVC controllers and by the rule that keeps controllers away from repositories.</summary>
+    public string ControllerSuffix { get; }
+
+    /// <summary>Suffix of REST/API controllers ([ApiController]), e.g. <c>Controller</c> (default) or <c>Resource</c>.</summary>
     public string RestControllerSuffix { get; }
 
     /// <summary>
@@ -189,6 +195,8 @@ public sealed class DcaLayout
 
     public DcaLayout WithUseCaseSuffix(string value) => Copy(useCaseSuffix: value);
 
+    public DcaLayout WithControllerSuffix(string value) => Copy(controllerSuffix: value);
+
     public DcaLayout WithRestControllerSuffix(string value) => Copy(restControllerSuffix: value);
 
     /// <summary>Replaces the list of third-party namespace prefixes the domain layer may depend on.</summary>
@@ -212,6 +220,7 @@ public sealed class DcaLayout
         string? api = null,
         string? events = null,
         string? useCaseSuffix = null,
+        string? controllerSuffix = null,
         string? restControllerSuffix = null,
         IReadOnlyList<string>? thirdParty = null,
         FrameworkTypes? frameworkTypes = null) =>
@@ -227,6 +236,7 @@ public sealed class DcaLayout
             api ?? ApiSegment,
             events ?? EventsSegment,
             useCaseSuffix ?? UseCaseSuffix,
+            controllerSuffix ?? ControllerSuffix,
             restControllerSuffix ?? RestControllerSuffix,
             thirdParty ?? ThirdPartyNamespacesAllowedInDomain,
             frameworkTypes ?? FrameworkTypes);

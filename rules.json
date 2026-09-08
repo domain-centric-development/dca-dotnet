@@ -94,7 +94,7 @@
     "id": "DCA-HEX-003",
     "title": "Controllers and Resources must never access repositories directly",
     "rationale": "Controllers must go through use cases (input ports), never directly to repositories",
-    "selects": "Controller classes anywhere in the loaded assemblies: a class whose name ends with the literal Controller or with the configured REST-controller suffix, one deriving from the configured controller or page-model base class, or one carrying the configured API-controller attribute. Not restricted to adapter namespaces.",
+    "selects": "Controller classes anywhere in the loaded assemblies: a class whose name ends with the configured controller suffix or the configured REST-controller suffix, one deriving from the configured controller or page-model base class, or one carrying the configured API-controller attribute. Not restricted to adapter namespaces.",
     "checks": "No dependency on a type assignable to IRepository - the port interface or an implementation. Other output ports (IStore, event publishers) are not checked; a controller that reaches a repository through another class is not reported. An empty selection passes.",
     "implementation": "dotnet"
   },
@@ -819,7 +819,7 @@
     "set": "usecase",
     "id": "DCA-USE-009",
     "title": "Use cases that save an aggregate must publish its domain events",
-    "rationale": "A saved aggregate must not keep its events: unpublished, they are lost, and stored on the instance they may later be published out of context. Publishing belongs after the save, in the use case that owns the unit of work - even when the action raised no event. Checked per entry path, following calls within the use case class: every entry point that reaches a save - a method callable from outside the class, or one nothing in the class calls - must also reach a publication; a wrapper that publishes does not cover a direct call of the public method it wraps, and a helper two methods share does not connect them. That the publication follows the save and concerns the same aggregate is not established statically",
+    "rationale": "A saved aggregate must not keep its events: unpublished, they are lost, and stored on the instance they may later be published out of context. Publishing belongs after the save, in the use case that owns the unit of work - even when the action raised no event. Checked per entry path, following calls within the use case class: every entry point that reaches a save - a method callable from outside the class, or one nothing in the class calls - must also reach a publication; a wrapper that publishes does not cover a direct call of the public method it wraps, and a helper two methods share does not connect them. That the publication follows the save and concerns the same aggregate is not established statically. Only IDomainEventPublisher.PublishAndClearEventsAsync counts as a publication: iterating DomainEvents and calling PublishAsync(event), even followed by ClearDomainEvents(), separates dispatch from acknowledgement and is not accepted",
     "selects": "Classes in <module>.Application of every module root whose name ends with the configured use-case suffix and whose runtime type is in the loaded assemblies.",
     "checks": "For every method of the class that calls IRepository.SaveAsync, every entry point reaching it (a method callable from outside the class, or one nothing in the class calls) also reaches, through calls within the class, a call of IDomainEventPublisher.PublishAndClearEventsAsync. Calls are read from the IL of the class and its nested state-machine and closure types, so async methods and lambdas are followed. Only PublishAndClearEventsAsync counts - PublishAsync(event), even followed by ClearDomainEvents(), does not. A use case without a save (a query, a bulk delete) is selected but has nothing to check and passes.",
     "implementation": "dotnet"
@@ -911,7 +911,7 @@
     "title": "Controller classes must end with 'Controller'",
     "rationale": "MVC controller and page model classes should follow naming conventions",
     "selects": "Classes in <module>.Adapter.Incoming of every module root that derive from the configured controller base class without carrying the configured API-controller attribute, or that derive from the configured page-model base class.",
-    "checks": "The name ends with the literal Controller - this suffix is not configurable. A class carrying the API-controller attribute is not selected here, and a controller outside an incoming-adapter namespace is not checked. An empty selection passes.",
+    "checks": "The name ends with the configured controller suffix (default Controller). A class carrying the API-controller attribute is not selected here, and a controller outside an incoming-adapter namespace is not checked. An empty selection passes.",
     "implementation": "dotnet"
   },
   {

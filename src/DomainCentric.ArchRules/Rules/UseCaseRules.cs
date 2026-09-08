@@ -210,7 +210,9 @@ public sealed class UseCaseRules : IDcaRuleSet
                 + " does not cover a direct call of the public method it wraps, and a helper two methods"
                 + " share does not connect them. That the"
                 + " publication follows the save and concerns the same aggregate is not established"
-                + " statically",
+                + " statically. Only IDomainEventPublisher.PublishAndClearEventsAsync counts as a"
+                + " publication: iterating DomainEvents and calling PublishAsync(event), even followed by"
+                + " ClearDomainEvents(), separates dispatch from acknowledgement and is not accepted",
             arch =>
             {
                 var violations = new List<string>();

@@ -11,6 +11,12 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
   `dca-archunit`'s `selects()`/`checks()`, same ids, same wording wherever the .NET reading is the same;
   `rules.json` carries both as `selects`/`checks`, `RULES.md` shows them as two columns.
 
+- `DcaLayout.WithControllerSuffix(string)` (default `Controller`): the suffix of MVC controllers and page models is
+  configurable like the REST one. `DCA-NAM-005` checks it, `DCA-HEX-003` selects controllers by either suffix (plus
+  base class and `[ApiController]`). Previously `Controller` was hard-coded in both rules.
+- `DCA-USE-009`'s rationale states what its check always did: only `PublishAndClearEventsAsync` counts as a
+  publication; `PublishAsync(event)` per event, even followed by `ClearDomainEvents()`, is reported. A fixture pins it.
+
 ### Fixed
 
 - Twelve rules still selected through the layout's one-segment wildcard patterns (`Root.[^.]+.Domain.Model` and

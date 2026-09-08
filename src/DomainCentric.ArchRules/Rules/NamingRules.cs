@@ -135,24 +135,24 @@ public sealed class NamingRules : IDcaRuleSet
         // and Razor page models (derive from PageModel).
         DcaRule.Check(
             "DCA-NAM-005",
-            "Controller classes must end with 'Controller'",
+            $"Controller classes must end with '{layout.ControllerSuffix}'",
             "MVC controller and page model classes should follow naming conventions",
             arch =>
             {
                 var violations = arch.Classes
                     .Where(c => InNamespace(c, DcaLayout.AnyOf(arch.AllIncomingAdapterPatterns()))
                         && IsMvcController(arch, c)
-                        && !c.Name.EndsWith("Controller", StringComparison.Ordinal))
-                    .Select(c => $"{c.FullName} is a controller but does not end with 'Controller'")
+                        && !c.Name.EndsWith(arch.Layout.ControllerSuffix, StringComparison.Ordinal))
+                    .Select(c => $"{c.FullName} is a controller but does not end with '{arch.Layout.ControllerSuffix}'")
                     .ToList();
-                DcaRule.Fail("Controller classes must end with 'Controller'", violations, "rename the class to *Controller");
+                DcaRule.Fail($"Controller classes must end with '{arch.Layout.ControllerSuffix}'", violations, $"rename the class to *{arch.Layout.ControllerSuffix}");
             })
         .Selecting(
             "Classes in <module>.Adapter.Incoming of every module root that derive from the"
                 + " configured controller base class without carrying the configured API-controller"
                 + " attribute, or that derive from the configured page-model base class.")
         .Checking(
-            "The name ends with the literal Controller - this suffix is not configurable. A"
+            "The name ends with the configured controller suffix (default Controller). A"
                 + " class carrying the API-controller attribute is not selected here, and a"
                 + " controller outside an incoming-adapter namespace is not checked. An empty"
                 + " selection passes.");

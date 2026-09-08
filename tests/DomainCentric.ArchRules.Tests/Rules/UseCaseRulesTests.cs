@@ -118,6 +118,10 @@ public sealed class UseCaseRulesTests
         Assert.Contains("SharedHelperUseCase.ExecuteAsync", SaveRuleMessage());
 
     [Fact]
+    public void SaveRulePublishLoopIsReported() =>
+        Assert.Contains("PublishLoopUseCase", SaveRuleMessage());
+
+    [Fact]
     public void SaveRuleSplitHelpersPass() =>
         Assert.DoesNotContain("SplitHelpersUseCase", SaveRuleMessage());
 
