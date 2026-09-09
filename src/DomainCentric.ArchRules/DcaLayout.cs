@@ -160,7 +160,10 @@ public sealed class DcaLayout
     /// </summary>
     public IReadOnlyList<string> ThirdPartyNamespacesAllowedInDomain { get; }
 
-    /// <summary>Full names of the framework types and attributes the rules look for. Default: ASP.NET Core.</summary>
+    /// <summary>
+    /// The framework types the rules look for, by role — <see cref="FrameworkTypes.AspNetCore"/> (default),
+    /// <see cref="FrameworkTypes.None"/>, or an adjusted preset. The preset in use is part of <see cref="ToString"/>.
+    /// </summary>
     public FrameworkTypes FrameworkTypes { get; }
 
     // ---------------------------------------------------------------------------------------------
@@ -337,5 +340,5 @@ public sealed class DcaLayout
     private static string EscapeKeepingSegments(string ns) =>
         string.Join(Segment, ns.Split(new[] { Segment }, StringSplitOptions.None).Select(Regex.Escape));
 
-    public override string ToString() => $"DcaLayout[{RootNamespace}]";
+    public override string ToString() => $"DcaLayout[{RootNamespace}, frameworkTypes={FrameworkTypes}]";
 }

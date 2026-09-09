@@ -4,6 +4,13 @@ All notable changes to this package. Format: [Keep a Changelog](https://keepacha
 
 ## [Unreleased]
 
+### Changed
+
+- Documentation only (WP-30): `ITransactionBoundary` names a `DbContext` transaction and `TransactionScope` as
+  examples of an implementation instead of "EF Core: …"; `IDomainEventPublisher` says "Sequence of operations". The
+  XML docs flow into the knowledge catalog and are now guarded against framework and shop vocabulary by
+  `FrameworkNeutralityTests` in the ArchRules test project.
+
 ## [0.1.0] - 2026-09-07
 
 Feature parity with `dca-building-blocks` 0.1.0.

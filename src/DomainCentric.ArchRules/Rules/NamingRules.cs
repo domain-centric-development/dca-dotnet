@@ -18,7 +18,7 @@ public sealed class NamingRules : IDcaRuleSet
     /// <summary>Java rules of this set that have no .NET counterpart (id → reason).</summary>
     public static readonly IReadOnlyDictionary<string, string> NotApplicable = new Dictionary<string, string>
     {
-        ["DCA-NAM-002"] = ".NET has no @Service stereotype — use cases are registered in the DI container by code, there is no attribute to check",
+        ["DCA-NAM-002"] = ".NET has no injectable stereotype attribute — use cases are registered in the DI container by code, there is no attribute to check",
     };
 
     public NamingRules(DcaLayout layout)
@@ -330,10 +330,16 @@ public sealed class NamingRules : IDcaRuleSet
         || DerivesFrom(cls, arch.Layout.FrameworkTypes.PageModelBase);
 
     private static bool IsApiController(DcaArchitecture arch, Class cls) =>
-        cls.AttributeInstances.Any(a => a.Type.FullName == arch.Layout.FrameworkTypes.ApiControllerAttribute);
+        FrameworkTypes.IsSet(arch.Layout.FrameworkTypes.ApiControllerAttribute)
+        && cls.AttributeInstances.Any(a => a.Type.FullName == arch.Layout.FrameworkTypes.ApiControllerAttribute);
 
     private static bool DerivesFrom(Class cls, string baseFullName)
     {
+        if (!FrameworkTypes.IsSet(baseFullName))
+        {
+            return false;
+        }
+
         for (var current = cls.BaseClass; current is not null; current = current.BaseClass)
         {
             if (current.FullName == baseFullName)

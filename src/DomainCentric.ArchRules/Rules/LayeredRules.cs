@@ -93,8 +93,8 @@ public sealed class LayeredRules : IDcaRuleSet
 
     /// <summary>
     /// Every type that uses the configured transaction type (<c>TransactionScope</c>) must reside in the
-    /// application layer or in an outgoing adapter — the .NET reading of "methods/classes annotated
-    /// <c>@Transactional</c>".
+    /// application layer or in an outgoing adapter — the .NET reading of the Java rule's "members carrying
+    /// the configured transactional annotation".
     /// </summary>
     public IDcaRule TransactionBoundariesBelongToApplicationLayer()
     {
@@ -112,7 +112,7 @@ public sealed class LayeredRules : IDcaRuleSet
                     DcaLayout.AnyOf(arch.AllApplicationPatterns().Concat(arch.AllOutgoingAdapterPatterns())));
                 var transactionType = Layout.FrameworkTypes.TransactionScope;
                 var violations = arch.Types
-                    .Where(t => t.Dependencies.Any(d => d.Target.FullName == transactionType))
+                    .Where(t => FrameworkTypes.IsSet(transactionType) && t.Dependencies.Any(d => d.Target.FullName == transactionType))
                     .Where(t => t.Namespace is null || !allowed.IsMatch(t.Namespace.FullName))
                     .Select(t => $"{t.FullName} uses {transactionType} outside the application layer")
                     .ToList();
@@ -121,7 +121,7 @@ public sealed class LayeredRules : IDcaRuleSet
             .Selecting(
                 "Types under scan that have any dependency on the configured transaction type (by default "
                 + "System.Transactions.TransactionScope) - a field, a local, a method call or a using block "
-                + "all count.")
+                + "all count. With no transaction type configured nothing is selected.")
             .Checking(
                 "Each resides in an application namespace of some module root (<module>.Application or "
                 + "below) or in an outgoing adapter namespace of some module root "

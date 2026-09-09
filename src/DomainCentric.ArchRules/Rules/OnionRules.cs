@@ -103,7 +103,7 @@ public sealed class OnionRules : IDcaRuleSet
 
     /// <summary>
     /// Domain models (and their members) carry no attributes from outside the layout's allow-list —
-    /// the .NET reading of "no Spring/JPA annotations".
+    /// the .NET reading of the Java rule's forbidden container and persistence annotations.
     /// </summary>
     public IDcaRule DomainModelsMustNotHaveFrameworkAttributes()
     {

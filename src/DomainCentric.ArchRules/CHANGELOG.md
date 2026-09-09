@@ -4,6 +4,33 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+Framework-neutral vocabulary (WP-30, twin of `dca-archunit`). Minor bump.
+
+### Added
+
+- `FrameworkTypes.None()` — every role empty, for a hand-hosted application or a framework without a preset;
+  controllers are then recognised by suffix only and `DCA-LAY-004` has nothing to look for. `FrameworkTypes.Name`
+  (`aspnetcore`, `none`) is part of `DcaLayout.ToString()` so a report names the preset in use;
+  `FrameworkTypes.IsSet(role)` is the empty-role test the rules use. Adjust a preset with a `with` expression.
+- `FrameworkNeutralityTests`: fails the build when a rule's title, rationale, `Selects` or `Checks`, a `NotApplicable`
+  reason, or a building-block XML-doc sentence names a framework (`Spring`, `EF Core`, `MediatR`, `@Service`, …) or
+  shop vocabulary outside a sentence marked as an example. Same guard as the Java twin.
+
+### Changed
+
+- `FrameworkTypes` is a positional record with `Name` first: `new FrameworkTypes(name, controllerBase,
+  apiControllerAttribute, pageModelBase, transactionScope)`. Callers of the presets are unaffected.
+- `HexagonalRules.IsController`, `NamingRules` (`IsMvcController`, `IsApiController`) and `DCA-LAY-004` treat an
+  empty role as "matches nothing" instead of comparing against an empty name.
+- The `NotApplicable` reasons of `DCA-NAM-002`, `DCA-USE-012/013` and `DCA-MAP-006` explain the Java rule in role
+  terms ("injectable stereotype attribute", "declaratively transactional", "module declaration") instead of naming
+  Spring; XML docs likewise. `rules.json` / `RULES.md` regenerated (116 rules, 4 n/a — unchanged counts).
+
+### Fixed
+
+- The repository `Dockerfile` copies `LICENSE` into the build context; `dotnet pack` inside the image failed on the
+  missing file the packages embed (`Directory.Build.props`). `podman build` is green again.
+
 ## [0.3.0] - 2026-09-08
 
 Depends on `DomainCentric.BuildingBlocks` 0.1.0 (unchanged).

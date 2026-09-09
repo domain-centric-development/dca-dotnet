@@ -39,8 +39,9 @@ These hold for anyone working in any of the DCA repositories — human or agent 
   wording as Java wherever the reading is the same, and are framework- and domain-neutral.
 - **`I`-prefixed markers, async ports, attributes instead of `package-info`, context marker class** — the
   conventions are in `src/DomainCentric.BuildingBlocks/README.md`; keep the Java ↔ C# table there current.
-- **Frameworks only as presets** (`FrameworkTypes.AspNetCore()`); nothing from ASP.NET Core on the libraries'
-  class path.
+- **Frameworks only as presets** (`FrameworkTypes.AspNetCore()`, `FrameworkTypes.None()`); nothing from ASP.NET
+  Core on the libraries' class path. `FrameworkNeutralityTests` fails the build when a rule text, an n/a reason or a
+  building-block XML doc names a framework or the shop outside a "for example" sentence.
 - **Versions** live in the `.csproj` `<Version>` elements (never `-p:Version`); `DomainCentric.BuildingBlocks` keeps
   the last released version because it is the ArchRules package dependency.
 - **Consumers to keep in sync** (monorepo checkout): `dca-ecommerce-sample-dotnet`, the bootstrap skill in

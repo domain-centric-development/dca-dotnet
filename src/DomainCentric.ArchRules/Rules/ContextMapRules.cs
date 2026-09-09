@@ -20,16 +20,16 @@ namespace DomainCentric.ArchRules.Rules;
 /// the declarations consistent with each other and with the actual code. Organizational patterns
 /// (Customer–Supplier etc.) are deliberately not machine-classified; Separate Ways is the absence of
 /// any declaration.</para>
-/// <para>The Java rule <c>DCA-MAP-006</c> (agreement with Spring Modulith <c>allowedDependencies</c>)
-/// has no .NET counterpart — see <see cref="NotApplicable"/>.</para>
+/// <para>The Java rule <c>DCA-MAP-006</c> (agreement between the upstream declarations and a module
+/// system's declared allowed dependencies) has no .NET counterpart — see <see cref="NotApplicable"/>.</para>
 /// </remarks>
 public sealed class ContextMapRules : IDcaRuleSet
 {
     /// <summary>Java rules of this set that have no .NET counterpart (id → reason).</summary>
     public static readonly IReadOnlyDictionary<string, string> NotApplicable = new Dictionary<string, string>
     {
-        ["DCA-MAP-006"] = "Upstream declarations and Spring Modulith allowedDependencies must agree — .NET has no module"
-            + " system annotation; project boundaries take that role",
+        ["DCA-MAP-006"] = "Upstream declarations and the module declaration's allowed dependencies must agree — .NET has no"
+            + " module-declaration attribute; project boundaries take that role",
     };
 
     public ContextMapRules(DcaLayout layout)

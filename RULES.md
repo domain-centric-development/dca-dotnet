@@ -9,7 +9,7 @@ Generated from `DomainCentric.ArchRules` — do not edit. 116 rules in 11 sets; 
 | `DCA-LAY-001` | Diagnostic: The rules of the Layered Architecture should be followed | Traditional layering (application accessed only by incoming adapters) contradicts Ports and Adapters, where outgoing adapters implement application-level output ports; the hexagonal rules cover the intended dependency direction | Informational - selects nothing. A classic layered-architecture definition (adapter layer accesses application, application accesses domain, domain accesses nothing) is not built, because in Ports and Adapters outgoing adapters implement application-level output ports. | Informational - selects nothing and never fails; it carries doctrine only. The dependency direction is enforced by the hexagonal rules. |
 | `DCA-LAY-002` | Domain must not have dependencies on Infrastructure | Domain should not depend on infrastructure concerns (Dependency Inversion Principle) | Types in <module>.Domain of every module root, the shared kernel's domain included. | No dependency on a type in the global infrastructure namespace (<root>.Infrastructure or below) or in any isolated module's own infrastructure namespace (<module>.Infrastructure or below). The shared kernel's infrastructure namespace is not in that list. A module without a domain layer selects nothing and passes. |
 | `DCA-LAY-003` | Application Services must only use outbound ports (not infrastructure implementations) | Application services should only use outbound ports declared as interfaces (Ports.Out), not infrastructure implementation details | Types in <module>.Application of every module root. | No dependency on a type residing in the global infrastructure namespace or in any isolated module's own infrastructure namespace, sub-namespaces included, with an exact segment boundary. Dependencies on outgoing adapters are not checked here - only infrastructure namespaces count. |
-| `DCA-LAY-004` | Transaction boundaries belong to the application layer | Transactions are an application-layer concern - domain and incoming adapters must not manage them | Types under scan that have any dependency on the configured transaction type (by default System.Transactions.TransactionScope) - a field, a local, a method call or a using block all count. | Each resides in an application namespace of some module root (<module>.Application or below) or in an outgoing adapter namespace of some module root (<module>.Adapter.Outgoing or below). A use in a domain, incoming-adapter or infrastructure namespace is reported; all findings are collected into one violation. The check is per type, not per method, and other transaction APIs (a DbContext transaction, TransactionScope subclasses) are not looked for. |
+| `DCA-LAY-004` | Transaction boundaries belong to the application layer | Transactions are an application-layer concern - domain and incoming adapters must not manage them | Types under scan that have any dependency on the configured transaction type (by default System.Transactions.TransactionScope) - a field, a local, a method call or a using block all count. With no transaction type configured nothing is selected. | Each resides in an application namespace of some module root (<module>.Application or below) or in an outgoing adapter namespace of some module root (<module>.Adapter.Outgoing or below). A use in a domain, incoming-adapter or infrastructure namespace is reported; all findings are collected into one violation. The check is per type, not per method, and other transaction APIs (a DbContext transaction, TransactionScope subclasses) are not looked for. |
 | `DCA-LAY-005` | The shared kernel's output-port markers must all be interfaces | Ports.Out contains outbound port interfaces (IRepository, IOutputPort, IDomainEventPublisher) shared across all bounded contexts. These must be interfaces to ensure the application layer remains framework-independent and follows the Dependency Inversion Principle. Implementations belong in infrastructure or adapter namespaces. | Types declared in the building-blocks namespace DomainCentric.BuildingBlocks.Hexagonal.Ports.Out, read by reflection from the building-blocks assembly rather than from the scanned architecture. Compiler-generated types (closures, async state machines of default interface methods) are not selected. | Each is an interface. The project's own output ports in Application.Shared are not selected; the rule passes when no non-interface type is found. |
 
 ## `onion`
@@ -98,7 +98,7 @@ Generated from `DomainCentric.ArchRules` — do not edit. 116 rules in 11 sets; 
 
 Not applicable in .NET:
 
-- `DCA-MAP-006` — Upstream declarations and Spring Modulith allowedDependencies must agree — .NET has no module system annotation; project boundaries take that role
+- `DCA-MAP-006` — Upstream declarations and the module declaration's allowed dependencies must agree — .NET has no module-declaration attribute; project boundaries take that role
 
 ## `advanced`
 
@@ -143,8 +143,8 @@ Not applicable in .NET:
 
 Not applicable in .NET:
 
-- `DCA-USE-012` — Guards Spring's after-commit relay (@TransactionalEventListener / @ApplicationModuleListener), which is skipped silently without an active transaction. .NET has no ambient transaction attribute on use cases; after-save delivery is the job of the integration-event outbox adapter, not of the use case
-- `DCA-USE-013` — Guards against remote-capable output ports called inside a @Transactional use case. .NET has no declarative transaction metadata on use cases — the boundary is a decorator or an explicit ITransactionBoundary.InTransactionAsync — so the rule has nothing to anchor on; DCA-NET-006 keeps transaction and persistence frameworks out of the application layer instead
+- `DCA-USE-012` — Guards a declarative transaction framework's after-commit relay of integration events, which is skipped silently without an active transaction. .NET has no ambient transaction attribute on use cases; after-save delivery is the job of the integration-event outbox adapter, not of the use case
+- `DCA-USE-013` — Guards against remote-capable output ports called inside a declaratively transactional use case. .NET has no declarative transaction metadata on use cases — the boundary is a decorator or an explicit ITransactionBoundary.InTransactionAsync — so the rule has nothing to anchor on; DCA-NET-006 keeps transaction and persistence frameworks out of the application layer instead
 
 ## `naming`
 
@@ -163,7 +163,7 @@ Not applicable in .NET:
 
 Not applicable in .NET:
 
-- `DCA-NAM-002` — .NET has no @Service stereotype — use cases are registered in the DI container by code, there is no attribute to check
+- `DCA-NAM-002` — .NET has no injectable stereotype attribute — use cases are registered in the DI container by code, there is no attribute to check
 
 ## `cycles`
 

@@ -517,7 +517,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
     /// <summary>
     /// Attributes whose type comes from outside the domain's allowed dependencies (<c>System</c>, the
     /// building blocks, <see cref="DcaLayout.ThirdPartyNamespacesAllowedInDomain"/>) or the domain layer itself
-    /// are framework attributes — the .NET reading of "no Spring stereotype annotations".
+    /// are framework attributes — the .NET reading of the Java rule's forbidden container stereotypes.
     /// </summary>
     private void FailOnFrameworkAttributes(DcaArchitecture arch, Func<IType, bool> candidate, string header)
     {

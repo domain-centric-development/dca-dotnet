@@ -6,7 +6,7 @@ Append-only. One section per rule set; the core section is written by the coordi
 
 - `DcaLayout` mirrors the Java class; patterns are regular expressions (ArchUnitNET has no `..` syntax). Defaults are PascalCase namespace segments (`Domain`, `Application`, `Adapter.Incoming`, …), controller suffix `Controller` (ASP.NET), use-case suffix `UseCase`.
 - `IDcaRule.Selects` / `IDcaRule.Checks` mirror Java's `selects()` / `checks()`; `DcaRule.Of`/`Check` return `DcaRule.Undescribed`, completed with `.Selecting(...).Checking(...)` (both mandatory). Texts follow the Java wording sentence by sentence and deviate only where the .NET reading differs (namespaces, `I`-prefixed markers, attributes, async ports - `PublishAndClearEventsAsync`); the rule catalog tool writes them as `selects`/`checks`, the knowledge catalog shows a **.NET reading** block wherever the texts differ.
-- `FrameworkAnnotations` (Spring names) → `FrameworkTypes` (ASP.NET Core `ControllerBase`, `[ApiController]`, `PageModel`, `System.Transactions.TransactionScope`). .NET has no `@Service`/`@Component`/`@EventListener`/`@ApplicationModule` counterpart; the affected rules are n/a and listed per set.
+- `FrameworkAnnotations` (roles holding annotation names; presets `spring`/`jakarta`/`quarkus`/`micronaut`/`none`) → `FrameworkTypes` (roles holding type names: `ControllerBase`, `ApiControllerAttribute`, `PageModelBase`, `TransactionScope`; presets `AspNetCore()` and `None()`, adjusted with a `with` expression). .NET has no injectable stereotype, no listener attribute and no module declaration; the affected rules are n/a and listed per set.
 - `package-info` annotations → attributes on a **marker class residing directly in the context root namespace** (`[BoundedContext("Cart")] public static class CartContext {}`); read by reflection (`DcaArchitecture.NamespaceAttribute(s)<T>`). Repeatable annotations → `AllowMultiple = true`, no container attributes.
 - `DcaRule.of` → `DcaRule.Of` evaluates the ArchUnitNET rule; failed `EvaluationResult`s become violation lines; an empty selection passes (ArchUnitNET would fail it — "requires positive evaluation").
 - Assertion type: `DcaRuleViolationException` (no test-framework dependency); xUnit integration lives in the separate package `DomainCentric.ArchRules.Xunit` (the Java `junit` sub-package is `compileOnly`; NuGet has no equivalent that keeps NUnit/MSTest users clean).
@@ -282,3 +282,16 @@ structs count). Kept as deliberate .NET readings, documented in the catalog: fie
 includes interfaces as well, so this was never an asymmetry. Java moved for `ADV-012/016` (inherited fields) and
 `NAM-010` (`Implementation`).
 
+
+## Framework-neutral vocabulary (WP-30, 2026-09-09)
+
+Twin of the Java change of the same day. `FrameworkTypes` gained `Name` (first positional component), `None()` and
+`IsSet(role)`; `HexagonalRules.IsController`, `NamingRules.IsMvcController`/`IsApiController` and `DCA-LAY-004` treat an
+empty role as "matches nothing". The roles were already role-named here (base classes and attributes, not stereotypes),
+so no accessor was renamed. The four `NotApplicable` reasons (`DCA-NAM-002`, `DCA-USE-012/013`, `DCA-MAP-006`) and the
+XML docs of `OnionRules`, `AdvancedPatternRules`, `LayeredRules`, `ContextMapRules`, `ContextMapRenderer` and
+`FrameworkTypes` explain the Java rule in role terms instead of naming Spring. `FrameworkNeutralityTests` guards rule
+texts, n/a reasons and the building-block XML docs (two sentences rewritten: `ITransactionBoundary`,
+`IDomainEventPublisher`); `FrameworkTypesTests` pins the preset names and shows the catalog yields the same outcomes
+under `None()` as under `AspNetCore()` on a fixture that leans on no framework type. No second .NET web-framework
+preset: nothing in the ecosystem is worth one today. Self-tests 350 → 355.

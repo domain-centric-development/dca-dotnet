@@ -34,7 +34,7 @@ namespace DomainCentric.BuildingBlocks.Hexagonal.Ports.Out;
 ///   <item><description>Easy to swap implementations or mock for testing</description></item>
 /// </list>
 /// <para>
-/// <b>Order of operations — save, dispatch, then clear.</b> The use case calls
+/// <b>Sequence of operations — save, dispatch, then clear.</b> The use case calls
 /// <c>PublishAndClearEventsAsync</c> after <c>SaveAsync</c>, inside the same transaction, so an event is never
 /// dispatched for state that was not persisted. The implementation dispatches the collected events first and
 /// clears the aggregate <em>afterwards</em>: clearing is the acknowledgement that every listener has seen the

@@ -12,8 +12,9 @@ namespace DomainCentric.BuildingBlocks.Application.Transactions;
 /// <para>An output port describes a capability the application needs from the outside world (store an aggregate,
 /// look up a price, publish an event). A transaction is no such interaction: it defines the execution semantics
 /// of several of them. The interface therefore lives beside the use cases and does not derive from
-/// <c>IOutputPort</c>; the implementation is infrastructure (EF Core: <c>DbContext</c> transaction +
-/// <c>SaveChangesAsync</c>; ADO.NET: <c>TransactionScope</c>).</para>
+/// <c>IOutputPort</c>; the implementation is infrastructure - a thin wrapper around the persistence
+/// framework's transaction API (for example a <c>DbContext</c> transaction plus <c>SaveChangesAsync</c>, or a
+/// <c>TransactionScope</c>).</para>
 /// <para>The default boundary is a decorator or pipeline around <see cref="Hexagonal.Ports.In.IUseCase{TInput, TOutput}"/>:
 /// load, mutate, save, publish — all inside one short transaction. That default breaks down as soon as the use
 /// case also talks to the outside world (payment provider, remote catalog, mail gateway): a remote call inside the

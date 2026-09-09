@@ -301,7 +301,7 @@ public sealed class ContextMapRenderer
     /// <summary>
     /// Published interfaces ("api", "events") of a context: the channel namespace directly below the
     /// context root (<c>Cart.Api</c>, <c>Cart.Events</c>) carries types. .NET has no named-interface
-    /// declaration such as Spring Modulith's, so type presence stands alone.
+    /// declaration (the Java twin reads one from its module system), so type presence stands alone.
     /// </summary>
     private List<string> PublishedInterfaces(string contextNamespace)
     {

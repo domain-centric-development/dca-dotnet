@@ -65,9 +65,10 @@ public sealed class HexagonalRules : IDcaRuleSet
     internal static bool IsController(Class type, DcaLayout layout) =>
         type.Name.EndsWith(layout.ControllerSuffix, StringComparison.Ordinal)
         || type.Name.EndsWith(layout.RestControllerSuffix, StringComparison.Ordinal)
-        || type.IsAssignableTo(layout.FrameworkTypes.ControllerBase)
-        || type.IsAssignableTo(layout.FrameworkTypes.PageModelBase)
-        || type.Attributes.Any(a => a.FullName == layout.FrameworkTypes.ApiControllerAttribute);
+        || (FrameworkTypes.IsSet(layout.FrameworkTypes.ControllerBase) && type.IsAssignableTo(layout.FrameworkTypes.ControllerBase))
+        || (FrameworkTypes.IsSet(layout.FrameworkTypes.PageModelBase) && type.IsAssignableTo(layout.FrameworkTypes.PageModelBase))
+        || (FrameworkTypes.IsSet(layout.FrameworkTypes.ApiControllerAttribute)
+            && type.Attributes.Any(a => a.FullName == layout.FrameworkTypes.ApiControllerAttribute));
 
     public IDcaRule DomainMustNotAccessAdapters() =>
         DcaRule.Of(

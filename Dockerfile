@@ -8,7 +8,7 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /workspace
 ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
-COPY dca-dotnet.sln Directory.Build.props global.json README.md ./
+COPY dca-dotnet.sln Directory.Build.props global.json README.md LICENSE ./
 COPY branding ./branding
 COPY src ./src
 COPY tests ./tests
