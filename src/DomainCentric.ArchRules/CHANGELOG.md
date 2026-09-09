@@ -4,6 +4,10 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+- WP-33: allow domain Manager terms, outgoing Response models, use-case-local ports and Store lookup by key. Operation containers normalize marker-or-suffix discovery; entity construction checks caller roles and context, with aggregate-ownership limits documented. TAC-022 retirement remains in the WP-37 registry batch.
+
+- WP-32: shallow immutable state on classes, records and structs; inherited fields and setters checked. Same-type and marker-interface aggregate references are rejected; wrapper traversal and struct results covered. Immutable equality classes and readonly struct values remain valid.
+
 Framework-neutral vocabulary (WP-30, twin of `dca-archunit`). Minor bump.
 
 ### Added
@@ -257,3 +261,34 @@ Feature parity with `dca-archunit` 0.1.0 (same rule ids and rationales; 4 Java r
 ### Fixed
 - `DCA-LAY-005` ignores compiler-generated nested types (closures, async state machines of default interface methods) in `Ports.Out`.
 - `DCA-CYC-001…004` sliced with ArchUnitNET's `Slices().Matching("Root.(*).Layer")`, which ignores the segments after `(*)` and slices every sub-namespace of a context — all four rules reported the same intra-context pairs (e.g. `Domain.Model` ↔ `Domain.Event`) as cycles. The rules now build one slice per context from the layer's types only and search elementary cycles between slices themselves (Java semantics of `Root.(*).layer..`). Found by the first real consumer (`dca-ecommerce-sample-dotnet`).
+
+- 2026-09-09 WP-34 (unreleased): NAM-002 Java diagnostic never fails (.NET n/a); HEX-005 permits own/global infrastructure; ONI-003 and ADV-004/011/015/018 share exclusive role-by-target metadata checks. Java gains injectionSite/persistenceMapping presets and composed detection; .NET gains attribute namespaces and base-attribute detection, replacing the allow-list. No wiring guarantee; no new marker. Shared catalog regeneration pending WP-37.
+
+- 2026-09-09 WP-35 (unreleased): shared new IDs USE-016 (operation invocation, including helpers) and USE-017 (effective public input-port surface); CYC-005 slices operations inside features, respecting containers; MAP-008 requires per-interaction translation evidence without package exclusivity. NET-003 uses the generic interface map (inherited/explicit valid). No coordination marker; anchored caller-side ignore is the explicit exception. Counts await the shared regeneration.
+
+### WP-36 (unreleased 0.4.0)
+
+- `DCA-USE-009` permits event-free saves only with a resolved, fully inspected aggregate; unresolvable types remain checked.
+- `DCA-USE-012` has the same id in both languages. Its static graph proves boundary evidence, not block containment.
+- **Breaking migration from 0.3.0:** `DCA-STR-007` accepts only the configured events segment. Move contracts from
+  adapter/outgoing/event to events, or temporarily exclude DCA-STR-007 by id during migration. Translators stay in adapters.
+- `DCA-ADV-006/007` intentionally stop banning business `version`; the three explicit schema-version names are a heuristic.
+- `DCA-HEX-006` is directional; `DCA-HEX-007` names integration events and published APIs correctly.
+
+
+## Catalog kinds and retired identities (2026-09-09)
+
+Catalog entries distinguish enforced rules from informational diagnostics: LAY-001, STR-001, STR-010, MAP-013,
+and Java NAM-002. Test runners and generated catalogs report both counts separately. Informational entries do
+not prove architectural correctness or runtime wiring. `kind()` / `Kind` is explicit metadata, independent of severity.
+
+Retired ids are never reused: MAP-003 delegates normalized-name collision handling to the context-map renderer;
+ADV-003 is covered by ADV-001's immutable-shape check; TAC-022 is covered by TAC-008..012 for value models,
+with enrichment guidance in the guide/catalog. `DcaRules.retired()` / `Retired()` retain reason, replacement and
+version. Properties exclusions/severity settings and programmatic exclusions using these ids keep loading and
+are reported as retired. Unknown ids still fail. The change is intentional in unreleased 0.4.0 for 0.3.0 consumers.
+
+USE-001 retains consumer redeclaration coverage; LAY-005 checks imported consumer implementations in the reserved
+building-blocks output-port namespace/package. An imported original interface passes. Name-discovery rules remain:
+unmarked types would otherwise evade marker-only selection. Current counts come from generated `rules.json`,
+including status and the separate retirement registry, rather than a hard-coded expected total.

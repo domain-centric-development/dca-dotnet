@@ -12,7 +12,7 @@ public sealed class TacticalPatternRulesTests
 
     private static readonly IReadOnlyDictionary<string, string> NoNegativeFixture = new Dictionary<string, string>();
 
-    private static readonly string[] ExpectedIds = Enumerable.Range(1, 22).Select(i => $"DCA-TAC-{i:000}").ToArray();
+    private static readonly string[] ExpectedIds = Enumerable.Range(1, 21).Select(i => $"DCA-TAC-{i:000}").ToArray();
 
     public static IEnumerable<object[]> RuleIds() => ExpectedIds.Select(id => new object[] { id });
 
@@ -47,9 +47,19 @@ public sealed class TacticalPatternRulesTests
         Assert.False(string.IsNullOrWhiteSpace(ex.Message));
     }
 
+    [Theory]
+    [InlineData("DCA-TAC-003", "Order", "LinkedOrder")]
+    [InlineData("DCA-TAC-003", "Order", "SuppliedOrder")]
+    [InlineData("DCA-TAC-007", "Shipment", "LinkedOrder")]
+    [InlineData("DCA-TAC-008", "ReferenceValue", "Order")]
+    public void MarkerInterfacesAndWrappersCannotHideIdentities(string id, string owner, string member)
+    {
+        var message = Assert.Throws<DcaRuleViolationException>(() => Rule(Bad, id).Check(Arch(Bad))).Message;
+        Assert.Contains(owner + " has field '" + member + "'", message);
+    }
+
     /// <summary>
-    /// A container of the aggregate's own type holds <em>other</em> instances of that aggregate. Only the direct
-    /// member of the own type (a self-reference) is tolerated; a container never is.
+    /// A container of the aggregate's own type holds <em>other</em> instances of that aggregate. Direct references and containers are both rejected.
     /// </summary>
     [Fact]
     public void ContainersOfTheOwnAggregateTypeAreReported()
@@ -60,7 +70,7 @@ public sealed class TacticalPatternRulesTests
             Assert.Matches($"Category has field '{container}' containing .*Category", message);
         }
 
-        Assert.DoesNotContain("'Root'", message);
+        Assert.Contains("'Root'", message);
         Assert.Matches("Order has field 'Customer' of type .*Customer", message);
     }
 }

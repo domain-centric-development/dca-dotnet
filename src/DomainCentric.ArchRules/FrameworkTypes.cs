@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace DomainCentric.ArchRules;
 
@@ -31,6 +32,18 @@ public sealed record FrameworkTypes(
     string PageModelBase,
     string TransactionScope)
 {
+    /// <summary>Optional declarative transaction attribute used to cover publication entry paths.</summary>
+    public string TransactionalAttribute { get; init; } = "";
+
+    /// <summary>Attribute namespaces classified as persistence metadata, including derived attributes.</summary>
+    public IReadOnlyList<string> PersistenceAttributeNamespaces { get; init; } = Array.Empty<string>();
+    /// <summary>Attribute namespaces classified as injection-site metadata.</summary>
+    public IReadOnlyList<string> InjectionAttributeNamespaces { get; init; } = Array.Empty<string>();
+    /// <summary>Attribute namespaces classified as transaction metadata.</summary>
+    public IReadOnlyList<string> TransactionAttributeNamespaces { get; init; } = Array.Empty<string>();
+    /// <summary>Attribute namespaces classified as container stereotypes.</summary>
+    public IReadOnlyList<string> ContainerAttributeNamespaces { get; init; } = Array.Empty<string>();
+
     /// <summary>ASP.NET Core MVC / Razor Pages and <c>System.Transactions</c>.</summary>
     public static FrameworkTypes AspNetCore() =>
         new(
@@ -38,7 +51,11 @@ public sealed record FrameworkTypes(
             "Microsoft.AspNetCore.Mvc.ControllerBase",
             "Microsoft.AspNetCore.Mvc.ApiControllerAttribute",
             "Microsoft.AspNetCore.Mvc.RazorPages.PageModel",
-            "System.Transactions.TransactionScope");
+            "System.Transactions.TransactionScope")
+        {
+            PersistenceAttributeNamespaces = Array.AsReadOnly(new[] { "System.ComponentModel.DataAnnotations.Schema", "Microsoft.EntityFrameworkCore" }),
+            InjectionAttributeNamespaces = Array.AsReadOnly(new[] { "Microsoft.Extensions.DependencyInjection" })
+        };
 
     /// <summary>
     /// No framework types at all — a hand-hosted application, or a framework this library has no preset

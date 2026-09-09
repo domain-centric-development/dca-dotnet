@@ -1,0 +1,2 @@
+using DomainCentric.BuildingBlocks.Hexagonal.Ports.In; using DomainCentric.BuildingBlocks.Hexagonal.Ports.Out; using DomainCentric.BuildingBlocks.Ddd.Tactical; using DomainCentric.BuildingBlocks.Application.Transactions;
+namespace Acme.Ledger.Application.Read {public sealed record ReadQuery;public sealed record ReadResult(int Value);public interface IReadInputPort:IUseCase<ReadQuery,ReadResult>{} public sealed class ReadUseCase:IReadInputPort{public Task<ReadResult> ExecuteAsync(ReadQuery query,CancellationToken ct=default)=>Task.FromResult(new ReadResult(1));}}

@@ -107,7 +107,7 @@ public sealed class NamingRules : IDcaRuleSet
     public static IDcaRule RepositoryInterfacesEndWithRepository(DcaLayout layout) =>
         DcaRule.Check(
             "DCA-NAM-004",
-            "Repository Interfaces must end with 'Repository'",
+            "Repository Interfaces must end with 'Repository' (name-based discovery)",
             "Repository interfaces should follow consistent naming conventions (DDD pattern)",
             arch =>
             {
@@ -249,23 +249,23 @@ public sealed class NamingRules : IDcaRuleSet
                 + " An empty selection passes.");
 
     public static IDcaRule NoTechnicalSuffixesInDomain(DcaLayout layout) =>
-        // Domain concepts carry ubiquitous-language names. 'Manager'/'Helper'/'Util' signal
+        // Domain concepts carry ubiquitous-language names. 'Helper'/'Util' signal
         // a missing domain concept; 'Impl'/'Implementation' signal naming by pattern instead of by specialty.
         DcaRule.Of(
             "DCA-NAM-010",
-            "Domain classes must not use technical suffixes (Manager, Helper, Util, Impl)",
+            "Domain classes must not use technical suffixes (Helper, Util, Impl)",
             "Domain names come from the ubiquitous language - name services by their specialty, not by technical role",
             arch =>
                 Types()
                     .That()
                     .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns()))
                     .Should()
-                    .NotHaveNameMatching("(Manager|Helper|Utils?|Impl|Implementation)$"))
+                    .NotHaveNameMatching("(Helper|Utils?|Impl|Implementation)$"))
         .Selecting(
             "Types in <module>.Domain of every module root.")
         .Checking(
-            "No name ends with Manager, Helper, Util, Utils, Impl or Implementation. Only"
-                + " these six suffixes are checked, only in domain namespaces - a *Service or"
+            "No name ends with Helper, Util, Utils, Impl or Implementation. Only"
+                + " these five suffixes are checked, only in domain namespaces - a *Service or"
                 + " *Factory in the domain is not reported, and an Impl in an adapter namespace is"
                 + " not checked. An empty selection passes.");
 

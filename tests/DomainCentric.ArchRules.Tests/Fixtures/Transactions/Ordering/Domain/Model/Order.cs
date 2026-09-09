@@ -12,5 +12,7 @@ public sealed class Order : AggregateRootBase<Order, OrderId>
         Id = id;
     }
 
-    public override OrderId Id { get; }
+    public override OrderId Id { get; }    public void RecordChange() { RegisterEvent(new Changed(Guid.NewGuid(), DateTimeOffset.UtcNow)); }
+    private sealed record Changed(Guid EventId, DateTimeOffset OccurredOn) : IDomainEvent;
+
 }

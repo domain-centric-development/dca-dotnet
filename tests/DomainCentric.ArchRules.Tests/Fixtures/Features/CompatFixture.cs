@@ -88,12 +88,14 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Features.Compat.Sales.Applicati
 
     public sealed class PlaceOrderUseCase : IPlaceOrderInputPort
     {
+        private readonly DomainCentric.BuildingBlocks.Application.Transactions.ITransactionBoundary _transaction;
         private readonly IOrderRepository _orders;
         private readonly IFraudCheckPort _fraudCheck;
         private readonly IDomainEventPublisher _events;
 
-        public PlaceOrderUseCase(IOrderRepository orders, IFraudCheckPort fraudCheck, IDomainEventPublisher events)
+        public PlaceOrderUseCase(IOrderRepository orders, IFraudCheckPort fraudCheck, IDomainEventPublisher events, DomainCentric.BuildingBlocks.Application.Transactions.ITransactionBoundary transaction)
         {
+            _transaction = transaction;
             _orders = orders;
             _fraudCheck = fraudCheck;
             _events = events;
@@ -101,12 +103,15 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Features.Compat.Sales.Applicati
 
         public async Task<PlaceOrderResult> ExecuteAsync(PlaceOrderCommand command, CancellationToken cancellationToken = default)
         {
+            return await _transaction.InTransactionAsync(async ct => {
+
             var id = new OrderId(command.OrderId);
             var cleared = await _fraudCheck.ClearsAsync(id, cancellationToken);
             var order = Order.Place(id);
             await _orders.SaveAsync(order, cancellationToken);
             await _events.PublishAndClearEventsAsync(order, cancellationToken);
             return new PlaceOrderResult(order.Id.Value, cleared);
+            }, cancellationToken);
         }
     }
 }

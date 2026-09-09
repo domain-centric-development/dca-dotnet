@@ -223,9 +223,16 @@ public sealed class ContextMapRenderer
 
         if (_includeExternalSystems)
         {
+            var externalIds = new Dictionary<string, string>(StringComparer.Ordinal);
+            var usedIds = new HashSet<string>(namespaces.Select(ShortName), StringComparer.Ordinal);
+            foreach (var name in ExternalSystems(namespaces)) {
+                var stem = ExternalId(name); var id = stem; var suffix = 2;
+                while (!usedIds.Add(id)) id = stem + "_" + suffix++;
+                externalIds.Add(name, id);
+            }
             foreach (var name in ExternalSystems(namespaces))
             {
-                md.Append("  ").Append(ExternalId(name)).Append("[[\"").Append(name).Append("\"]]\n");
+                md.Append("  ").Append(externalIds[name]).Append("[[\"").Append(name).Append("\"]]\n");
             }
 
             foreach (var ns in namespaces)
@@ -238,7 +245,7 @@ public sealed class ContextMapRenderer
                     var kind = e.Protocol.Length == 0 ? InteractionName(e.Interaction) : e.Protocol;
                     var label = TranslationLabel(e.Translation) + " / " + kind + StatusSuffix(e.Status);
                     var arrow = e.Interaction == Interaction.Outbound ? "-->" : "-.->";
-                    md.Append("  ").Append(source).Append(' ').Append(arrow).Append("|\"").Append(label).Append("\"| ").Append(ExternalId(e.Name)).Append('\n');
+                    md.Append("  ").Append(source).Append(' ').Append(arrow).Append("|\"").Append(label).Append("\"| ").Append(externalIds[e.Name]).Append('\n');
                 }
             }
         }

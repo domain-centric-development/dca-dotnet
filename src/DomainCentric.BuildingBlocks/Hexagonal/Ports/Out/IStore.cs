@@ -10,7 +10,7 @@ namespace DomainCentric.BuildingBlocks.Hexagonal.Ports.Out;
 ///   <item><description>Use <see cref="IRepository{TAggregate, TId}"/> for <b>Aggregate Roots</b> with identity and
 ///   lifecycle (find by id, save, delete).</description></item>
 ///   <item><description>Use <see cref="IStore"/> for <b>Value Objects, Events, or operational data</b> without
-///   identity-based access (record, count, exists).</description></item>
+///   aggregate lifecycle (record, count, exists, lookup by key).</description></item>
 /// </list>
 /// <para><b>Examples of Stores:</b></para>
 /// <list type="bullet">
@@ -20,7 +20,7 @@ namespace DomainCentric.BuildingBlocks.Hexagonal.Ports.Out;
 /// </list>
 /// <para><b>Rules of thumb:</b></para>
 /// <list type="number">
-///   <item><description>Need <c>FindByIdAsync()</c>? → <see cref="IRepository{TAggregate, TId}"/> (object has identity)</description></item>
+///   <item><description>Lookup by key (<c>FindByIdAsync()</c>) is allowed on a Store; aggregate lifecycle requires a Repository</description></item>
 ///   <item><description>Need <c>RecordAsync()</c> or <c>CountAsync()</c>? → <see cref="IStore"/> (object is recorded, not managed)</description></item>
 ///   <item><description>In doubt: if the stored object is an <c>IValue</c> or a record, it's almost always a Store.</description></item>
 /// </list>

@@ -39,7 +39,7 @@ public sealed class ContextMapRules : IDcaRuleSet
         {
             DeclarationsOnlyOnBoundedContexts(),
             ExternalUpstreamsWellFormed(),
-            ExternalSystemNamesDistinctAfterNormalization(),
+
             UpstreamsReferenceExistingContexts(),
             UpstreamsUniquePerContextAndChannel(),
             ImplementedUpstreamsBackedByCode(),
@@ -362,6 +362,9 @@ public sealed class ContextMapRules : IDcaRuleSet
                                 ? OutgoingAdapterNamespace(ns)
                                 : IncomingAdapterNamespace(ns);
                             var channelNs = targetNs + "." + ChannelName(arch, channel);
+                            var translationSite = TypesBelow(arch, allowedAdapter).Any(t => DependsOnNamespace(t, channelNs)
+                                && (DependsOnNamespace(t, ns + "." + Layout.DomainSegment) || DependsOnNamespace(t, ns + "." + Layout.ApplicationSegment)));
+                            if (!translationSite) violations.Add("Context '" + source + "' needs translation evidence towards '" + u.Context + "' (" + ChannelName(arch, channel) + ") in " + allowedAdapter);
                             foreach (var type in TypesBelow(arch, ns).Where(t => !IsBelow(t, allowedAdapter)))
                             {
                                 if (DependsOnNamespace(type, channelNs))
@@ -387,8 +390,7 @@ public sealed class ContextMapRules : IDcaRuleSet
                 + " depends on a type in the target context's channel namespace or below:"
                 + " the outgoing adapter (<context>.Adapter.Outgoing) for the Api channel,"
                 + " the incoming adapter (<context>.Adapter.Incoming) for the Events channel."
-                + " That the adapter actually translates the contract into the context's own"
-                + " model is not established.");
+                + " Each declared interaction needs its own adapter class depending on that upstream channel and its own domain/application. Multiple upstream translators may share a package. Structure establishes a translation site, not translation quality.");
 
     /// <summary>DCA-MAP-009.</summary>
     public IDcaRule ConformistNeverReachesDomain() =>
@@ -613,7 +615,7 @@ public sealed class ContextMapRules : IDcaRuleSet
 
     /// <summary>DCA-MAP-013 — never fails.</summary>
     public static IDcaRule DisplayDeclaredContextMap() =>
-        DcaRule.Check(
+        DcaRule.Informational(
             "DCA-MAP-013",
             "Diagnostic: Display declared context map",
             "Printing the declared edges makes the executable context map reviewable at a glance",

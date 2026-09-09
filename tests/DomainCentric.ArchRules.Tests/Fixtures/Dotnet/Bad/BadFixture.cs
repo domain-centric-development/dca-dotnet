@@ -37,15 +37,15 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Dotnet.Bad.Order.Domain.Model
         public Guid Value { get; }
     }
 
-    // DCA-NET-004: value object is a plain class.
-    public sealed class Money : IValue
+    // DCA-NET-004: mutable struct value.
+    public struct Money : IValue
     {
         public Money(decimal amount)
         {
             Amount = amount;
         }
 
-        public decimal Amount { get; }
+        public decimal Amount { get; set; }
     }
 
     public sealed class Order : AggregateRootBase<Order, OrderId>
@@ -114,3 +114,5 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Dotnet.Bad.Order.Application.Pl
             ExecuteAsync(new PlaceOrderCommand(orderId));
     }
 }
+
+namespace DomainCentric.ArchRules.Tests.Fixtures.Dotnet.Bad.Ordering.Application.Invalid { public class NonGenericUseCase : DomainCentric.BuildingBlocks.Hexagonal.Ports.In.IInputPort { public System.Threading.Tasks.Task ExecuteAsync() => System.Threading.Tasks.Task.CompletedTask; } }

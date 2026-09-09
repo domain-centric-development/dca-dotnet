@@ -8,6 +8,8 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Tactical.Bad.Ordering.Domain.Mo
 /// </summary>
 public sealed class Shipment : TrackedEntity, IEntity
 {
+    public IOrderReference? LinkedOrder { get; }
+    public System.Func<Order>? SuppliedOrder { get; }
     private readonly Order _order;
 
     public Shipment(string id, Order order)

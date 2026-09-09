@@ -294,7 +294,7 @@ public sealed class DcaRuleSelection
 
     private static void RequireKnownId(string ruleId)
     {
-        if (!DcaRules.AllIds().Contains(ruleId))
+        if (!DcaRules.AllIds().Contains(ruleId) && !DcaRules.Retired().ContainsKey(ruleId))
         {
             throw new ArgumentException($"Unknown rule id: {ruleId}. See RULES.md for the catalog.", nameof(ruleId));
         }

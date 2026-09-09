@@ -137,27 +137,22 @@ public sealed class HexagonalRules : IDcaRuleSet
                 + " implementation. An empty selection passes.");
 
     public IDcaRule OutgoingAdaptersMustNotUseInfrastructureImplementations() =>
-        DcaRule.Of(
-            "DCA-HEX-005",
-            "Outgoing Adapters must only use outbound ports (not infrastructure implementations)",
-            "Outgoing adapters should only use outbound ports declared as interfaces (Ports.Out), not"
-                + " infrastructure implementation details",
-            arch => Types().That().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllOutgoingAdapterPatterns()))
-                .Should().NotDependOnAnyTypesThat()
-                .FollowCustomPredicate(arch.IsInfrastructureImplementation, "are infrastructure implementations"))
-        .Selecting(
-            "Types in <module>.Adapter.Outgoing of every module root.")
-        .Checking(
-            "No dependency on a type in an infrastructure namespace: the global"
-                + " Root.Infrastructure or an isolated module's own <module>.Infrastructure, the"
-                + " namespace itself or any sub-namespace with an exact segment boundary. The shared"
-                + " kernel's infrastructure namespace does not count as an infrastructure"
-                + " implementation. An empty selection passes.");
+        DcaRule.Check("DCA-HEX-005", "Outgoing adapters must not use another module's infrastructure",
+            "Technical infrastructure reuse preserves module isolation",
+            arch => DcaRule.Fail("Another module's infrastructure is forbidden",
+                arch.Types.Where(t => Regex.IsMatch(t.Namespace?.FullName ?? "", DcaLayout.AnyOf(arch.AllOutgoingAdapterPatterns())))
+                    .SelectMany(adapter => adapter.Dependencies.Select(d => d.Target)
+                        .Where(target => arch.IsInfrastructureImplementation(target)
+                            && arch.IsolatedModuleRoots().Any(root => root != arch.ModuleRootOf(adapter.Namespace?.FullName ?? "")
+                                && DcaLayout.IsBelow(target.Namespace?.FullName ?? "", root + "." + Layout.InfrastructureSegment)))
+                        .Select(target => $"{adapter.FullName} depends on {target.FullName}")).ToList()))
+        .Selecting("Types in every module's outgoing adapter namespace.")
+        .Checking("Global and own-module infrastructure dependencies pass; another module's infrastructure fails. Boundaries use exact namespace segments.");
 
     public IDcaRule AdaptersMustNotCommunicateDirectly() =>
         DcaRule.Of(
             "DCA-HEX-006",
-            "Port adapters (incoming and outgoing) must not communicate directly with each other"
+            "Incoming port adapters must not depend directly on outgoing port adapters"
                 + " within the same context",
             "Port adapters should communicate through application services, not directly (event"
                 + " consumers are the exception)",
@@ -182,7 +177,7 @@ public sealed class HexagonalRules : IDcaRuleSet
         const string title = "Incoming adapters must only access their own bounded context (except event consumers and"
             + " Open Host Services)";
         const string rationale = "Incoming adapters must only orchestrate use cases from their own bounded context - use"
-            + " domain events for cross-context integration";
+            + " integration events or the published api for cross-context integration";
         return DcaRule.Check(
             "DCA-HEX-007",
             title,
@@ -203,7 +198,7 @@ public sealed class HexagonalRules : IDcaRuleSet
                             .And().DoNotResideInNamespaceMatching(EventConsumerPattern())
                             .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(AnyOf(otherModules))
                             .Because("Incoming adapters in module '" + arch.ContextName(module)
-                                + "' must only orchestrate use cases from their own module - use domain events for cross-context integration"));
+                                + "' must only orchestrate use cases from their own module - use integration events or the published api for cross-context integration"));
                 }
 
                 DcaRule.EvaluateAll(perModule, arch, title, rationale);
@@ -224,7 +219,7 @@ public sealed class HexagonalRules : IDcaRuleSet
     public IDcaRule RepositoryClassesResideInOutgoingAdapter() =>
         DcaRule.Of(
             "DCA-HEX-008",
-            "Classes named *Repository must reside in the outgoing adapter namespace",
+            "Classes named *Repository must reside in the outgoing adapter namespace (name-based discovery of unmarked repositories)",
             "Repository implementations are secondary adapters (outgoing ports)",
             arch => Classes().That().HaveNameEndingWith("Repository")
                 .Should().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllOutgoingAdapterPatterns())))

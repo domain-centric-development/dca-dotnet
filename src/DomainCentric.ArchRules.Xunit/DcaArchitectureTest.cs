@@ -118,6 +118,13 @@ public abstract class DcaArchitectureTest
         return reason is null ? $" [{label}]" : $" [{label}: {reason}]";
     }
 
+    [Fact]
+    public void CatalogKindsAndRetiredIdentities() {
+        var selected = Rules.ToList();
+        var informational = selected.Count(r => r.Kind == DcaRuleKind.Informational);
+        Console.Out.WriteLine($"{selected.Count - informational} enforced, {informational} informational; retired: {string.Join(", ", DcaRules.Retired().Keys)}");
+    }
+
     [Theory]
     [MemberData(nameof(RuleIds))]
     public void DcaRule(string qualifiedRuleId)

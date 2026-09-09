@@ -82,6 +82,7 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Layout.Infra.Cart.Adapter.Outgo
     [Lifecycle]
     public sealed class CartStorage
     {
+        private readonly Infra.Infrastructure.Wiring _global = new();
         private readonly CartWiring _wiring = new();
 
         public string Describe() => _wiring.Describe();

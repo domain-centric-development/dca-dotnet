@@ -6,6 +6,8 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Tactical.Bad.Ordering.Domain.Mo
 /// <summary>DCA-TAC-002 (repository field), DCA-TAC-003 (field of another aggregate root).</summary>
 public sealed class Order : AggregateRootBase<Order, OrderId>
 {
+    public IOrderReference? LinkedOrder { get; }
+    public System.Func<Order>? SuppliedOrder { get; }
     private readonly Customer _customer;
     private readonly IOrderRepository _repository;
 

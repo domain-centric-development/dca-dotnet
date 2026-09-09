@@ -13,7 +13,7 @@ public sealed class ContextMapRulesTests
 
     private static readonly string[] ExpectedIds =
     {
-        "DCA-MAP-001", "DCA-MAP-002", "DCA-MAP-003", "DCA-MAP-004", "DCA-MAP-005",
+        "DCA-MAP-001", "DCA-MAP-002", "DCA-MAP-004", "DCA-MAP-005",
         "DCA-MAP-007", "DCA-MAP-008", "DCA-MAP-009", "DCA-MAP-010", "DCA-MAP-011",
         "DCA-MAP-012", "DCA-MAP-013",
     };

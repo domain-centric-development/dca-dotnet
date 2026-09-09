@@ -101,43 +101,11 @@ public sealed class OnionRules : IDcaRuleSet
                 + "domain. A dependency on any other namespace is reported, each distinct pair once.");
     }
 
-    /// <summary>
-    /// Domain models (and their members) carry no attributes from outside the layout's allow-list —
-    /// the .NET reading of the Java rule's forbidden container and persistence annotations.
-    /// </summary>
-    public IDcaRule DomainModelsMustNotHaveFrameworkAttributes()
-    {
-        const string title = "Domain Models must not have framework attributes";
-        const string rationale = "Domain models must be framework-independent (no DI-container or ORM attributes)";
-        return DcaRule.Check(
-            "DCA-ONI-003",
-            title,
-            rationale,
-            arch =>
-            {
-                var domainModel = new Regex(DcaLayout.AnyOf(arch.AllDomainModelPatterns()));
-                bool Allowed(ArchUnitNET.Domain.Attribute a) =>
-                    a.Namespace is not null && Layout.ThirdPartyNamespacesAllowedInDomain.Any(p => DcaLayout.IsBelow(a.Namespace.FullName, p));
-
-                var violations = arch.Types
-                    .Where(t => t.Namespace is not null && domainModel.IsMatch(t.Namespace.FullName))
-                    .SelectMany(t => t.Attributes.Select(a => (Owner: t.FullName, Attribute: a))
-                        .Concat(t.Members.SelectMany(m => m.Attributes.Select(a => (Owner: $"{t.FullName}.{m.Name}", Attribute: a)))))
-                    .Where(x => !Allowed(x.Attribute))
-                    .Select(x => $"{x.Owner} is annotated with {x.Attribute.FullName}")
-                    .Distinct()
-                    .ToList();
-                DcaRule.Fail($"{title}\nbecause {rationale}", violations);
-            })
-            .Selecting(
-                "Types in <module>.Domain.Model of every module root, the shared kernel's "
-                + "included when it owns a domain layer.")
-            .Checking(
-                "Every attribute on the type or on one of its own, non-inherited members has "
-                + "a namespace below a prefix of the layout's third-party allow-list - by "
-                + "default System, Microsoft.Extensions.Logging.Abstractions and "
-                + "DomainCentric.BuildingBlocks. Any other attribute is reported, whatever "
-                + "framework it comes from; types elsewhere in the domain layer "
-                + "(Domain.Service, Domain.Event) are not selected.");
-    }
+    /// <summary>Domain-model metadata is classified by configured prohibited roles.</summary>
+    public IDcaRule DomainModelsMustNotHaveFrameworkAttributes() =>
+        DcaRule.Check("DCA-ONI-003", "Domain models must not carry prohibited framework metadata",
+            "Domain metadata does not configure infrastructure concerns",
+            arch => DomainMetadata.Check(arch, "DCA-ONI-003"))
+        .Selecting("Domain.Model types except events, services, factories and specifications, which have exclusive ADV ownership.")
+        .Checking("Configured attribute namespaces classify an attribute or any base attribute type. Types prohibit container, persistence and transaction roles; fields and properties prohibit injection and persistence; methods prohibit transaction and injection; constructors prohibit injection. Unclassified metadata is allowed. Missing runtime types are skipped; wiring is not established.");
 }
