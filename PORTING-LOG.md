@@ -344,7 +344,7 @@ including status and the separate retirement registry, rather than a hard-coded 
 
 ## WP-39 parity update (2026-09-09)
 
-Java building-blocks 0.2.0 (unreleased) makes event registration protected, matching the existing .NET visibility.
+Java building-blocks 0.2.0 makes event registration protected, matching the existing .NET visibility.
 Factories delegate to aggregate creation. Both samples use Price, the six-field product-created v1 notification, ISO
 money bounds/rounding, snapshot checkout and supplied-fact domain services. Role snapshots and invalid default quantities
 are guarded. The independent shared specification has 45 vectors; final gate results are recorded in WP-39.
@@ -356,3 +356,8 @@ event-free saving use case had no rule demanding a unit of work although a repos
 statements. Same path analysis, same messages (`saves an aggregate` / `deletes an aggregate` / `publishes domain events`).
 Fixtures: Java `transactions/savenoboundary`, `eventpolicy/free/BoundedSaveUseCase`; .NET `EventPolicy.Free.BoundedSaveUseCase`,
 `Free.DeleteUseCase`. Both samples pass unchanged (all 21 saving use cases per sample already draw the boundary).
+
+2026-09-10 the review branch is merged into `main` in both libraries and the release entries are written:
+`dca-building-blocks` 0.2.0 + `dca-archunit` 0.4.0, `DomainCentric.BuildingBlocks` 0.1.1 + `DomainCentric.ArchRules`
+(+`.Xunit`) 0.4.0. Nothing is pushed, tagged or published; the markers must be released before the rules that depend on
+their exact version. `dca-spring` and `dca-archunit-spring-modulith` stay at 0.2.0-SNAPSHOT and follow afterwards.
