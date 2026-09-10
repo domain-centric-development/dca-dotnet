@@ -21,6 +21,18 @@ namespace DomainCentric.ArchRules;
 /// </example>
 public static class DcaRules
 {
+    /// <summary>A retired identity is never reused.</summary>
+    public sealed record RetiredRule(string Reason, string Replacement, string Since);
+
+    /// <summary>Stable registry for compatibility, migration and catalog history.</summary>
+    public static IReadOnlyDictionary<string, RetiredRule> Retired() => RetiredRegistry;
+    private static readonly IReadOnlyDictionary<string, RetiredRule> RetiredRegistry =
+        new System.Collections.ObjectModel.ReadOnlyDictionary<string, RetiredRule>(new Dictionary<string, RetiredRule> {
+            ["DCA-MAP-003"] = new("Renderer disambiguates normalized external-system identifiers", "ContextMapRenderer", "0.4.0"),
+            ["DCA-ADV-003"] = new("Immutable event shape is checked by DCA-ADV-001", "DCA-ADV-001", "0.4.0"),
+            ["DCA-TAC-022"] = new("Value model already covered; enrichment remains guide and catalog guidance", "DCA-TAC-008..012", "0.4.0")
+        });
+
     /// <summary>All rule sets, in catalog order.</summary>
     public static IReadOnlyList<IDcaRuleSet> RuleSets(DcaLayout layout) =>
         new IDcaRuleSet[]

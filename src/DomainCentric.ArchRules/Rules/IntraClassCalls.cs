@@ -63,6 +63,20 @@ internal sealed class IntraClassCalls
     /// <summary>The unit itself and every unit it reaches through calls within the class.</summary>
     public ISet<MethodBase> ReachableFrom(MethodBase unit) => Closure(unit, _callees);
 
+    /// <summary>Reachability along paths whose units all satisfy the predicate.</summary>
+    public ISet<MethodBase> ReachableThrough(MethodBase start, Func<MethodBase, bool> allowed)
+    {
+        var reached = new HashSet<MethodBase>();
+        var pending = new Queue<MethodBase>(); pending.Enqueue(start);
+        while (pending.Count > 0)
+        {
+            var current = pending.Dequeue();
+            if (!allowed(current) || !reached.Add(current)) continue;
+            if (_callees.TryGetValue(current, out var next)) foreach (var unit in next) pending.Enqueue(unit);
+        }
+        return reached;
+    }
+
     /// <summary>
     /// The paths a unit can be entered on: those of its (transitive) callers - the unit itself included - that are
     /// entry points. A unit is an entry point when it can be called from outside the class (a non-private method or

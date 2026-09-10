@@ -80,7 +80,7 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Advanced.Bad.Order.Domain.Model
     public sealed record OrderCancelled(Guid EventId, DateTimeOffset OccurredOn) : IDomainEvent;
 
     // DCA-ADV-007: version field on a pure domain event.
-    public sealed record OrderPaid(Guid EventId, DateTimeOffset OccurredOn, int Version) : IDomainEvent;
+    public sealed record OrderPaid(Guid EventId, DateTimeOffset OccurredOn, int SchemaVersion) : IDomainEvent;
 
     // DCA-ADV-008: no timestamp field — OccurredOn is computed, nothing is stored.
     public sealed record OrderArchived(Guid EventId) : IDomainEvent
@@ -153,7 +153,7 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Advanced.Bad.Order.Events
 
     // DCA-ADV-006: version field duplicating the attribute.
     [IntegrationEventType("order.shipped", Version = 2)]
-    public sealed record OrderShippedEvent(Guid EventId, DateTimeOffset OccurredOn, int Version) : IIntegrationEvent;
+    public sealed record OrderShippedEvent(Guid EventId, DateTimeOffset OccurredOn, int SchemaVersion) : IIntegrationEvent;
 }
 
 namespace DomainCentric.ArchRules.Tests.Fixtures.Advanced.Bad.Order.Application.Misplaced

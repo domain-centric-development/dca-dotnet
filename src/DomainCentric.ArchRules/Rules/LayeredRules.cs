@@ -42,7 +42,7 @@ public sealed class LayeredRules : IDcaRuleSet
     /// <see cref="HexagonalRules"/> instead. This rule never fails.
     /// </summary>
     public IDcaRule LayeredArchitectureDiagnostic() =>
-        DcaRule.Check(
+        DcaRule.Informational(
             "DCA-LAY-001",
             "Diagnostic: The rules of the Layered Architecture should be followed",
             "Traditional layering (application accessed only by incoming adapters) contradicts Ports"
@@ -137,7 +137,7 @@ public sealed class LayeredRules : IDcaRuleSet
     /// </summary>
     public IDcaRule OutputPortMarkersMustBeInterfaces()
     {
-        const string title = "The shared kernel's output-port markers must all be interfaces";
+        const string title = "No implementation is placed into the building-blocks output-port package";
         const string rationale =
             "Ports.Out contains outbound port interfaces (IRepository, IOutputPort, IDomainEventPublisher)"
                 + " shared across all bounded contexts. These must be interfaces to ensure the"
@@ -149,7 +149,7 @@ public sealed class LayeredRules : IDcaRuleSet
             rationale,
             arch =>
             {
-                var violations = typeof(IOutputPort).Assembly.GetTypes()
+                var violations = arch.Architecture.Types.Select(arch.RuntimeType).Where(t => t is not null).Cast<Type>()
                     .Where(t => t.Namespace == DcaLayout.BuildingBlocksPortsOutNamespace && !t.IsInterface)
                     // closures and async state machines of default interface methods are not port types
                     .Where(t => !t.IsDefined(typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute), false) && !t.Name.Contains('<'))
@@ -159,8 +159,7 @@ public sealed class LayeredRules : IDcaRuleSet
             })
             .Selecting(
                 "Types declared in the building-blocks namespace "
-                + "DomainCentric.BuildingBlocks.Hexagonal.Ports.Out, read by reflection from the "
-                + "building-blocks assembly rather than from the scanned architecture. Compiler-generated "
+                + "DomainCentric.BuildingBlocks.Hexagonal.Ports.Out, read from types imported in the architecture, including consumer assemblies. Compiler-generated "
                 + "types (closures, async state machines of default interface methods) are not selected.")
             .Checking(
                 "Each is an interface. The project's own output ports in Application.Shared are not "

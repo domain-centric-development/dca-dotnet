@@ -65,7 +65,8 @@ public sealed class DcaLayout
         string controllerSuffix,
         string restControllerSuffix,
         IReadOnlyList<string> thirdPartyNamespacesAllowedInDomain,
-        FrameworkTypes frameworkTypes)
+        FrameworkTypes frameworkTypes,
+        IReadOnlyList<string>? operationContainers = null)
     {
         RootNamespace = RequireSegment(rootNamespace, nameof(rootNamespace));
         SharedKernelSegment = RequireSegment(sharedKernelSegment, nameof(sharedKernelSegment));
@@ -82,6 +83,7 @@ public sealed class DcaLayout
             throw new ArgumentException($"apiSegment and eventsSegment must differ, both are '{ApiSegment}'", nameof(eventsSegment));
         }
 
+        OperationContainers = Array.AsReadOnly((operationContainers ?? Array.Empty<string>()).ToArray());
         UseCaseSuffix = RequireSegment(useCaseSuffix, nameof(useCaseSuffix));
         ControllerSuffix = RequireSegment(controllerSuffix, nameof(controllerSuffix));
         RestControllerSuffix = RequireSegment(restControllerSuffix, nameof(restControllerSuffix));
@@ -147,6 +149,9 @@ public sealed class DcaLayout
     /// <summary>Suffix of use-case implementations, e.g. <c>UseCase</c> or <c>ApplicationService</c>.</summary>
     public string UseCaseSuffix { get; }
 
+    /// <summary>Organisational namespace segments ignored when measuring operation depth.</summary>
+    public IReadOnlyList<string> OperationContainers { get; }
+
     /// <summary>Suffix of MVC (server-rendered) controllers and page models, e.g. <c>Controller</c> (default) or <c>Page</c>. Read by the naming rule for MVC controllers and by the rule that keeps controllers away from repositories.</summary>
     public string ControllerSuffix { get; }
 
@@ -196,6 +201,17 @@ public sealed class DcaLayout
     /// <summary>Segment of a module's asynchronous published contract — its integration events — e.g. <c>Events</c> (default).</summary>
     public DcaLayout WithEventsSegment(string value) => Copy(events: value);
 
+    /// <summary>Reserve organisational segments; empty by default. Shared is not an operation container.</summary>
+    public DcaLayout WithOperationContainers(params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (string.IsNullOrWhiteSpace(name) || !Regex.IsMatch(name, "^[A-Za-z_][A-Za-z0-9_]*$") || name == "Shared")
+                throw new ArgumentException("Invalid operation container: " + name, nameof(names));
+        }
+        return Copy(operationContainers: names);
+    }
+
     public DcaLayout WithUseCaseSuffix(string value) => Copy(useCaseSuffix: value);
 
     public DcaLayout WithControllerSuffix(string value) => Copy(controllerSuffix: value);
@@ -226,7 +242,8 @@ public sealed class DcaLayout
         string? controllerSuffix = null,
         string? restControllerSuffix = null,
         IReadOnlyList<string>? thirdParty = null,
-        FrameworkTypes? frameworkTypes = null) =>
+        FrameworkTypes? frameworkTypes = null,
+        IReadOnlyList<string>? operationContainers = null) =>
         new(
             RootNamespace,
             sharedKernel ?? SharedKernelSegment,
@@ -242,7 +259,8 @@ public sealed class DcaLayout
             controllerSuffix ?? ControllerSuffix,
             restControllerSuffix ?? RestControllerSuffix,
             thirdParty ?? ThirdPartyNamespacesAllowedInDomain,
-            frameworkTypes ?? FrameworkTypes);
+            frameworkTypes ?? FrameworkTypes,
+            operationContainers ?? OperationContainers);
 
     // ---------------------------------------------------------------------------------------------
     // Derived namespace names and patterns

@@ -24,8 +24,11 @@ public sealed class UseCaseRulesTests
         "DCA-USE-009",
         "DCA-USE-010",
         "DCA-USE-011",
+        "DCA-USE-012",
         "DCA-USE-014",
         "DCA-USE-015",
+        "DCA-USE-016",
+        "DCA-USE-017",
     };
 
     /// <summary>Rules without a negative fixture (id → reason).</summary>

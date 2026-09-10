@@ -108,6 +108,7 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.ContextMap.Good.Cart.Adapter.Ou
 
     public sealed class CatalogProductAdapter
     {
+        private Good.Cart.Domain.Model.Cart localModel=null!;
         private readonly ICatalogApi _api;
 
         public CatalogProductAdapter(ICatalogApi api)

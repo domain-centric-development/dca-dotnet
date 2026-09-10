@@ -47,7 +47,7 @@ public sealed class StrategicPatternRules : IDcaRuleSet
 
     /// <summary>DCA-STR-001.</summary>
     public static IDcaRule DisplayDiscoveredBoundedContexts() =>
-        DcaRule.Check(
+        DcaRule.Informational(
             "DCA-STR-001",
             "Diagnostic: Display discovered bounded contexts",
             "Making the discovered contexts visible shows which namespaces the strategic rules govern",
@@ -290,40 +290,33 @@ public sealed class StrategicPatternRules : IDcaRuleSet
     public IDcaRule IntegrationEventsResideInEventsNamespaces() =>
         DcaRule.Of(
             "DCA-STR-007",
-            "Integration Events must be in Events or adapter outgoing event namespaces",
-            "Integration Events must be in Events/ namespaces (published named interface) or Adapter.Outgoing.Event/ namespaces",
+            "Integration event contracts reside in the configured Events segment",
+            "Integration contracts are published separately from translators and transport adapters",
             arch =>
                 Types().That().ImplementInterface(typeof(IIntegrationEvent)).And().AreNot(Interfaces())
-                    .Should().ResideInNamespaceMatching(AnyOf(AnySegment(Layout.EventsSegment), OutgoingEventAdapterPattern())))
+                    .Should().ResideInNamespaceMatching(AnySegment(Layout.EventsSegment)))
         .Selecting(
             "Non-interface types below the root namespace whose implemented interfaces include"
                 + " IIntegrationEvent - directly or through a derived interface; records and record"
                 + " structs included, interfaces extending IIntegrationEvent not.")
-        .Checking(
-            "Each resides in a namespace whose path contains the configured Events segment"
-                + " or Adapter.Outgoing.Event - the trailing Event segment is"
-                + " fixed, not configurable. An integration event in a Domain or Application"
-                + " namespace is reported.");
-
-    private string OutgoingEventAdapterPattern() =>
-        AnySegmentPath(Layout.AdapterSegment + "." + Layout.OutgoingSegment + ".Event");
+        .Checking("Every integration-event contract resides in a namespace containing the configured Events segment. Adapter.Outgoing.Event is not an alternative; move contracts to Events or exclude STR-007 during migration. Translators and transport adapters stay separate.");
 
     /// <summary>DCA-STR-008.</summary>
     public static IDcaRule IntegrationEventsAreRecords() =>
         DcaRule.Check(
             "DCA-STR-008",
-            "Integration Events should be immutable records",
+            "Integration Events should have immutable shape",
             "Integration Events must be immutable to ensure event integrity across contexts (Event Sourcing best practice)",
             arch =>
             {
                 var violations = arch.Types
                     .Where(t => t is not Interface && !t.IsCompilerGenerated)
                     .Where(t => t.ImplementedInterfaces.Any(i => i.FullName == typeof(IIntegrationEvent).FullName))
-                    .Where(t => !TacticalPatternRules.IsRecordLike(t))
-                    .Select(t => "Integration event " + t.FullName + " is not a record")
+                    .Where(t => !TacticalPatternRules.IsImmutableShape(t))
+                    .Select(t => "Integration event " + t.FullName + " has mutable shape")
                     .ToList();
                 DcaRule.Fail(
-                    "Integration Events should be immutable records",
+                    "Integration Events should have immutable shape",
                     violations,
                     "declare the event as a sealed record (or record struct)");
             })
@@ -332,9 +325,7 @@ public sealed class StrategicPatternRules : IDcaRuleSet
                 + " IIntegrationEvent - directly or through a derived interface; classes, records and structs"
                 + " alike, compiler-generated types excluded.")
         .Checking(
-            "The type is a record class or a struct (a record struct is a struct in the model and counts)."
-                + " A sealed class with init-only properties does not - only the record form is accepted."
-                + " The components' own immutability is not checked.");
+            "Classes are sealed or records; structs are allowed. Every inherited instance field is readonly, every property is get-only or init-only and no instance Set*(x): void method exists. Referenced objects and collection contents are not inspected." );
 
     /// <summary>DCA-STR-009.</summary>
     public static IDcaRule AntiCorruptionLayerComponentsResideInAclNamespaces() =>
@@ -355,7 +346,7 @@ public sealed class StrategicPatternRules : IDcaRuleSet
 
     /// <summary>DCA-STR-010 — documentation only, never fails.</summary>
     public static IDcaRule EventListenersUseAntiCorruptionLayer() =>
-        DcaRule.Check(
+        DcaRule.Informational(
             "DCA-STR-010",
             "Event Listeners consuming integration events should use Anti-Corruption Layer",
             "Consumed integration events are translated into the consuming context's own language before they reach"

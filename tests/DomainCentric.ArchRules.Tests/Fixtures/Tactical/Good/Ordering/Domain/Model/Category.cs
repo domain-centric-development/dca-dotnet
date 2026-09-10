@@ -6,12 +6,11 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Tactical.Good.Ordering.Domain.M
 public readonly record struct CategoryId(string Value) : IId, IValue;
 
 /// <summary>
-/// A self-reference of the own type is tolerated by DCA-TAC-003; other instances of the same aggregate are
-/// referenced by their ids.
+/// Other instances of the same aggregate are referenced by their ids.
 /// </summary>
 public sealed class Category : AggregateRootBase<Category, CategoryId>
 {
-    public Category(CategoryId id, Category? parent)
+    public Category(CategoryId id, CategoryId? parent)
     {
         Id = id;
         Parent = parent;
@@ -19,7 +18,7 @@ public sealed class Category : AggregateRootBase<Category, CategoryId>
 
     public override CategoryId Id { get; }
 
-    public Category? Parent { get; }
+    public CategoryId? Parent { get; }
 
     public IReadOnlyList<CategoryId> ChildIds { get; } = new List<CategoryId>();
 }

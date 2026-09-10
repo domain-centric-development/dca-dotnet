@@ -40,7 +40,7 @@ public sealed class CycleRules : IDcaRuleSet
     public static IDcaRule DomainPackagesFreeOfCycles(DcaLayout layout) =>
         DcaRule.Check(
             "DCA-CYC-001",
-            "Domain Namespaces must not have cyclic dependencies",
+            "Domain Namespaces must not have cyclic dependencies (package-based slice discovery)",
             "Domain model namespaces should have clear boundaries and no cycles (Acyclic Dependencies Principle)",
             arch => CheckSlices(arch, layout, $"{layout.DomainSegment}.Model", "Domain Namespaces must not have cyclic dependencies"))
             .Selecting(
@@ -57,7 +57,7 @@ public sealed class CycleRules : IDcaRuleSet
     public static IDcaRule ApplicationLayerFreeOfCycles(DcaLayout layout) =>
         DcaRule.Check(
             "DCA-CYC-002",
-            "Application Layer must not have cyclic dependencies",
+            "Application Layer must not have cyclic dependencies (package-based slice discovery)",
             "Application services should have clear boundaries and no cycles",
             arch => CheckSlices(arch, layout, layout.ApplicationSegment, "Application Layer must not have cyclic dependencies"))
             .Selecting(
@@ -133,10 +133,7 @@ public sealed class CycleRules : IDcaRuleSet
                 ns => ApplicationChildSlice(arch, layout, ns),
                 "Feature and use case namespaces within a module's application layer must not have cyclic dependencies"))
             .Selecting(
-                "One slice per immediate child namespace of <module>.Application, for every module root: "
-                + "a feature in a grouped layout, a use case in a flat one, each with everything below it. "
-                + "Types directly in the application namespace and everything below Application.Shared are "
-                + "ignored.")
+                "One slice per operation-root namespace selected by marker or suffix, configured containers stripped; supporting sub-namespaces join their nearest operation root. Classes directly in a feature namespace form its feature slice. Shared and direct application types are ignored.")
             .Checking(
                 "The slices form no dependency cycle: two features or two use cases that depend on each "
                 + "other, directly or through further slices, are reported. Dependencies on "
@@ -164,8 +161,21 @@ public sealed class CycleRules : IDcaRuleSet
             return null;
         }
 
-        var child = ns.Substring(application.Length + 1).Split('.')[0];
-        return child == "Shared" ? null : application + "." + child;
+        var segments = ns.Substring(application.Length + 1).Split('.');
+        var index = 0;
+        while (index < segments.Length && layout.OperationContainers.Contains(segments[index])) index++;
+        if (index == segments.Length || segments[index] == "Shared") return null;
+        var operationRoot = arch.Types.Where(t => OperationPolicy.Operation(t, arch)).Select(t => t.Namespace.FullName)
+            .Where(p => p.StartsWith(application + ".", StringComparison.Ordinal) && DcaLayout.IsBelow(ns, p))
+            .OrderByDescending(p => p.Length).FirstOrDefault();
+        var physicalFeature = application + "." + string.Join(".", segments.Take(index + 1));
+        if (operationRoot is null)
+        {
+            if (!arch.Types.Any(t => OperationPolicy.Operation(t, arch) && t.Namespace.FullName.StartsWith(physicalFeature + ".", StringComparison.Ordinal))) return null;
+            operationRoot = physicalFeature;
+        }
+        var logical = string.Join(".", operationRoot[(application.Length + 1)..].Split('.').Where(segment => !layout.OperationContainers.Contains(segment)));
+        return application + "." + logical;
     }
 
     /// <summary>

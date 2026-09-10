@@ -30,16 +30,22 @@ public static class DcaRule
     public static Undescribed Check(string id, string title, string rationale, Action<DcaArchitecture> check) =>
         new Undescribed(id, title, rationale, check ?? throw new ArgumentNullException(nameof(check)));
 
+    /// <summary>A diagnostic entry, counted separately from enforced rules.</summary>
+    public static Undescribed Informational(string id, string title, string rationale, Action<DcaArchitecture> diagnostic) =>
+        new(id, title, rationale, diagnostic, DcaRuleKind.Informational);
+
     /// <summary>A rule whose mechanics are not yet described; not an <see cref="IDcaRule"/> until they are.</summary>
     public sealed class Undescribed
     {
+        private readonly DcaRuleKind _kind;
         private readonly string _id;
         private readonly string _title;
         private readonly string _rationale;
         private readonly Action<DcaArchitecture> _check;
 
-        internal Undescribed(string id, string title, string rationale, Action<DcaArchitecture> check)
+        internal Undescribed(string id, string title, string rationale, Action<DcaArchitecture> check, DcaRuleKind kind = DcaRuleKind.Enforced)
         {
+            _kind = kind;
             _id = id ?? throw new ArgumentNullException(nameof(id));
             _title = title ?? throw new ArgumentNullException(nameof(title));
             _rationale = rationale ?? throw new ArgumentNullException(nameof(rationale));
@@ -50,7 +56,7 @@ public static class DcaRule
         public Selected Selecting(string selects) => new(this, RequireText(selects, "selects", _id));
 
         internal IDcaRule Complete(string selects, string checks) =>
-            new SimpleRule(_id, _title, _rationale, selects, RequireText(checks, "checks", _id), _check);
+            new SimpleRule(_id, _title, _rationale, selects, RequireText(checks, "checks", _id), _check, _kind);
     }
 
     /// <summary>A rule with its selection described; <see cref="Checking"/> completes it.</summary>
@@ -142,8 +148,9 @@ public static class DcaRule
     {
         private readonly Action<DcaArchitecture> _check;
 
-        internal SimpleRule(string id, string title, string rationale, string selects, string checks, Action<DcaArchitecture> check)
+        internal SimpleRule(string id, string title, string rationale, string selects, string checks, Action<DcaArchitecture> check, DcaRuleKind kind)
         {
+            Kind = kind;
             Id = id ?? throw new ArgumentNullException(nameof(id));
             Title = title ?? throw new ArgumentNullException(nameof(title));
             Rationale = rationale ?? throw new ArgumentNullException(nameof(rationale));
@@ -151,6 +158,8 @@ public static class DcaRule
             Checks = checks ?? throw new ArgumentNullException(nameof(checks));
             _check = check ?? throw new ArgumentNullException(nameof(check));
         }
+
+        public DcaRuleKind Kind { get; }
 
         public string Id { get; }
 

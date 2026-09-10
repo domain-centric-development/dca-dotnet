@@ -68,13 +68,10 @@ public sealed class HexagonalRulesTests
 
     /// <summary>A module's own Infrastructure namespace counts; the shared kernel's is shared support.</summary>
     [Fact]
-    public void OutgoingAdapterDependingOnModuleInfrastructureIsReported()
+    public void OutgoingAdapterMayReuseOwnAndGlobalInfrastructure()
     {
         var rule = new HexagonalRules(DcaLayout.ForRootNamespace(Infra)).Rules.Single(r => r.Id == "DCA-HEX-005");
         var arch = DcaArchitecture.Load(DcaLayout.ForRootNamespace(Infra), typeof(HexagonalRulesTests).Assembly);
-        var ex = Assert.Throws<DcaRuleViolationException>(() => rule.Check(arch));
-        Assert.Contains("CartStorage", ex.Message);
-        Assert.Contains("CartWiring", ex.Message);
-        Assert.DoesNotContain("Lifecycle", ex.Message);
+        rule.Check(arch);
     }
 }

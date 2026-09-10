@@ -295,3 +295,64 @@ texts, n/a reasons and the building-block XML docs (two sentences rewritten: `IT
 `IDomainEventPublisher`); `FrameworkTypesTests` pins the preset names and shows the catalog yields the same outcomes
 under `None()` as under `AspNetCore()` on a fixture that leans on no framework type. No second .NET web-framework
 preset: nothing in the ecosystem is worth one today. Self-tests 350 → 355.
+
+## 2026-09-09 — WP-32 rule contracts
+
+Immutable shape is shallow and includes inherited instance state and setter methods on
+classes and records; .NET includes structs. USE-004/005/007, ADV-001 and STR-008 share
+this predicate. TAC-003/007/008 include same-type and marker-interface references and
+walk generic wrappers. HEX-003 uses configured controller roles or suffixes. .NET
+TAC-010 includes record classes and structs, TAC-012 checks plain-struct equality,
+NET-004 requires readonly struct values, NET-005 checks readonly identifiers, and
+USE-015 selects struct results. No marker or rule id added. Generated texts follow
+in the WP-37 batch; no release.
+
+## 2026-09-09 — WP-33 conventions
+
+NAM-010 allows Manager; USE-008 allows all adapters; TAC-014/019 allow application-local
+ports; TAC-021 allows lookup by key. OperationContainers is copied immutably through
+layout overrides and normalizes USE-014 marker-or-suffix selection. TAC-005 inspects
+constructor callers, including record constructors: own-domain aggregate/entity/factory
+or the entity itself allowed; application, adapter and foreign-context callers rejected.
+Other aggregates in the same context remain the documented static-analysis limit.
+Store marker documentation follows lifecycle semantics. No new marker or rule id.
+TAC-022 retirement and generated catalogs follow in WP-37.
+
+- 2026-09-09 WP-34 (unreleased): NAM-002 Java diagnostic never fails (.NET n/a); HEX-005 permits own/global infrastructure; ONI-003 and ADV-004/011/015/018 share exclusive role-by-target metadata checks. Java gains injectionSite/persistenceMapping presets and composed detection; .NET gains attribute namespaces and base-attribute detection, replacing the allow-list. No wiring guarantee; no new marker. Shared catalog regeneration pending WP-37.
+
+- 2026-09-09 WP-35 (unreleased): shared new IDs USE-016 (operation invocation, including helpers) and USE-017 (effective public input-port surface); CYC-005 slices operations inside features, respecting containers; MAP-008 requires per-interaction translation evidence without package exclusivity. NET-003 uses the generic interface map (inherited/explicit valid). No coordination marker; anchored caller-side ignore is the explicit exception. Counts await the shared regeneration.
+
+2026-09-09 WP-36: USE-012 ported with explicit-boundary and configurable transactional-attribute evidence; USE-013 stays n/a (runtime containment/remote calls need review). USE-009 conservative event-free exemption; STR-007 events-only, ADV-006/007 schema-name heuristic, HEX-006/007 wording synchronized. Minimal query/event-free/explicit consumers in both libraries, declarative consumer Java only.
+
+## Catalog kinds and retired identities (2026-09-09)
+
+Catalog entries distinguish enforced rules from informational diagnostics: LAY-001, STR-001, STR-010, MAP-013,
+and Java NAM-002. Test runners and generated catalogs report both counts separately. Informational entries do
+not prove architectural correctness or runtime wiring. `kind()` / `Kind` is explicit metadata, independent of severity.
+
+Retired ids are never reused: MAP-003 delegates normalized-name collision handling to the context-map renderer;
+ADV-003 is covered by ADV-001's immutable-shape check; TAC-022 is covered by TAC-008..012 for value models,
+with enrichment guidance in the guide/catalog. `DcaRules.retired()` / `Retired()` retain reason, replacement and
+version. Properties exclusions/severity settings and programmatic exclusions using these ids keep loading and
+are reported as retired (`DcaRuleSelection.RetiredReferences`, one line per referenced id in the xUnit base with reason
+and replacement); selecting a retired id (`OnlyIds`, `dca.rules.ids`) fails naming the replacement. Unknown ids still fail. The change is intentional in unreleased 0.4.0 for 0.3.0 consumers.
+
+USE-001 retains consumer redeclaration coverage; LAY-005 checks imported consumer implementations in the reserved
+building-blocks output-port namespace/package. An imported original interface passes. Name-discovery rules remain:
+unmarked types would otherwise evade marker-only selection. Current counts come from generated `rules.json`,
+including status and the separate retirement registry, rather than a hard-coded expected total.
+
+## WP-39 parity update (2026-09-09)
+
+Java building-blocks 0.2.0 (unreleased) makes event registration protected, matching the existing .NET visibility.
+Factories delegate to aggregate creation. Both samples use Price, the six-field product-created v1 notification, ISO
+money bounds/rounding, snapshot checkout and supplied-fact domain services. Role snapshots and invalid default quantities
+are guarded. The independent shared specification has 45 vectors; final gate results are recorded in WP-39.
+The first specification commit/SHA pin remains pending under the explicit no-commit instruction. No release was made.
+
+2026-09-10 USE-012 widened in both libraries: the transaction-boundary requirement anchors on `Repository.save`/`deleteById`
+(.NET `SaveAsync`/`DeleteByIdAsync`) as well as on the domain-event publisher. Reason: WP-36 made events optional, so an
+event-free saving use case had no rule demanding a unit of work although a repository may write one aggregate as several
+statements. Same path analysis, same messages (`saves an aggregate` / `deletes an aggregate` / `publishes domain events`).
+Fixtures: Java `transactions/savenoboundary`, `eventpolicy/free/BoundedSaveUseCase`; .NET `EventPolicy.Free.BoundedSaveUseCase`,
+`Free.DeleteUseCase`. Both samples pass unchanged (all 21 saving use cases per sample already draw the boundary).

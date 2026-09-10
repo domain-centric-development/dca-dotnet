@@ -15,6 +15,9 @@ namespace DomainCentric.ArchRules;
 /// </remarks>
 public interface IDcaRule
 {
+    /// <summary>Whether this entry asserts policy or only reports information.</summary>
+    DcaRuleKind Kind => DcaRuleKind.Enforced;
+
     /// <summary>Stable identifier, e.g. <c>DCA-TAC-001</c>.</summary>
     string Id { get; }
 

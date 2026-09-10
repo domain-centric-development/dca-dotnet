@@ -14,7 +14,7 @@ public sealed class LayeredRulesTests
     private static readonly IReadOnlyDictionary<string, string> NoNegativeFixture = new Dictionary<string, string>
     {
         ["DCA-LAY-001"] = "diagnostic rule, never fails",
-        ["DCA-LAY-005"] = "checks the published building-blocks assembly, which contains only interfaces",
+        ["DCA-LAY-005"] = "consumer implementation negative is imported explicitly in RetirementTests",
     };
 
     private static readonly string[] ExpectedIds = { "DCA-LAY-001", "DCA-LAY-002", "DCA-LAY-003", "DCA-LAY-004", "DCA-LAY-005" };

@@ -183,64 +183,44 @@ public sealed class DotnetRules : IDcaRuleSet
                 + " method without the suffix and a suffixed method that returns something else. An"
                 + " empty selection passes.");
 
-    /// <summary>DCA-NET-003: a use case has exactly one public <c>ExecuteAsync(…, CancellationToken)</c> returning <c>Task&lt;T&gt;</c>.</summary>
+    /// <summary>DCA-NET-003: validate the asynchronous generic input contract through interface maps.</summary>
     public static IDcaRule UseCasesMustExposeExactlyOneExecuteAsync() =>
-        DcaRule.Check(
-            "DCA-NET-003",
-            "Use cases must expose exactly one ExecuteAsync",
-            "One use case, one entry point: the input port is the only way in, and a cancellation token lets the host stop long-running work",
-            arch =>
-            {
+        DcaRule.Check("DCA-NET-003", "Use cases implement IUseCase<TIn,TOut>.ExecuteAsync(input, CancellationToken) returning Task<T>",
+            "The generic asynchronous input contract supports host cancellation",
+            arch => {
                 var violations = new List<string>();
-                foreach (var useCase in arch.Classes)
-                {
-                    var runtime = arch.RuntimeType(useCase);
-                    if (runtime is null || runtime.IsAbstract || !ImplementsUseCase(runtime))
+                foreach (var type in arch.Classes) {
+                    var runtime = arch.RuntimeType(type);
+                    if (runtime is null || runtime.IsAbstract) continue;
+                    var contracts = runtime.GetInterfaces().Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IUseCase<,>)).ToArray();
+                    if (contracts.Length == 0)
                     {
+                        // A marker-only IInputPort sub-interface without an operation is not a NET-003 case (USE-017 governs
+                        // its surface). Only an operation that spells the contract by name without implementing it is.
+                        if (OperationPolicy.Operation(type, arch) && runtime.GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance).Any(m => m.Name == "ExecuteAsync"))
+                            violations.Add($"{type.FullName} declares ExecuteAsync without implementing IUseCase<TIn,TOut>; a plain Task ExecuteAsync does not satisfy the contract");
                         continue;
                     }
-
-                    var executes = DeclaredMethods(runtime).Where(m => m.Name == "ExecuteAsync").ToList();
-                    if (executes.Count != 1)
-                    {
-                        violations.Add($"{runtime.FullName} declares {executes.Count} public ExecuteAsync methods");
-                        continue;
-                    }
-
-                    var execute = executes[0];
-                    var returnsTaskOfT = execute.ReturnType.IsGenericType && execute.ReturnType.GetGenericTypeDefinition() == typeof(Task<>);
-                    if (!returnsTaskOfT)
-                    {
-                        violations.Add($"{runtime.FullName}.ExecuteAsync must return Task<T> but returns {execute.ReturnType.Name}");
-                    }
-
-                    var last = execute.GetParameters().LastOrDefault();
-                    if (last is null || last.ParameterType != typeof(CancellationToken))
-                    {
-                        violations.Add($"{runtime.FullName}.ExecuteAsync must take a CancellationToken as its last parameter");
+                    foreach (var contract in contracts) {
+                        var map = runtime.GetInterfaceMap(contract);
+                        foreach (var method in map.TargetMethods) {
+                            var parameters = method.GetParameters();
+                            if (!method.ReturnType.IsGenericType || method.ReturnType.GetGenericTypeDefinition() != typeof(Task<>)
+                                || parameters.Length != 2 || parameters[1].ParameterType != typeof(CancellationToken))
+                                violations.Add($"{type.FullName}.{method.Name} must accept input and CancellationToken and return Task<T>");
+                        }
                     }
                 }
-
-                DcaRule.Fail(
-                    "Use cases must expose exactly one ExecuteAsync\nbecause the input port is the only way in",
-                    violations,
-                    "Implement IUseCase<TInput, TOutput>.ExecuteAsync(input, cancellationToken) once and keep every other member non-public.");
+                DcaRule.Fail("Use cases implement the generic asynchronous input contract", violations);
             })
-        .Selecting(
-            "Non-abstract classes under the root namespace that implement"
-                + " IUseCase<TInput, TOutput> and whose runtime type is in the loaded assemblies -"
-                + " in any namespace, not only the application layer.")
-        .Checking(
-            "The class declares exactly one public instance method named ExecuteAsync, which"
-                + " returns Task<T> (a plain Task is reported) and takes a CancellationToken as its"
-                + " last parameter. Inherited methods are not counted; other public members with a"
-                + " different name are not reported. An empty selection passes.");
+        .Selecting("Concrete classes under scan implementing IUseCase<TIn,TOut> (directly, inherited or explicitly), plus application operations (marker or suffix) that declare a public ExecuteAsync without the generic contract, with loadable runtime types. A marker-only IInputPort implementation without ExecuteAsync is not selected.")
+        .Checking("Every IUseCase<TIn,TOut> interface map supplies ExecuteAsync(input, CancellationToken) returning Task<T>; explicit, inherited and ordinary implementations pass. An ExecuteAsync declared without the generic contract (plain Task, own signature) fails. Other public members are checked by USE-017, not counted here.");
 
     /// <summary>DCA-NET-004: value objects are records or (record) structs.</summary>
     public static IDcaRule ValueObjectsShouldBeRecords() =>
         DcaRule.Check(
             "DCA-NET-004",
-            "Value objects should be records or readonly record structs",
+            "Struct value objects must be readonly",
             "Records give attribute-based equality, immutability by default and with-expressions — the C# way to write a Value Object",
             arch =>
             {
@@ -254,25 +234,22 @@ public sealed class DotnetRules : IDcaRuleSet
                         continue;
                     }
 
-                    if (!(IsRecord(type, runtime) || runtime.IsValueType))
+                    if (runtime.IsValueType && !runtime.IsDefined(typeof(System.Runtime.CompilerServices.IsReadOnlyAttribute), false))
                     {
-                        violations.Add($"{runtime.FullName} implements IValue but is a plain class");
+                        violations.Add($"{runtime.FullName} implements IValue but is a mutable struct");
                     }
                 }
 
                 DcaRule.Fail(
-                    "Value objects should be records or readonly record structs\nbecause records are the C# way to write a Value Object",
+                    "Struct value objects must be readonly\nbecause a mutable struct value can be changed in place after construction",
                     violations,
-                    "Declare the value object as `public sealed record X(...)` or `public readonly record struct X(...)`.");
+                    "Declare the struct as `readonly struct` (a `readonly record struct` qualifies); classes are governed by TAC-009/010/012.");
             })
         .Selecting(
             "Non-interface, non-abstract types in <module>.Domain of every module root that"
                 + " are assignable to IValue and whose runtime type is in the loaded assemblies.")
         .Checking(
-            "The type is a record class, a record struct or any other struct. A plain class"
-                + " implementing IValue is reported. Whether a struct is declared readonly is not"
-                + " checked, and an IValue type outside a domain namespace is not selected. An"
-                + " empty selection passes.");
+            "Struct values must carry the readonly modifier. Classes are governed by TAC-009/010/012; equality is checked by TAC-012. An IValue outside a domain namespace is not selected." );
 
     /// <summary>DCA-NET-005: identifiers are record structs.</summary>
     public static IDcaRule IdentifiersShouldBeReadonlyRecordStructs() =>
@@ -295,9 +272,9 @@ public sealed class DotnetRules : IDcaRuleSet
                     {
                         violations.Add($"{runtime.FullName} implements IId but is a reference type");
                     }
-                    else if (!IsRecord(type, runtime))
+                    else if (!IsRecord(type, runtime) || !runtime.IsDefined(typeof(System.Runtime.CompilerServices.IsReadOnlyAttribute), false))
                     {
-                        violations.Add($"{runtime.FullName} implements IId but is a plain struct, not a record struct");
+                        violations.Add($"{runtime.FullName} implements IId but is not a readonly record struct");
                     }
                 }
 
@@ -310,9 +287,7 @@ public sealed class DotnetRules : IDcaRuleSet
             "Non-interface, non-abstract types anywhere under the root namespace that are"
                 + " assignable to IId and whose runtime type is in the loaded assemblies.")
         .Checking(
-            "The type is a record struct: a reference type (a record class included) is"
-                + " reported as such, a plain struct as not being a record. Whether the struct is"
-                + " declared readonly is not checked. An empty selection passes.");
+            "The type must be a readonly record struct. Reference types, plain structs and mutable record structs fail." );
 
     // ---------------------------------------------------------------------------------------------
     // Helpers

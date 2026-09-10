@@ -37,16 +37,25 @@ public sealed class DcaRuleSelection
     private readonly IReadOnlySet<string>? _includedSets;
     private readonly IReadOnlySet<string>? _includedIds;
     private readonly IReadOnlyDictionary<string, RuleSettings> _settings;
+    private readonly IReadOnlySet<string> _retiredReferences;
 
     private DcaRuleSelection(
         IReadOnlySet<string>? includedSets,
         IReadOnlySet<string>? includedIds,
-        IReadOnlyDictionary<string, RuleSettings> settings)
+        IReadOnlyDictionary<string, RuleSettings> settings,
+        IReadOnlySet<string>? retiredReferences = null)
     {
         _includedSets = includedSets;
         _includedIds = includedIds;
         _settings = settings;
+        _retiredReferences = retiredReferences ?? new HashSet<string>(StringComparer.Ordinal);
     }
+
+    /// <summary>
+    /// Retired rule identifiers this selection refers to (exclusions or severity settings of a consumer that
+    /// was written against an earlier catalog). They keep loading and are reported by the test runner.
+    /// </summary>
+    public IReadOnlyCollection<string> RetiredReferences => _retiredReferences.OrderBy(id => id, StringComparer.Ordinal).ToList();
 
     /// <summary>Every rule of every set, all at <see cref="DcaSeverity.Error"/>.</summary>
     public static DcaRuleSelection All() => Everything;
@@ -59,7 +68,7 @@ public sealed class DcaRuleSelection
             RequireKnownSet(name);
         }
 
-        return new DcaRuleSelection(ToSet(ruleSetNames), _includedIds, _settings);
+        return new DcaRuleSelection(ToSet(ruleSetNames), _includedIds, _settings, _retiredReferences);
     }
 
     /// <summary>Restricts the run to the given rule identifiers.</summary>
@@ -68,9 +77,14 @@ public sealed class DcaRuleSelection
         foreach (var id in ruleIds)
         {
             RequireKnownId(id);
+            if (DcaRules.Retired().TryGetValue(id, out var retired))
+            {
+                throw new ArgumentException(
+                    $"{id} is retired since {retired.Since} and cannot be selected: {retired.Reason} Replacement: {retired.Replacement}", nameof(ruleIds));
+            }
         }
 
-        return new DcaRuleSelection(_includedSets, ToSet(ruleIds), _settings);
+        return new DcaRuleSelection(_includedSets, ToSet(ruleIds), _settings, _retiredReferences);
     }
 
     /// <summary>Switches a rule off, recording why. The reason appears in the test report.</summary>
@@ -96,7 +110,13 @@ public sealed class DcaRuleSelection
         var settings = new Dictionary<string, RuleSettings>(_settings, StringComparer.Ordinal);
         var current = Settings(ruleId);
         settings[ruleId] = new RuleSettings(severity, reason, current.IgnoredViolationPatterns);
-        return new DcaRuleSelection(_includedSets, _includedIds, settings);
+        var retired = _retiredReferences;
+        if (DcaRules.Retired().ContainsKey(ruleId))
+        {
+            retired = new HashSet<string>(_retiredReferences, StringComparer.Ordinal) { ruleId };
+        }
+
+        return new DcaRuleSelection(_includedSets, _includedIds, settings, retired);
     }
 
     /// <summary>
@@ -119,7 +139,7 @@ public sealed class DcaRuleSelection
         var current = Settings(ruleId);
         var patterns = current.IgnoredViolationPatterns.Append(regex).ToList();
         settings[ruleId] = new RuleSettings(current.Severity, current.Reason, patterns);
-        return new DcaRuleSelection(_includedSets, _includedIds, settings);
+        return new DcaRuleSelection(_includedSets, _includedIds, settings, _retiredReferences);
     }
 
     /// <summary>This selection with <paramref name="other"/> applied on top — <paramref name="other"/> wins per rule.</summary>
@@ -132,10 +152,13 @@ public sealed class DcaRuleSelection
             settings[entry.Key] = entry.Value;
         }
 
+        var retired = new HashSet<string>(_retiredReferences, StringComparer.Ordinal);
+        retired.UnionWith(other._retiredReferences);
         return new DcaRuleSelection(
             other._includedSets ?? _includedSets,
             other._includedIds ?? _includedIds,
-            settings);
+            settings,
+            retired);
     }
 
     /// <summary>
@@ -294,7 +317,7 @@ public sealed class DcaRuleSelection
 
     private static void RequireKnownId(string ruleId)
     {
-        if (!DcaRules.AllIds().Contains(ruleId))
+        if (!DcaRules.AllIds().Contains(ruleId) && !DcaRules.Retired().ContainsKey(ruleId))
         {
             throw new ArgumentException($"Unknown rule id: {ruleId}. See RULES.md for the catalog.", nameof(ruleId));
         }

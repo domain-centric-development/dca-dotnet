@@ -4,9 +4,55 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
-Framework-neutral vocabulary (WP-30, twin of `dca-archunit`). Minor bump.
+## [0.4.0] - 2026-09-10
+
+**Migration from 0.3.0.** Depends on `DomainCentric.BuildingBlocks` 0.1.1 (documentation only). Before 1.0 a minor
+version may add and tighten rules; what can turn a green 0.3.0 build red — same contract as `dca-archunit` 0.4.0:
+
+- `DCA-USE-012` now demands the transaction boundary for every use case that **saves or deletes** an aggregate, not only
+  for one that publishes — wrap the work in `ITransactionBoundary.InTransactionAsync(...)` or carry the configured
+  transactional attribute (`FrameworkTypes.TransactionalAttribute`, empty by default).
+- `DCA-USE-016` (new): a use case may not invoke another use case — directly, through its input port or through an
+  application helper. `DCA-USE-017` (new): the public surface of a use case is its input port; a `*UseCase` that
+  implements no `IInputPort` is reported in full — implement the port.
+- `DCA-NET-003` validates every `IUseCase<TIn,TOut>` implementation through the interface map and still fails an
+  `ExecuteAsync` declared without the generic contract.
+- `DCA-MAP-008` wants one translation site per declared ACL interaction; `DCA-CYC-005` also sees cycles between use-case
+  namespaces inside one feature.
+- Three ids are retired and cannot be selected any more (`OnlyIds` throws with the replacement): `DCA-TAC-022`
+  (→ `DCA-TAC-014`), `DCA-MAP-003`, `DCA-ADV-003` (→ `DCA-ADV-001`).
+- `FrameworkTypes` is a positional record with `Name` first; callers of the presets are unaffected.
+
+Relaxed at the same time: `DCA-HEX-005` allows global and own-module infrastructure in outgoing adapters; `Manager` is a
+valid domain term (`DCA-NAM-010`); a `*Response` may live in an outgoing adapter (`DCA-USE-008`); a Repository or Store used
+by one use case may live with it (`DCA-TAC-014/019`); `Store.FindByIdAsync` is allowed (`DCA-TAC-021`); domain-metadata
+rules allow unclassified attributes instead of reporting every unknown one; a `Version` property that is a business
+revision passes `DCA-ADV-006/007`; and `DCA-USE-009` exempts a use case whose aggregate provably never registers an event.
 
 ### Added
+
+- **Informational rules.** A rule may be `informational`: it runs and reports but never fails the build (`DCA-LAY-005`,
+  `DCA-STR-009/010`, `DCA-MAP-011`). `rules.json` carries `status`; `RULES.md` and the counts separate enforced (112)
+  from informational (4), n/a (3) and retired (3).
+- **Retired rules.** `rules.json` gets a `retired` registry (id, since, reason, replacement); `DcaRuleSelection.RetiredReferences`
+  lists the retired ids a configuration refers to, the xUnit base prints one notice per id, `OnlyIds`/`dca.rules.ids` with
+  a retired id throws. Ids are never reused.
+- `DCA-USE-012` — ported (was n/a): every entry path to a save, delete or publication crosses a unit calling
+  `ITransactionBoundary.InTransactionAsync` (extension overloads included) or carrying the configured transactional
+  attribute; calls are read from the IL of the class and its state-machine and closure types, so `async` and lambdas are
+  followed. Violations name the effect (`saves an aggregate`, `deletes an aggregate`, `publishes domain events`).
+- `DCA-USE-016` — use cases do not invoke use cases; `DCA-USE-017` — the effective public surface maps onto the input
+  ports (inherited and explicit implementations pass; unrelated methods and public properties fail, a property once).
+- `DcaLayout.WithOperationContainers(...)`: optional organisational segments removed before measuring flat/grouped
+  use-case depth (`DCA-USE-014`).
+- Domain-metadata rules (`DCA-ONI-003`, `DCA-ADV-004/011/015/018`) classify the configured **roles** on types and members
+  through `FrameworkTypes` attribute namespaces plus `PersistenceAttributeTypes` (`AspNetCore()` classifies `KeyAttribute`,
+  `TimestampAttribute`, `ConcurrencyCheckAttribute`); unclassified attributes are allowed; ownership is exclusive.
+  Mappings of other persistence libraries need a preset extension (`with { PersistenceAttributeNamespaces = ... }`).
+- `DCA-USE-009` proves the event-free exemption: an `IRepository<T,ID>` whose aggregate hierarchy is fully under scan and
+  registers no event anywhere needs no publication; unresolved arguments and partial scans keep the requirement.
+- `DCA-NET-004`: readonly struct values; class and struct results are selected by `DCA-USE-015`.
+### Added (framework-neutral vocabulary, WP-30)
 
 - `FrameworkTypes.None()` — every role empty, for a hand-hosted application or a framework without a preset;
   controllers are then recognised by suffix only and `DCA-LAY-004` has nothing to look for. `FrameworkTypes.Name`
@@ -18,6 +64,14 @@ Framework-neutral vocabulary (WP-30, twin of `dca-archunit`). Minor bump.
 
 ### Changed
 
+- Immutable-shape rules (`DCA-USE-004/005/007`, `DCA-ADV-001`, `DCA-STR-008`, `DCA-TAC-010`) check shallow immutable state on
+  classes, records and structs: inherited fields readonly, properties get-only or init-only, no `Set*` method. `DCA-USE-015`
+  rejects same-type and marker-interface aggregate references and walks wrappers, part records and structs.
+- Controllers (`DCA-HEX-003`, `DCA-NAM-005/006`) are selected by the configured roles or suffixes.
+- `DCA-STR-007`: integration-event contracts reside in the configured `Events` segment; `DCA-ADV-006/007` distinguish a
+  schema version from a business revision. `DCA-TAC-005` checks caller roles and context for entity construction.
+- Same-id titles aligned with the Java twin (`DCA-TAC-010/014/019`, `DCA-NAM-010`, `DCA-USE-012`).
+
 - `FrameworkTypes` is a positional record with `Name` first: `new FrameworkTypes(name, controllerBase,
   apiControllerAttribute, pageModelBase, transactionScope)`. Callers of the presets are unaffected.
 - `HexagonalRules.IsController`, `NamingRules` (`IsMvcController`, `IsApiController`) and `DCA-LAY-004` treat an
@@ -26,7 +80,16 @@ Framework-neutral vocabulary (WP-30, twin of `dca-archunit`). Minor bump.
   terms ("injectable stereotype attribute", "declaratively transactional", "module declaration") instead of naming
   Spring; XML docs likewise. `rules.json` / `RULES.md` regenerated (116 rules, 4 n/a — unchanged counts).
 
+### Retired
+
+- `DCA-TAC-022` (covered by `DCA-TAC-014`), `DCA-MAP-003` (renderer disambiguation instead of a forced rename),
+  `DCA-ADV-003` (duplicate of `DCA-ADV-001`). Listed in `rules.json` `retired`.
+
 ### Fixed
+
+- `DcaArchitecture.Load` imports a consumer assembly's types in the reserved `DomainCentric.BuildingBlocks.Hexagonal.Ports.Out`
+  namespace as well, so `DCA-LAY-005` reports a consumer implementation placed there through `DcaArchitectureTest` (before,
+  only a hand-built `ArchLoader` reached them and the rule passed vacuously).
 
 - The repository `Dockerfile` copies `LICENSE` into the build context; `dotnet pack` inside the image failed on the
   missing file the packages embed (`Directory.Build.props`). `podman build` is green again.
@@ -257,3 +320,35 @@ Feature parity with `dca-archunit` 0.1.0 (same rule ids and rationales; 4 Java r
 ### Fixed
 - `DCA-LAY-005` ignores compiler-generated nested types (closures, async state machines of default interface methods) in `Ports.Out`.
 - `DCA-CYC-001…004` sliced with ArchUnitNET's `Slices().Matching("Root.(*).Layer")`, which ignores the segments after `(*)` and slices every sub-namespace of a context — all four rules reported the same intra-context pairs (e.g. `Domain.Model` ↔ `Domain.Event`) as cycles. The rules now build one slice per context from the layer's types only and search elementary cycles between slices themselves (Java semantics of `Root.(*).layer..`). Found by the first real consumer (`dca-ecommerce-sample-dotnet`).
+
+- 2026-09-09 WP-34 (unreleased): NAM-002 Java diagnostic never fails (.NET n/a); HEX-005 permits own/global infrastructure; ONI-003 and ADV-004/011/015/018 share exclusive role-by-target metadata checks. Java gains injectionSite/persistenceMapping presets and composed detection; .NET gains attribute namespaces and base-attribute detection, replacing the allow-list. No wiring guarantee; no new marker. Shared catalog regeneration pending WP-37.
+
+- 2026-09-09 WP-35 (unreleased): shared new IDs USE-016 (operation invocation, including helpers) and USE-017 (effective public input-port surface); CYC-005 slices operations inside features, respecting containers; MAP-008 requires per-interaction translation evidence without package exclusivity. NET-003 uses the generic interface map (inherited/explicit valid). No coordination marker; anchored caller-side ignore is the explicit exception. Counts await the shared regeneration.
+
+### WP-36 (unreleased 0.4.0)
+
+- `DCA-USE-009` permits event-free saves only with a resolved, fully inspected aggregate; unresolvable types remain checked.
+- `DCA-USE-012` has the same id in both languages. Its static graph proves boundary evidence, not block containment.
+- **Breaking migration from 0.3.0:** `DCA-STR-007` accepts only the configured events segment. Move contracts from
+  adapter/outgoing/event to events, or temporarily exclude DCA-STR-007 by id during migration. Translators stay in adapters.
+- `DCA-ADV-006/007` intentionally stop banning business `version`; the three explicit schema-version names are a heuristic.
+- `DCA-HEX-006` is directional; `DCA-HEX-007` names integration events and published APIs correctly.
+
+
+## Catalog kinds and retired identities (2026-09-09)
+
+Catalog entries distinguish enforced rules from informational diagnostics: LAY-001, STR-001, STR-010, MAP-013,
+and Java NAM-002. Test runners and generated catalogs report both counts separately. Informational entries do
+not prove architectural correctness or runtime wiring. `kind()` / `Kind` is explicit metadata, independent of severity.
+
+Retired ids are never reused: MAP-003 delegates normalized-name collision handling to the context-map renderer;
+ADV-003 is covered by ADV-001's immutable-shape check; TAC-022 is covered by TAC-008..012 for value models,
+with enrichment guidance in the guide/catalog. `DcaRules.retired()` / `Retired()` retain reason, replacement and
+version. Properties exclusions/severity settings and programmatic exclusions using these ids keep loading and
+are reported as retired (`DcaRuleSelection.RetiredReferences`, one line per referenced id in the xUnit base with reason
+and replacement); selecting a retired id (`OnlyIds`, `dca.rules.ids`) fails naming the replacement. Unknown ids still fail. The change is intentional in unreleased 0.4.0 for 0.3.0 consumers.
+
+USE-001 retains consumer redeclaration coverage; LAY-005 checks imported consumer implementations in the reserved
+building-blocks output-port namespace/package. An imported original interface passes. Name-discovery rules remain:
+unmarked types would otherwise evade marker-only selection. Current counts come from generated `rules.json`,
+including status and the separate retirement registry, rather than a hard-coded expected total.

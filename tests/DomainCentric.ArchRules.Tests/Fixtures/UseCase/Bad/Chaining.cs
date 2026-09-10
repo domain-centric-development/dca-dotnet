@@ -1,0 +1,1 @@
+namespace DomainCentric.ArchRules.Tests.Fixtures.UseCase.Bad.Ordering.Application.Chaining { public interface IOtherInputPort : DomainCentric.BuildingBlocks.Hexagonal.Ports.In.IInputPort {} public class ChainingUseCase : DomainCentric.BuildingBlocks.Hexagonal.Ports.In.IInputPort {private IOtherInputPort target=null!; public void Extra() {}} }

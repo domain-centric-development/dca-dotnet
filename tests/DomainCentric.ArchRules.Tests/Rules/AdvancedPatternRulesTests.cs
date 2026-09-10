@@ -12,7 +12,7 @@ public sealed class AdvancedPatternRulesTests
 
     private static readonly string[] ExpectedIds =
     {
-        "DCA-ADV-001", "DCA-ADV-002", "DCA-ADV-003", "DCA-ADV-004", "DCA-ADV-005", "DCA-ADV-006",
+        "DCA-ADV-001", "DCA-ADV-002", "DCA-ADV-004", "DCA-ADV-005", "DCA-ADV-006",
         "DCA-ADV-007", "DCA-ADV-008", "DCA-ADV-009", "DCA-ADV-010", "DCA-ADV-011", "DCA-ADV-012",
         "DCA-ADV-013", "DCA-ADV-014", "DCA-ADV-015", "DCA-ADV-016", "DCA-ADV-017", "DCA-ADV-018",
     };
@@ -20,9 +20,9 @@ public sealed class AdvancedPatternRulesTests
     private static readonly IReadOnlyDictionary<string, string> NoNegativeFixture = new Dictionary<string, string>();
 
     private static DcaArchitecture Arch(string ns) =>
-        DcaArchitecture.Load(DcaLayout.ForRootNamespace(ns), typeof(AdvancedPatternRulesTests).Assembly);
+        DcaArchitecture.Load(DcaLayout.ForRootNamespace(ns).WithFrameworkTypes(FrameworkTypes.AspNetCore() with { ContainerAttributeNamespaces = new[] { ns + ".Infrastructure.Stereotypes" } }), typeof(AdvancedPatternRulesTests).Assembly);
 
-    private static AdvancedPatternRules RuleSet(string ns) => new AdvancedPatternRules(DcaLayout.ForRootNamespace(ns));
+    private static AdvancedPatternRules RuleSet(string ns) => new AdvancedPatternRules(DcaLayout.ForRootNamespace(ns).WithFrameworkTypes(FrameworkTypes.AspNetCore() with { ContainerAttributeNamespaces = new[] { ns + ".Infrastructure.Stereotypes" } }));
 
     public static IEnumerable<object[]> RuleIds() => ExpectedIds.Select(id => new object[] { id });
 
