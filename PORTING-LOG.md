@@ -349,3 +349,10 @@ Factories delegate to aggregate creation. Both samples use Price, the six-field 
 money bounds/rounding, snapshot checkout and supplied-fact domain services. Role snapshots and invalid default quantities
 are guarded. The independent shared specification has 45 vectors; final gate results are recorded in WP-39.
 The first specification commit/SHA pin remains pending under the explicit no-commit instruction. No release was made.
+
+2026-09-10 USE-012 widened in both libraries: the transaction-boundary requirement anchors on `Repository.save`/`deleteById`
+(.NET `SaveAsync`/`DeleteByIdAsync`) as well as on the domain-event publisher. Reason: WP-36 made events optional, so an
+event-free saving use case had no rule demanding a unit of work although a repository may write one aggregate as several
+statements. Same path analysis, same messages (`saves an aggregate` / `deletes an aggregate` / `publishes domain events`).
+Fixtures: Java `transactions/savenoboundary`, `eventpolicy/free/BoundedSaveUseCase`; .NET `EventPolicy.Free.BoundedSaveUseCase`,
+`Free.DeleteUseCase`. Both samples pass unchanged (all 21 saving use cases per sample already draw the boundary).

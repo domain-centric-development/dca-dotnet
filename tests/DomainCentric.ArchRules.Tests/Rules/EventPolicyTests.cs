@@ -15,6 +15,13 @@ public class EventPolicyTests {
   Assert.DoesNotContain("AttributedUseCase",message);
   Assert.Contains("UncoveredUseCase",message);Assert.DoesNotContain("AfterEmptyUseCase",message);Assert.DoesNotContain("CoveredUseCase",message);
  }
+ [Fact] public void EventFreeSaveStillNeedsATransactionBoundary() {
+  // DCA-USE-009 exempts the event-free save from publishing; DCA-USE-012 still wants the unit of work drawn.
+  var arch=Arch();var message=Assert.Throws<DcaRuleViolationException>(()=>Rule(arch,"DCA-USE-012").Check(arch)).Message;
+  Assert.Contains("Free.SaveUseCase.ExecuteAsync saves an aggregate without",message);
+  Assert.Contains("Free.DeleteUseCase.ExecuteAsync deletes an aggregate without",message);
+  Assert.DoesNotContain("BoundedSaveUseCase",message);Assert.DoesNotContain("AfterEmptyUseCase",message);
+ }
  [Fact] public void BusinessVersionIsAllowedButAdapterContractsAreNot() {
   var arch=Arch();Rule(arch,"DCA-ADV-006").Check(arch);Rule(arch,"DCA-ADV-007").Check(arch);
   Assert.Contains("Misplaced",Assert.ThrowsAny<System.Exception>(()=>Rule(arch,"DCA-STR-007").Check(arch)).Message);

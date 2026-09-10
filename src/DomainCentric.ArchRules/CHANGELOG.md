@@ -4,6 +4,12 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+- `DCA-USE-012` (2026-09-10) anchors on `IRepository.SaveAsync` and `IRepository.DeleteByIdAsync` as well as on the
+  `IDomainEventPublisher`: a use case that writes an aggregate draws the unit of work even when it publishes nothing (the
+  repository may write one aggregate as several statements). Until now the boundary was demanded only indirectly, through
+  `DCA-USE-009`'s publish requirement, and `DCA-USE-009`'s event-free exemption (WP-36) had removed that path. Violations
+  name the effect (`saves an aggregate`, `deletes an aggregate`, `publishes domain events`). Same contract as the Java twin.
+
 - `DCA-NET-003` validates `IUseCase<TIn,TOut>` implementers through the interface map (WP-35 contract) and still reports an
   operation that declares `ExecuteAsync` without the generic contract; a class implementing a marker-only `IInputPort`
   sub-interface without `ExecuteAsync` is not a NET-003 case — its public surface is governed by `DCA-USE-017`.
