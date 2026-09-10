@@ -4,6 +4,11 @@ All notable changes to this package. Format: [Keep a Changelog](https://keepacha
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-10
+
+Documentation-only release: no type, signature or behaviour changed; the XML docs that ship in the package are what the
+knowledge catalog renders. Binary-compatible with 0.1.0.
+
 ### Changed
 
 - Documentation only (WP-30): `ITransactionBoundary` names a `DbContext` transaction and `TransactionScope` as

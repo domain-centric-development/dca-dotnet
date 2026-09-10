@@ -4,37 +4,55 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
-- `DCA-USE-012` (2026-09-10) anchors on `IRepository.SaveAsync` and `IRepository.DeleteByIdAsync` as well as on the
-  `IDomainEventPublisher`: a use case that writes an aggregate draws the unit of work even when it publishes nothing (the
-  repository may write one aggregate as several statements). Until now the boundary was demanded only indirectly, through
-  `DCA-USE-009`'s publish requirement, and `DCA-USE-009`'s event-free exemption (WP-36) had removed that path. Violations
-  name the effect (`saves an aggregate`, `deletes an aggregate`, `publishes domain events`). Same contract as the Java twin.
+## [0.4.0] - 2026-09-10
 
-- `DCA-NET-003` validates `IUseCase<TIn,TOut>` implementers through the interface map (WP-35 contract) and still reports an
-  operation that declares `ExecuteAsync` without the generic contract; a class implementing a marker-only `IInputPort`
-  sub-interface without `ExecuteAsync` is not a NET-003 case — its public surface is governed by `DCA-USE-017`.
-- `DCA-USE-017`: a use case selected by the configured suffix only, without an input-port interface, has no permitted operation
-  and is reported in full (intentional for 0.4.0 — implement the input port; WP-33 keeps the suffix as a layout fallback only).
-  A public property is reported once, as the property, no longer twice through its accessor.
-- `FrameworkTypes.PersistenceAttributeTypes`: explicit attribute type names classified as persistence metadata beside the
-  namespace lists; `AspNetCore()` classifies `KeyAttribute`, `TimestampAttribute` and `ConcurrencyCheckAttribute` of
-  `System.ComponentModel.DataAnnotations` (the validation attributes there stay unclassified). Mappings of other persistence
-  libraries (Dapper.Contrib, MongoDB, NHibernate) are unclassified by default and need a preset extension
-  (`with { PersistenceAttributeNamespaces = ... }`), where 0.3.0's allow-list reported every unknown attribute.
-- Retired rule ids: `DcaRuleSelection.RetiredReferences` lists the retired ids a configuration refers to, the xUnit base
-  prints one notice per id (since, reason, replacement); `OnlyIds`/`dca.rules.ids` with a retired id throws.
+**Migration from 0.3.0.** Depends on `DomainCentric.BuildingBlocks` 0.1.1 (documentation only). Before 1.0 a minor
+version may add and tighten rules; what can turn a green 0.3.0 build red — same contract as `dca-archunit` 0.4.0:
 
-- Fixed: `DcaArchitecture.Load` now imports a consumer assembly's types in the reserved `DomainCentric.BuildingBlocks.Hexagonal.Ports.Out`
-  namespace as well, so `DCA-LAY-005` reports a consumer implementation placed there through `DcaArchitectureTest` (before, only a
-  hand-built `ArchLoader` reached them and the rule passed vacuously).
+- `DCA-USE-012` now demands the transaction boundary for every use case that **saves or deletes** an aggregate, not only
+  for one that publishes — wrap the work in `ITransactionBoundary.InTransactionAsync(...)` or carry the configured
+  transactional attribute (`FrameworkTypes.TransactionalAttribute`, empty by default).
+- `DCA-USE-016` (new): a use case may not invoke another use case — directly, through its input port or through an
+  application helper. `DCA-USE-017` (new): the public surface of a use case is its input port; a `*UseCase` that
+  implements no `IInputPort` is reported in full — implement the port.
+- `DCA-NET-003` validates every `IUseCase<TIn,TOut>` implementation through the interface map and still fails an
+  `ExecuteAsync` declared without the generic contract.
+- `DCA-MAP-008` wants one translation site per declared ACL interaction; `DCA-CYC-005` also sees cycles between use-case
+  namespaces inside one feature.
+- Three ids are retired and cannot be selected any more (`OnlyIds` throws with the replacement): `DCA-TAC-022`
+  (→ `DCA-TAC-014`), `DCA-MAP-003`, `DCA-ADV-003` (→ `DCA-ADV-001`).
+- `FrameworkTypes` is a positional record with `Name` first; callers of the presets are unaffected.
 
-- WP-33: allow domain Manager terms, outgoing Response models, use-case-local ports and Store lookup by key. Operation containers normalize marker-or-suffix discovery; entity construction checks caller roles and context, with aggregate-ownership limits documented. TAC-022 retirement remains in the WP-37 registry batch.
-
-- WP-32: shallow immutable state on classes, records and structs; inherited fields and setters checked. Same-type and marker-interface aggregate references are rejected; wrapper traversal and struct results covered. Immutable equality classes and readonly struct values remain valid.
-
-Framework-neutral vocabulary (WP-30, twin of `dca-archunit`). Minor bump.
+Relaxed at the same time: `DCA-HEX-005` allows global and own-module infrastructure in outgoing adapters; `Manager` is a
+valid domain term (`DCA-NAM-010`); a `*Response` may live in an outgoing adapter (`DCA-USE-008`); a Repository or Store used
+by one use case may live with it (`DCA-TAC-014/019`); `Store.FindByIdAsync` is allowed (`DCA-TAC-021`); domain-metadata
+rules allow unclassified attributes instead of reporting every unknown one; a `Version` property that is a business
+revision passes `DCA-ADV-006/007`; and `DCA-USE-009` exempts a use case whose aggregate provably never registers an event.
 
 ### Added
+
+- **Informational rules.** A rule may be `informational`: it runs and reports but never fails the build (`DCA-LAY-005`,
+  `DCA-STR-009/010`, `DCA-MAP-011`). `rules.json` carries `status`; `RULES.md` and the counts separate enforced (112)
+  from informational (4), n/a (3) and retired (3).
+- **Retired rules.** `rules.json` gets a `retired` registry (id, since, reason, replacement); `DcaRuleSelection.RetiredReferences`
+  lists the retired ids a configuration refers to, the xUnit base prints one notice per id, `OnlyIds`/`dca.rules.ids` with
+  a retired id throws. Ids are never reused.
+- `DCA-USE-012` — ported (was n/a): every entry path to a save, delete or publication crosses a unit calling
+  `ITransactionBoundary.InTransactionAsync` (extension overloads included) or carrying the configured transactional
+  attribute; calls are read from the IL of the class and its state-machine and closure types, so `async` and lambdas are
+  followed. Violations name the effect (`saves an aggregate`, `deletes an aggregate`, `publishes domain events`).
+- `DCA-USE-016` — use cases do not invoke use cases; `DCA-USE-017` — the effective public surface maps onto the input
+  ports (inherited and explicit implementations pass; unrelated methods and public properties fail, a property once).
+- `DcaLayout.WithOperationContainers(...)`: optional organisational segments removed before measuring flat/grouped
+  use-case depth (`DCA-USE-014`).
+- Domain-metadata rules (`DCA-ONI-003`, `DCA-ADV-004/011/015/018`) classify the configured **roles** on types and members
+  through `FrameworkTypes` attribute namespaces plus `PersistenceAttributeTypes` (`AspNetCore()` classifies `KeyAttribute`,
+  `TimestampAttribute`, `ConcurrencyCheckAttribute`); unclassified attributes are allowed; ownership is exclusive.
+  Mappings of other persistence libraries need a preset extension (`with { PersistenceAttributeNamespaces = ... }`).
+- `DCA-USE-009` proves the event-free exemption: an `IRepository<T,ID>` whose aggregate hierarchy is fully under scan and
+  registers no event anywhere needs no publication; unresolved arguments and partial scans keep the requirement.
+- `DCA-NET-004`: readonly struct values; class and struct results are selected by `DCA-USE-015`.
+### Added (framework-neutral vocabulary, WP-30)
 
 - `FrameworkTypes.None()` — every role empty, for a hand-hosted application or a framework without a preset;
   controllers are then recognised by suffix only and `DCA-LAY-004` has nothing to look for. `FrameworkTypes.Name`
@@ -46,6 +64,14 @@ Framework-neutral vocabulary (WP-30, twin of `dca-archunit`). Minor bump.
 
 ### Changed
 
+- Immutable-shape rules (`DCA-USE-004/005/007`, `DCA-ADV-001`, `DCA-STR-008`, `DCA-TAC-010`) check shallow immutable state on
+  classes, records and structs: inherited fields readonly, properties get-only or init-only, no `Set*` method. `DCA-USE-015`
+  rejects same-type and marker-interface aggregate references and walks wrappers, part records and structs.
+- Controllers (`DCA-HEX-003`, `DCA-NAM-005/006`) are selected by the configured roles or suffixes.
+- `DCA-STR-007`: integration-event contracts reside in the configured `Events` segment; `DCA-ADV-006/007` distinguish a
+  schema version from a business revision. `DCA-TAC-005` checks caller roles and context for entity construction.
+- Same-id titles aligned with the Java twin (`DCA-TAC-010/014/019`, `DCA-NAM-010`, `DCA-USE-012`).
+
 - `FrameworkTypes` is a positional record with `Name` first: `new FrameworkTypes(name, controllerBase,
   apiControllerAttribute, pageModelBase, transactionScope)`. Callers of the presets are unaffected.
 - `HexagonalRules.IsController`, `NamingRules` (`IsMvcController`, `IsApiController`) and `DCA-LAY-004` treat an
@@ -54,7 +80,16 @@ Framework-neutral vocabulary (WP-30, twin of `dca-archunit`). Minor bump.
   terms ("injectable stereotype attribute", "declaratively transactional", "module declaration") instead of naming
   Spring; XML docs likewise. `rules.json` / `RULES.md` regenerated (116 rules, 4 n/a — unchanged counts).
 
+### Retired
+
+- `DCA-TAC-022` (covered by `DCA-TAC-014`), `DCA-MAP-003` (renderer disambiguation instead of a forced rename),
+  `DCA-ADV-003` (duplicate of `DCA-ADV-001`). Listed in `rules.json` `retired`.
+
 ### Fixed
+
+- `DcaArchitecture.Load` imports a consumer assembly's types in the reserved `DomainCentric.BuildingBlocks.Hexagonal.Ports.Out`
+  namespace as well, so `DCA-LAY-005` reports a consumer implementation placed there through `DcaArchitectureTest` (before,
+  only a hand-built `ArchLoader` reached them and the rule passed vacuously).
 
 - The repository `Dockerfile` copies `LICENSE` into the build context; `dotnet pack` inside the image failed on the
   missing file the packages embed (`Directory.Build.props`). `podman build` is green again.
