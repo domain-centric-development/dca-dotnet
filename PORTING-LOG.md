@@ -334,7 +334,8 @@ Retired ids are never reused: MAP-003 delegates normalized-name collision handli
 ADV-003 is covered by ADV-001's immutable-shape check; TAC-022 is covered by TAC-008..012 for value models,
 with enrichment guidance in the guide/catalog. `DcaRules.retired()` / `Retired()` retain reason, replacement and
 version. Properties exclusions/severity settings and programmatic exclusions using these ids keep loading and
-are reported as retired. Unknown ids still fail. The change is intentional in unreleased 0.4.0 for 0.3.0 consumers.
+are reported as retired (`DcaRuleSelection.RetiredReferences`, one line per referenced id in the xUnit base with reason
+and replacement); selecting a retired id (`OnlyIds`, `dca.rules.ids`) fails naming the replacement. Unknown ids still fail. The change is intentional in unreleased 0.4.0 for 0.3.0 consumers.
 
 USE-001 retains consumer redeclaration coverage; LAY-005 checks imported consumer implementations in the reserved
 building-blocks output-port namespace/package. An imported original interface passes. Name-discovery rules remain:

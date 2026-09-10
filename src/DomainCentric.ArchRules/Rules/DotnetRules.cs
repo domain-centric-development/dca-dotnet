@@ -191,9 +191,16 @@ public sealed class DotnetRules : IDcaRuleSet
                 var violations = new List<string>();
                 foreach (var type in arch.Classes) {
                     var runtime = arch.RuntimeType(type);
-                    if (runtime is null || runtime.IsAbstract || !(OperationPolicy.Operation(type, arch) || ImplementsUseCase(runtime))) continue;
+                    if (runtime is null || runtime.IsAbstract) continue;
                     var contracts = runtime.GetInterfaces().Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IUseCase<,>)).ToArray();
-                    if (contracts.Length == 0) violations.Add($"{type.FullName} must implement IUseCase<TIn,TOut>; a plain Task ExecuteAsync does not satisfy the contract");
+                    if (contracts.Length == 0)
+                    {
+                        // A marker-only IInputPort sub-interface without an operation is not a NET-003 case (USE-017 governs
+                        // its surface). Only an operation that spells the contract by name without implementing it is.
+                        if (OperationPolicy.Operation(type, arch) && runtime.GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance).Any(m => m.Name == "ExecuteAsync"))
+                            violations.Add($"{type.FullName} declares ExecuteAsync without implementing IUseCase<TIn,TOut>; a plain Task ExecuteAsync does not satisfy the contract");
+                        continue;
+                    }
                     foreach (var contract in contracts) {
                         var map = runtime.GetInterfaceMap(contract);
                         foreach (var method in map.TargetMethods) {
@@ -206,8 +213,8 @@ public sealed class DotnetRules : IDcaRuleSet
                 }
                 DcaRule.Fail("Use cases implement the generic asynchronous input contract", violations);
             })
-        .Selecting("Concrete application operations selected by marker or suffix, plus concrete IUseCase<TIn,TOut> implementations anywhere under scan, with loadable runtime types.")
-        .Checking("An IUseCase<TIn,TOut> interface map supplies ExecuteAsync(input, CancellationToken) returning Task<T>. Explicit, inherited and ordinary implementations pass. A plain Task method without the generic contract fails; other public members are checked by USE-017, not counted here.");
+        .Selecting("Concrete classes under scan implementing IUseCase<TIn,TOut> (directly, inherited or explicitly), plus application operations (marker or suffix) that declare a public ExecuteAsync without the generic contract, with loadable runtime types. A marker-only IInputPort implementation without ExecuteAsync is not selected.")
+        .Checking("Every IUseCase<TIn,TOut> interface map supplies ExecuteAsync(input, CancellationToken) returning Task<T>; explicit, inherited and ordinary implementations pass. An ExecuteAsync declared without the generic contract (plain Task, own signature) fails. Other public members are checked by USE-017, not counted here.");
 
     /// <summary>DCA-NET-004: value objects are records or (record) structs.</summary>
     public static IDcaRule ValueObjectsShouldBeRecords() =>
@@ -234,9 +241,9 @@ public sealed class DotnetRules : IDcaRuleSet
                 }
 
                 DcaRule.Fail(
-                    "Struct value objects must be readonly\nbecause records are the C# way to write a Value Object",
+                    "Struct value objects must be readonly\nbecause a mutable struct value can be changed in place after construction",
                     violations,
-                    "Declare the value object as `public sealed record X(...)` or `public readonly record struct X(...)`.");
+                    "Declare the struct as `readonly struct` (a `readonly record struct` qualifies); classes are governed by TAC-009/010/012.");
             })
         .Selecting(
             "Non-interface, non-abstract types in <module>.Domain of every module root that"
@@ -267,7 +274,7 @@ public sealed class DotnetRules : IDcaRuleSet
                     }
                     else if (!IsRecord(type, runtime) || !runtime.IsDefined(typeof(System.Runtime.CompilerServices.IsReadOnlyAttribute), false))
                     {
-                        violations.Add($"{runtime.FullName} implements IId but is a plain struct, not a record struct");
+                        violations.Add($"{runtime.FullName} implements IId but is not a readonly record struct");
                     }
                 }
 

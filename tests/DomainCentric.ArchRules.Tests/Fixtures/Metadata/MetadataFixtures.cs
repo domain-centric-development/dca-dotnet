@@ -105,7 +105,11 @@ public ModelTypeComposed() {}
 public void Operation() {}
 }}
 
+namespace DomainCentric.ArchRules.Tests.Fixtures.Metadata.Bad.Module.Domain.Model {
+public sealed class ModelKeyProperty { [System.ComponentModel.DataAnnotations.Key] public int Id {get;set;} }}
+
 namespace DomainCentric.ArchRules.Tests.Fixtures.Metadata.Good.Module.Domain.Model {
+public sealed class ModelRequiredProperty { [System.ComponentModel.DataAnnotations.Required] public string Name {get;set;} = ""; }
 [DomainCentric.ArchRules.Tests.Fixtures.Metadata.Roles.Unknown]
 public sealed class ModelAllUnknown {
 [DomainCentric.ArchRules.Tests.Fixtures.Metadata.Roles.Unknown]

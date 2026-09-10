@@ -25,18 +25,19 @@ public class OperationPolicyTests {
     }
     [Fact] public void EffectivePublicSurfaceIncludesPropertiesAndInheritedAndUnrelatedMethods() {
         var arch=Arch("SurfaceBad");var message=Assert.Throws<DcaRuleViolationException>(()=>Rule(arch,"DCA-USE-017").Check(arch)).Message;
-        foreach(var name in new[]{"ExtraUseCase","InheritedUseCase","UnrelatedUseCase","Value","Computed"}) Assert.Contains(name,message);
+        foreach(var name in new[]{"ExtraUseCase","InheritedUseCase","UnrelatedUseCase","Value","Computed","SuffixOnlyUseCase exposes"}) Assert.Contains(name,message);
+        Assert.Single(Regex.Matches(message,"property Computed"));
         var good=Arch("SurfaceGood");Rule(good,"DCA-USE-017").Check(good);
     }
     [Fact] public void GenericAsyncContractAcceptsExplicitAndInheritedImplementations() {
         var arch=Arch("SurfaceGood");
-        // Property-only input ports are not generic use cases; isolate the generic implementations.
+        // Property-only input ports are not generic use cases and are not selected by NET-003.
         var layout=DcaLayout.ForRootNamespace(Root+"SurfaceGood");
         foreach(var name in new[]{"ExplicitUseCase","InheritedUseCase","OrdinaryUseCase","GeneratedUseCase"}) {
             var type=typeof(OperationPolicyTests).Assembly.GetType(Root+"SurfaceGood.Module.Application.Operation."+name)!;
             Assert.Contains(type.GetInterfaces(),i=>i.IsGenericType&&i.GetGenericTypeDefinition()==typeof(DomainCentric.BuildingBlocks.Hexagonal.Ports.In.IUseCase<,>));
         }
-        var result=DcaRuleExecution.Execute(Rule(arch,"DCA-NET-003"),arch,DcaRuleSelection.All().IgnoringViolationsMatching("DCA-NET-003","PropertyUseCase"));
+        var result=DcaRuleExecution.Execute(Rule(arch,"DCA-NET-003"),arch,DcaRuleSelection.All());
         Assert.Equal(DcaRuleStatus.Passed,result.Status);
     }
     [Fact] public void AclEvidenceBelongsToEachUpstreamWithinOneAdapterPackage() {

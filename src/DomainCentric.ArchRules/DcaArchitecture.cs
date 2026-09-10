@@ -98,6 +98,9 @@ public sealed class DcaArchitecture
         foreach (var assembly in assemblies)
         {
             loader.LoadNamespacesWithinAssembly(assembly, layout.RootNamespace);
+            // A consumer type declared in the reserved building-blocks port namespace lies outside the root
+            // namespace; DCA-LAY-005 can only report it when it is imported as well.
+            loader.LoadNamespacesWithinAssembly(assembly, DcaLayout.BuildingBlocksPortsOutNamespace);
         }
 
         return new DcaArchitecture(layout, loader.Build(), assemblies);

@@ -4,6 +4,24 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+- `DCA-NET-003` validates `IUseCase<TIn,TOut>` implementers through the interface map (WP-35 contract) and still reports an
+  operation that declares `ExecuteAsync` without the generic contract; a class implementing a marker-only `IInputPort`
+  sub-interface without `ExecuteAsync` is not a NET-003 case — its public surface is governed by `DCA-USE-017`.
+- `DCA-USE-017`: a use case selected by the configured suffix only, without an input-port interface, has no permitted operation
+  and is reported in full (intentional for 0.4.0 — implement the input port; WP-33 keeps the suffix as a layout fallback only).
+  A public property is reported once, as the property, no longer twice through its accessor.
+- `FrameworkTypes.PersistenceAttributeTypes`: explicit attribute type names classified as persistence metadata beside the
+  namespace lists; `AspNetCore()` classifies `KeyAttribute`, `TimestampAttribute` and `ConcurrencyCheckAttribute` of
+  `System.ComponentModel.DataAnnotations` (the validation attributes there stay unclassified). Mappings of other persistence
+  libraries (Dapper.Contrib, MongoDB, NHibernate) are unclassified by default and need a preset extension
+  (`with { PersistenceAttributeNamespaces = ... }`), where 0.3.0's allow-list reported every unknown attribute.
+- Retired rule ids: `DcaRuleSelection.RetiredReferences` lists the retired ids a configuration refers to, the xUnit base
+  prints one notice per id (since, reason, replacement); `OnlyIds`/`dca.rules.ids` with a retired id throws.
+
+- Fixed: `DcaArchitecture.Load` now imports a consumer assembly's types in the reserved `DomainCentric.BuildingBlocks.Hexagonal.Ports.Out`
+  namespace as well, so `DCA-LAY-005` reports a consumer implementation placed there through `DcaArchitectureTest` (before, only a
+  hand-built `ArchLoader` reached them and the rule passed vacuously).
+
 - WP-33: allow domain Manager terms, outgoing Response models, use-case-local ports and Store lookup by key. Operation containers normalize marker-or-suffix discovery; entity construction checks caller roles and context, with aggregate-ownership limits documented. TAC-022 retirement remains in the WP-37 registry batch.
 
 - WP-32: shallow immutable state on classes, records and structs; inherited fields and setters checked. Same-type and marker-interface aggregate references are rejected; wrapper traversal and struct results covered. Immutable equality classes and readonly struct values remain valid.
@@ -286,7 +304,8 @@ Retired ids are never reused: MAP-003 delegates normalized-name collision handli
 ADV-003 is covered by ADV-001's immutable-shape check; TAC-022 is covered by TAC-008..012 for value models,
 with enrichment guidance in the guide/catalog. `DcaRules.retired()` / `Retired()` retain reason, replacement and
 version. Properties exclusions/severity settings and programmatic exclusions using these ids keep loading and
-are reported as retired. Unknown ids still fail. The change is intentional in unreleased 0.4.0 for 0.3.0 consumers.
+are reported as retired (`DcaRuleSelection.RetiredReferences`, one line per referenced id in the xUnit base with reason
+and replacement); selecting a retired id (`OnlyIds`, `dca.rules.ids`) fails naming the replacement. Unknown ids still fail. The change is intentional in unreleased 0.4.0 for 0.3.0 consumers.
 
 USE-001 retains consumer redeclaration coverage; LAY-005 checks imported consumer implementations in the reserved
 building-blocks output-port namespace/package. An imported original interface passes. Name-discovery rules remain:

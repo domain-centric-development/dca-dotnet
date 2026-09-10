@@ -21,4 +21,7 @@
     <ProjectReference Include="../../src/DomainCentric.BuildingBlocks/DomainCentric.BuildingBlocks.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="../DomainCentric.ArchRules.ConsumerFixture/DomainCentric.ArchRules.ConsumerFixture.csproj" />
+  </ItemGroup>
 </Project>

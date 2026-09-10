@@ -59,7 +59,7 @@ public sealed class UseCaseRules : IDcaRuleSet
         DcaRule.Check("DCA-USE-017", "Use cases expose no public operation outside their input port",
             "The input port describes the complete externally callable operation surface", OperationPolicy.Surface)
         .Selecting("Concrete non-nested application operations selected by IInputPort marker or configured use-case suffix, with loadable runtime types.")
-        .Checking("The effective public instance surface maps through the implemented IInputPort interface maps. Inherited and explicit implementations pass; unrelated-interface methods and public properties outside the contract fail. Constructors, object/ValueType methods and compiler-generated members are exempt; special-name property accessors alone are not exempt.");
+        .Checking("The effective public instance surface maps through the implemented IInputPort interface maps. Inherited and explicit implementations pass; unrelated-interface methods and public properties outside the contract fail (a property is reported once). Constructors, object/ValueType methods and compiler-generated members are exempt; special-name property accessors alone are not exempt. A use case selected by suffix only, without an input-port interface, has no permitted operation and is reported in full — implement the input port.");
 
     public string Name => "usecase";
 
@@ -195,7 +195,7 @@ public sealed class UseCaseRules : IDcaRuleSet
         .Selecting(
             "Types under the root namespace whose name ends with Response.")
         .Checking(
-            "Each resides in an incoming-adapter namespace of some module root"
+            "Each resides in an adapter namespace (incoming or outgoing) of some module root"
                 + " (<module>.Adapter or below), the shared kernel's included.");
 
     /// <summary>
@@ -273,7 +273,7 @@ public sealed class UseCaseRules : IDcaRuleSet
                 + " a bulk delete) is selected but has nothing to check and passes.");
 
     public static IDcaRule PublishingUseCasesAreTransactional(DcaLayout layout) =>
-        DcaRule.Check("DCA-USE-012", "Publishing use cases require a transaction boundary on every entry path",
+        DcaRule.Check("DCA-USE-012", "Use cases that publish domain events must have a transaction boundary",
             "Integration-event capture joins the modeled transaction; publication outside a transaction cannot rely on commit semantics",
             arch => {
                 var violations = new List<string>();
