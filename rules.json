@@ -76,7 +76,7 @@
       "title": "Domain models must not carry prohibited framework metadata",
       "rationale": "Domain metadata does not configure infrastructure concerns",
       "selects": "Domain.Model types except events, services, factories and specifications, which have exclusive ADV ownership.",
-      "checks": "Configured attribute namespaces classify an attribute or any base attribute type. Types prohibit container, persistence and transaction roles; fields and properties prohibit injection and persistence; methods prohibit transaction and injection; constructors prohibit injection. Unclassified metadata is allowed. Missing runtime types are skipped; wiring is not established.",
+      "checks": "Configured attribute namespaces (and the explicit persistence attribute type names) classify an attribute or any base attribute type. Types prohibit container, persistence and transaction roles; fields and properties prohibit injection and persistence; methods prohibit transaction and injection; constructors prohibit injection. Unclassified metadata is allowed by this check, not proven harmless: the default preset classifies its configured persistence namespaces, the key/timestamp/concurrency attribute types and keyed-service injection; mappings of other persistence libraries need a preset extension. Missing runtime types are skipped; wiring is not established.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -333,7 +333,7 @@
     {
       "set": "tactical",
       "id": "DCA-TAC-014",
-      "title": "Repository interfaces must reside in the application layer's shared output-port namespace",
+      "title": "Repository interfaces must reside in the application layer (local to a use case or shared)",
       "rationale": "Repository interfaces are output ports in the application layer (Hexagonal Architecture)",
       "selects": "Interfaces below the root namespace assignable to IRepository, whatever their name; an interface named exactly Repository excluded.",
       "checks": "The interface resides in <module>.Application of some module root, the shared kernel's included. Implementations are not selected; an empty selection passes.",
@@ -383,7 +383,7 @@
     {
       "set": "tactical",
       "id": "DCA-TAC-019",
-      "title": "Store interfaces must reside in the application layer's shared output-port namespace",
+      "title": "Store interfaces must reside in the application layer (local to a use case or shared)",
       "rationale": "Store interfaces are output ports in the application layer (Hexagonal Architecture)",
       "selects": "Interfaces below the root namespace assignable to IStore, whatever their name; an interface named exactly Store excluded.",
       "checks": "The interface resides in <module>.Application of some module root, the shared kernel's included. Implementations are not selected; an empty selection passes.",
@@ -872,7 +872,7 @@
       "title": "HTTP Response Models must end with 'Response' and reside in adapter namespace",
       "rationale": "HTTP response models should be in adapter layer",
       "selects": "Types under the root namespace whose name ends with Response.",
-      "checks": "Each resides in an incoming-adapter namespace of some module root (<module>.Adapter or below), the shared kernel's included.",
+      "checks": "Each resides in an adapter namespace (incoming or outgoing) of some module root (<module>.Adapter or below), the shared kernel's included.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -909,7 +909,7 @@
     {
       "set": "usecase",
       "id": "DCA-USE-012",
-      "title": "Publishing use cases require a transaction boundary on every entry path",
+      "title": "Use cases that publish domain events must have a transaction boundary",
       "rationale": "Integration-event capture joins the modeled transaction; publication outside a transaction cannot rely on commit semantics",
       "selects": "Concrete application operations selected by IInputPort marker or suffix with loadable runtime types, including closure and async units.",
       "checks": "Every entry path to an IDomainEventPublisher call crosses a unit calling ITransactionBoundary.InTransactionAsync (including its extension overloads) or carrying the configured TransactionalAttribute; a type-level attribute covers all paths. Static limit: a boundary call in the same unit passes even when publication follows an empty boundary block. Runtime rollback containment must be tested separately.",
@@ -958,7 +958,7 @@
       "title": "Use cases expose no public operation outside their input port",
       "rationale": "The input port describes the complete externally callable operation surface",
       "selects": "Concrete non-nested application operations selected by IInputPort marker or configured use-case suffix, with loadable runtime types.",
-      "checks": "The effective public instance surface maps through the implemented IInputPort interface maps. Inherited and explicit implementations pass; unrelated-interface methods and public properties outside the contract fail. Constructors, object/ValueType methods and compiler-generated members are exempt; special-name property accessors alone are not exempt.",
+      "checks": "The effective public instance surface maps through the implemented IInputPort interface maps. Inherited and explicit implementations pass; unrelated-interface methods and public properties outside the contract fail (a property is reported once). Constructors, object/ValueType methods and compiler-generated members are exempt; special-name property accessors alone are not exempt. A use case selected by suffix only, without an input-port interface, has no permitted operation and is reported in full — implement the input port.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -1051,7 +1051,7 @@
     {
       "set": "naming",
       "id": "DCA-NAM-010",
-      "title": "Domain classes must not use technical suffixes (Helper, Util, Impl)",
+      "title": "Domain classes must not use technical suffixes (Helper, Util, Impl, Implementation)",
       "rationale": "Domain names come from the ubiquitous language - name services by their specialty, not by technical role",
       "selects": "Types in <module>.Domain of every module root.",
       "checks": "No name ends with Helper, Util, Utils, Impl or Implementation. Only these five suffixes are checked, only in domain namespaces - a *Service or *Factory in the domain is not reported, and an Impl in an adapter namespace is not checked. An empty selection passes.",
@@ -1143,8 +1143,8 @@
       "id": "DCA-NET-003",
       "title": "Use cases implement IUseCase<TIn,TOut>.ExecuteAsync(input, CancellationToken) returning Task<T>",
       "rationale": "The generic asynchronous input contract supports host cancellation",
-      "selects": "Concrete application operations selected by marker or suffix, plus concrete IUseCase<TIn,TOut> implementations anywhere under scan, with loadable runtime types.",
-      "checks": "An IUseCase<TIn,TOut> interface map supplies ExecuteAsync(input, CancellationToken) returning Task<T>. Explicit, inherited and ordinary implementations pass. A plain Task method without the generic contract fails; other public members are checked by USE-017, not counted here.",
+      "selects": "Concrete classes under scan implementing IUseCase<TIn,TOut> (directly, inherited or explicitly), plus application operations (marker or suffix) that declare a public ExecuteAsync without the generic contract, with loadable runtime types. A marker-only IInputPort implementation without ExecuteAsync is not selected.",
+      "checks": "Every IUseCase<TIn,TOut> interface map supplies ExecuteAsync(input, CancellationToken) returning Task<T>; explicit, inherited and ordinary implementations pass. An ExecuteAsync declared without the generic contract (plain Task, own signature) fails. Other public members are checked by USE-017, not counted here.",
       "implementation": "dotnet",
       "status": "enforced"
     },
