@@ -28,7 +28,10 @@
   </PropertyGroup>
 
   <ItemGroup Condition="'$(IsPackable)' != 'false'">
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" Condition="'$(GITHUB_ACTIONS)' == 'true'" />
+    <!-- Source Link needs no package: the SDK carries it since 8.0.100 and reads the properties above.
+         The Microsoft.SourceLink.GitHub 8.0.0 reference this replaced pulled Microsoft.Build.Tasks.Git 8.0.0,
+         which NuGet audit reports as a moderate vulnerability (GHSA-23fw-v26w-5fgq) - with warnings as errors
+         that failed restore in CI, where the reference was conditional and therefore invisible locally. -->
     <None Include="$(MSBuildThisFileDirectory)branding/icon.png" Pack="true" PackagePath="/" Visible="false" />
     <!-- Every published package carries the licence it is released under, next to the SPDX expression. -->
     <None Include="$(MSBuildThisFileDirectory)LICENSE" Pack="true" PackagePath="/" Visible="false" />

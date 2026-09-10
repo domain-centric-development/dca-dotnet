@@ -9,6 +9,13 @@ All notable changes to this package. Format: [Keep a Changelog](https://keepacha
 Documentation-only release: no type, signature or behaviour changed; the XML docs that ship in the package are what the
 knowledge catalog renders. Binary-compatible with 0.1.0.
 
+### Fixed
+
+- The build no longer references `Microsoft.SourceLink.GitHub` 8.0.0: the SDK carries Source Link since 8.0.100. That
+  package pulled `Microsoft.Build.Tasks.Git` 8.0.0, which NuGet audit reports as a moderate vulnerability
+  (GHSA-23fw-v26w-5fgq); with warnings as errors it failed `dotnet restore` in CI. The reference was conditional on
+  `GITHUB_ACTIONS`, so the failure was invisible locally. The packages keep their repository URL, commit and symbols.
+
 ### Changed
 
 - Documentation only (WP-30): `ITransactionBoundary` names a `DbContext` transaction and `TransactionScope` as
