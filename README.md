@@ -4,7 +4,7 @@
 Hexagonal Architecture and Clean Architecture. The .NET twin of [dca-java](https://github.com/domain-centric-development/dca-java):
 same building blocks, same rule ids.
 
-*Written with AI assistance — drafted mainly by Claude, reviewed and directed by the author since
+*Written with AI assistance — drafted mainly by Claude, reviewed and directed by Christoph Bloemer since
 2025. The architecture rules in this repository's build are part of how that work is verified.*
 
 | Package | What it is | Dependencies |
@@ -229,6 +229,10 @@ Without a local SDK, the same through Docker (Podman works too): `docker compose
 runs the Debug build and the tests with a cached package volume, `docker compose run --rm catalog`
 renders `rules.json`/`RULES.md`, and `docker build .` is the CI-style gate — the image only builds
 when build, tests and catalog succeed and then carries the `.nupkg` files and the catalog under `/out`.
+
+## Author
+
+**Christoph Bloemer** — [@chbloemer](https://github.com/chbloemer)
 
 ## License
 
