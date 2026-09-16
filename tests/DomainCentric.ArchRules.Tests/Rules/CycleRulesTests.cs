@@ -48,6 +48,18 @@ public sealed class CycleRulesTests
     [MemberData(nameof(RuleIds))]
     public void GoodFixturePasses(string id) => Rule(Good, id).Check(Arch(Good));
 
+    /// <summary>
+    /// The domain-model segment is read from the layout: with it renamed, the bad fixture's Domain.Model
+    /// namespaces are no longer sliced and the cycle between them is not seen.
+    /// </summary>
+    [Fact]
+    public void TheDomainModelSegmentComesFromTheLayout()
+    {
+        Assert.Throws<DcaRuleViolationException>(() => Rule(Bad, "DCA-CYC-001").Check(Arch(Bad)));
+        var renamed = DcaLayout.ForRootNamespace(Bad).WithModelSegment("Entities");
+        CycleRules.DomainPackagesFreeOfCycles(renamed).Check(DcaArchitecture.Load(renamed, typeof(CycleRulesTests).Assembly));
+    }
+
     [Theory]
     [MemberData(nameof(NegativeRuleIds))]
     public void BadFixtureFails(string id)

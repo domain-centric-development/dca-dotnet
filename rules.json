@@ -135,7 +135,7 @@
       "id": "DCA-HEX-006",
       "title": "Incoming port adapters must not depend directly on outgoing port adapters within the same context",
       "rationale": "Port adapters should communicate through application services, not directly (event consumers are the exception)",
-      "selects": "Types in <module>.Adapter.Incoming of every module root, excluding those below an Adapter.Incoming.Event namespace (event consumers).",
+      "selects": "Types in <module>.Adapter.Incoming of every module root, excluding those below the configured event-consumer segment (Adapter.Incoming.Event by default).",
       "checks": "No dependency on a type in <module>.Adapter.Outgoing of any module root. The reverse direction (an outgoing adapter using an incoming one) and dependencies between two incoming or two outgoing adapters are not checked. An empty selection passes.",
       "implementation": "dotnet",
       "status": "enforced"
@@ -145,8 +145,8 @@
       "id": "DCA-HEX-007",
       "title": "Incoming adapters must only access their own bounded context (except event consumers and Open Host Services)",
       "rationale": "Incoming adapters must only orchestrate use cases from their own bounded context - use integration events or the published api for cross-context integration",
-      "selects": "Per isolated module root - every module root except the shared kernel, declared a bounded context or not: types in <module>.Adapter.Incoming, excluding those below an Adapter.Incoming.Event namespace (event consumers). A module that is the only isolated module is skipped.",
-      "checks": "No dependency on any type in another isolated module root (<other> and below), its published Api and Events namespaces included. Dependencies on the shared kernel and on namespaces outside every module root are not checked. Findings of all modules are collected and reported together; a module without incoming adapters passes.",
+      "selects": "Per isolated module root - every module root except the shared kernel, declared a bounded context or not: types in <module>.Adapter.Incoming, excluding those below the configured event-consumer segment (Adapter.Incoming.Event by default). A module that is the only isolated module is skipped.",
+      "checks": "No dependency on a type in another isolated module root (<other> and below) unless that type lives in the other module's published namespaces <other>.Api or <other>.Events and below (segment names from the layout) - the same allow-list DCA-STR-006 applies to outgoing adapters. The other module's Domain, Application, Adapter and Infrastructure namespaces are internal and reported. Event consumers are exempt entirely. Dependencies on the shared kernel and on namespaces outside every module root are not checked. Findings of all modules are collected and reported together; a module without incoming adapters passes.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -216,7 +216,7 @@
       "title": "Aggregate Roots must not hold references to Repositories or other Output Ports",
       "rationale": "Aggregates are persistence-ignorant: use cases retrieve facts; external calculations belong in domain services over supplied snapshots. Review callback parameters manually; this field check cannot prove semantic responsibility",
       "selects": "Non-interface types below the root namespace assignable to IAggregateRoot, abstract ones included.",
-      "checks": "No field or property of the type - inherited and static ones included, record plumbing skipped - has a type assignable to IRepository or to any other IOutputPort. Only the member's own type is inspected; a port hidden in a generic type argument is not seen. A port passed as a method parameter is not a member and passes.",
+      "checks": "No instance field or property of the type - inherited ones included, static ones excluded, record plumbing skipped - has a type assignable to IRepository or to any other IOutputPort. Only the member's own type is inspected; a port hidden in a generic type argument is not seen. A port passed as a method parameter is not a member and passes.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -226,7 +226,7 @@
       "title": "Aggregate Roots must not have fields with other Aggregate Root types",
       "rationale": "Vernon's Aggregate Design Rule #2: reference other Aggregates by identity to keep aggregate boundaries and transactional consistency intact",
       "selects": "Non-interface types below the root namespace assignable to IAggregateRoot, abstract ones included.",
-      "checks": "No instance state, including inherited state, arrays and nested generic arguments, involves IAggregateRoot. Same-type references and interfaces extending the marker are included. Interfaces that do not extend the marker are invisible; references by id are valid.",
+      "checks": "No instance field or property - inherited ones included, static ones excluded - involves IAggregateRoot through its type, arrays or nested generic arguments. Same-type references and interfaces extending the marker are included. Interfaces that do not extend the marker are invisible; references by id are valid.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -571,7 +571,7 @@
       "id": "DCA-MAP-008",
       "title": "Anti-Corruption Layer: upstream contract types must stay inside the matching adapter",
       "rationale": "The ACL sits where the dependency crosses the boundary — outgoing adapters for synchronous API calls, incoming adapters for consumed events — and translates the upstream contract into the context's own model there",
-      "selects": "Every [Upstream] declaration with Translation AntiCorruptionLayer on the marker class of every namespace carrying [BoundedContext] whose Context names an existing bounded context, reading Via. Status is not consulted, so Planned declarations are checked too; declarations towards an unknown context are skipped.",
+      "selects": "Every [Upstream] declaration with Translation AntiCorruptionLayer and Status Implemented on the marker class of every namespace carrying [BoundedContext] whose Context names an existing bounded context, reading Via. Planned declarations and declarations towards an unknown context are skipped, as in DCA-MAP-007.",
       "checks": "No type below the declaring context's namespace outside the matching adapter depends on a type in the target context's channel namespace or below: the outgoing adapter (<context>.Adapter.Outgoing) for the Api channel, the incoming adapter (<context>.Adapter.Incoming) for the Events channel. Each declared interaction needs its own adapter class depending on that upstream channel and its own domain/application. Multiple upstream translators may share a package. Structure establishes a translation site, not translation quality.",
       "implementation": "dotnet",
       "status": "enforced"
@@ -581,7 +581,7 @@
       "id": "DCA-MAP-009",
       "title": "Conformist: upstream contract types must never reach the domain layer",
       "rationale": "Conformism does not suspend domain purity — the domain layer stays free of foreign contract types",
-      "selects": "Every [Upstream] declaration with Translation Conformist on the marker class of every namespace carrying [BoundedContext] whose Context names an existing bounded context, reading Via. Status is not consulted, so Planned declarations are checked too; declarations towards an unknown context are skipped.",
+      "selects": "Every [Upstream] declaration with Translation Conformist and Status Implemented on the marker class of every namespace carrying [BoundedContext] whose Context names an existing bounded context, reading Via. Planned declarations and declarations towards an unknown context are skipped, as in DCA-MAP-007.",
       "checks": "No type in the declaring context's domain layer (<context>.Domain and below) depends on a type in the target context's channel namespace (Api or Events per the layout) or below. Application and adapter types may use the upstream's contract types.",
       "implementation": "dotnet",
       "status": "enforced"
@@ -591,7 +591,7 @@
       "id": "DCA-MAP-010",
       "title": "External system contract types must respect the declared translation and interaction",
       "rationale": "An external system's contract types are confined to the adapter where the exchange crosses the boundary (ACL) or at least kept out of the domain (Conformist)",
-      "selects": "Every [ExternalUpstream] declaration on the marker class of every namespace carrying [BoundedContext] whose ContractNamespaces is not empty, reading Translation and Interaction. Status is not consulted. A declaration without ContractNamespaces (wire-level contract, no vendor SDK) is skipped - it only documents the relationship.",
+      "selects": "Every [ExternalUpstream] declaration with Status Implemented on the marker class of every namespace carrying [BoundedContext] whose ContractNamespaces is not empty, reading Translation and Interaction. Planned declarations are skipped, as in DCA-MAP-007. A declaration without ContractNamespaces (wire-level contract, no vendor SDK) is skipped too - it only documents the relationship.",
       "checks": "With AntiCorruptionLayer, no type below the declaring context's namespace outside the matching adapter - <context>.Adapter.Outgoing for Outbound, <context>.Adapter.Incoming for Inbound - depends on a type in any of the contract namespaces or below. With any other translation (Conformist), no type in <context>.Domain does. That the adapter actually translates the contract is not established.",
       "implementation": "dotnet",
       "status": "enforced"
@@ -1073,8 +1073,8 @@
       "id": "DCA-CYC-001",
       "title": "Domain Namespaces must not have cyclic dependencies (package-based slice discovery)",
       "rationale": "Domain model namespaces should have clear boundaries and no cycles (Acyclic Dependencies Principle)",
-      "selects": "One slice per module root, holding the types in <module>.Domain.Model of that module and below. A module root is the shortest namespace prefix whose next segment is a layer segment, so modules are found at any depth; types outside every module or outside Domain.Model are ignored.",
-      "checks": "The slices form no dependency cycle - no two modules' domain models depend on each other, directly or via further modules' domain models. Cycles between types inside one module's domain model do not count, and dependencies into other layers do not count. Fewer than two slices pass.",
+      "selects": "One slice per module root, holding the types in <module>.Domain.Model of that module and below (segment names from the layout). A module root is the shortest namespace prefix whose next segment is a layer segment, so modules are found at any depth; types outside every module or outside the domain-model namespace are ignored.",
+      "checks": "The slices form no dependency cycle - no two modules' domain models depend on each other, directly or via further modules' domain models. Slices are per module root, so a cycle between types inside one module's domain model is not detected here, and dependencies into other layers do not count. DCA-CYC-005 covers the application layer per operation; no rule slices the domain model within a module. Fewer than two slices pass.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -1084,7 +1084,7 @@
       "title": "Application Layer must not have cyclic dependencies (package-based slice discovery)",
       "rationale": "Application services should have clear boundaries and no cycles",
       "selects": "One slice per module root, holding the types in <module>.Application of that module and below (Application.Shared included); types outside every module or outside the application layer are ignored.",
-      "checks": "The slices form no dependency cycle between modules' application layers. Cycles between use cases or features inside one module do not count here (see DCA-CYC-005), nor do dependencies into domain or adapter types.",
+      "checks": "The slices form no dependency cycle between modules' application layers. Slices are per module root, so a cycle between use cases or features inside one module is not detected here - DCA-CYC-005 covers the application layer per operation - and dependencies into domain or adapter types do not count.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -1094,7 +1094,7 @@
       "title": "Outgoing Adapter Namespaces must not have cyclic dependencies",
       "rationale": "Outgoing adapters should have clear boundaries and no cycles",
       "selects": "One slice per module root, holding the types in <module>.Adapter.Outgoing of that module and below; everything else is ignored.",
-      "checks": "The slices form no dependency cycle between modules' outgoing adapters. Cycles inside one module's outgoing adapters and dependencies into other layers do not count.",
+      "checks": "The slices form no dependency cycle between modules' outgoing adapters. Slices are per module root, so a cycle inside one module's outgoing adapters is not detected here, and dependencies into other layers do not count. DCA-CYC-005 covers the application layer per operation; no rule slices the adapters within a module.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -1104,7 +1104,7 @@
       "title": "Incoming Adapter Namespaces must not have cyclic dependencies",
       "rationale": "Incoming adapters should have clear boundaries and no cycles",
       "selects": "One slice per module root, holding the types in <module>.Adapter.Incoming of that module and below; everything else is ignored.",
-      "checks": "The slices form no dependency cycle between modules' incoming adapters. Cycles inside one module's incoming adapters and dependencies into other layers do not count.",
+      "checks": "The slices form no dependency cycle between modules' incoming adapters. Slices are per module root, so a cycle inside one module's incoming adapters is not detected here, and dependencies into other layers do not count. DCA-CYC-005 covers the application layer per operation; no rule slices the adapters within a module.",
       "implementation": "dotnet",
       "status": "enforced"
     },

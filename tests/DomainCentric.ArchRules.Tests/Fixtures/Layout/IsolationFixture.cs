@@ -109,13 +109,37 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Layout.Isolation.Reporting.Appl
 namespace DomainCentric.ArchRules.Tests.Fixtures.Layout.Isolation.Reporting.Adapter.Incoming.Web
 {
     using Catalog.Api;
+    using Catalog.Domain.Model;
 
     /// <summary>
-    /// Forbidden: an incoming adapter of an <em>undeclared</em> module orchestrating another module
-    /// (DCA-HEX-007). Structural selection makes the undeclared module a subject here too.
+    /// Forbidden: an incoming adapter of an <em>undeclared</em> module reaching into another module's
+    /// internals (DCA-HEX-007). Structural selection makes the undeclared module a subject here too.
     /// </summary>
     public sealed class ReportController
     {
+        public string Report(Product product) => product.Sku;
+    }
+
+    /// <summary>
+    /// Allowed: an incoming adapter depending on another module's published Api namespace - the same
+    /// allow-list DCA-STR-006 grants outgoing adapters (DCA-HEX-007).
+    /// </summary>
+    public sealed class ReportApiController
+    {
         public string Report(ICatalogService catalog) => catalog.Describe("sku");
+    }
+}
+
+namespace DomainCentric.ArchRules.Tests.Fixtures.Layout.Isolation.Peer.Adapter.Incoming.Event
+{
+    using Catalog.Domain.Model;
+
+    /// <summary>
+    /// Exempt from DCA-HEX-007: an event consumer - the configured event-consumer segment of the incoming
+    /// adapters - may depend on another module. Renaming that segment on the layout withdraws the exemption.
+    /// </summary>
+    public sealed class CatalogChangedConsumer
+    {
+        public string On(Product product) => product.Sku;
     }
 }

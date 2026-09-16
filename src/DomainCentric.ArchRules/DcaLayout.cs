@@ -66,14 +66,18 @@ public sealed class DcaLayout
         string restControllerSuffix,
         IReadOnlyList<string> thirdPartyNamespacesAllowedInDomain,
         FrameworkTypes frameworkTypes,
-        IReadOnlyList<string>? operationContainers = null)
+        IReadOnlyList<string>? operationContainers = null,
+        string modelSegment = "Model",
+        string incomingEventSegment = "Event")
     {
         RootNamespace = RequireSegment(rootNamespace, nameof(rootNamespace));
         SharedKernelSegment = RequireSegment(sharedKernelSegment, nameof(sharedKernelSegment));
         DomainSegment = RequireSegment(domainSegment, nameof(domainSegment));
+        ModelSegment = RequireSegment(modelSegment, nameof(modelSegment));
         ApplicationSegment = RequireSegment(applicationSegment, nameof(applicationSegment));
         AdapterSegment = RequireSegment(adapterSegment, nameof(adapterSegment));
         IncomingSegment = RequireSegment(incomingSegment, nameof(incomingSegment));
+        IncomingEventSegment = RequireSegment(incomingEventSegment, nameof(incomingEventSegment));
         OutgoingSegment = RequireSegment(outgoingSegment, nameof(outgoingSegment));
         InfrastructureSegment = RequireSegment(infrastructureSegment, nameof(infrastructureSegment));
         ApiSegment = RequireSegment(apiSegment, nameof(apiSegment));
@@ -127,9 +131,17 @@ public sealed class DcaLayout
     public string RootNamespace { get; }
     public string SharedKernelSegment { get; }
     public string DomainSegment { get; }
+
+    /// <summary>Segment of the domain layer that holds the domain model — aggregates, entities, value objects (<c>Model</c> by default).</summary>
+    public string ModelSegment { get; }
+
     public string ApplicationSegment { get; }
     public string AdapterSegment { get; }
     public string IncomingSegment { get; }
+
+    /// <summary>Segment of the incoming adapters that holds the event consumers (<c>Event</c> by default) — the one kind of incoming adapter the adapter-isolation rules exempt.</summary>
+    public string IncomingEventSegment { get; }
+
     public string OutgoingSegment { get; }
     public string InfrastructureSegment { get; }
 
@@ -179,12 +191,18 @@ public sealed class DcaLayout
 
     public DcaLayout WithDomainSegment(string value) => Copy(domain: value);
 
+    /// <summary>Segment of the domain model below the domain layer, e.g. <c>Model</c> (default) or <c>Entities</c>; the domain-model rules and the domain cycle rule select <c>&lt;Module&gt;.Domain.&lt;Model&gt;</c>.</summary>
+    public DcaLayout WithModelSegment(string value) => Copy(model: value);
+
     public DcaLayout WithApplicationSegment(string value) => Copy(application: value);
 
     public DcaLayout WithAdapterSegment(string value) => Copy(adapter: value);
 
     /// <summary>Name of the incoming (driving/primary) adapter namespace segment — <c>In</c> in some projects.</summary>
     public DcaLayout WithIncomingSegment(string value) => Copy(incoming: value);
+
+    /// <summary>Segment of the event consumers below the incoming adapters, e.g. <c>Event</c> (default) or <c>Listener</c>; types below <c>&lt;Module&gt;.Adapter.Incoming.&lt;Event&gt;</c> are exempt from the adapter-isolation rules.</summary>
+    public DcaLayout WithIncomingEventSegment(string value) => Copy(incomingEvent: value);
 
     /// <summary>Name of the outgoing (driven/secondary) adapter namespace segment — <c>Out</c> in some projects.</summary>
     public DcaLayout WithOutgoingSegment(string value) => Copy(outgoing: value);
@@ -243,7 +261,9 @@ public sealed class DcaLayout
         string? restControllerSuffix = null,
         IReadOnlyList<string>? thirdParty = null,
         FrameworkTypes? frameworkTypes = null,
-        IReadOnlyList<string>? operationContainers = null) =>
+        IReadOnlyList<string>? operationContainers = null,
+        string? model = null,
+        string? incomingEvent = null) =>
         new(
             RootNamespace,
             sharedKernel ?? SharedKernelSegment,
@@ -260,7 +280,9 @@ public sealed class DcaLayout
             restControllerSuffix ?? RestControllerSuffix,
             thirdParty ?? ThirdPartyNamespacesAllowedInDomain,
             frameworkTypes ?? FrameworkTypes,
-            operationContainers ?? OperationContainers);
+            operationContainers ?? OperationContainers,
+            model ?? ModelSegment,
+            incomingEvent ?? IncomingEventSegment);
 
     // ---------------------------------------------------------------------------------------------
     // Derived namespace names and patterns
@@ -279,7 +301,7 @@ public sealed class DcaLayout
     public string SharedKernelDomainPattern => Below($"{SharedKernelNamespace}.{DomainSegment}");
 
     /// <summary>Pattern for <c>Root.SharedKernel.Domain.Model</c> and below.</summary>
-    public string SharedKernelDomainModelPattern => Below($"{SharedKernelNamespace}.{DomainSegment}.Model");
+    public string SharedKernelDomainModelPattern => Below($"{SharedKernelNamespace}.{DomainSegment}.{ModelSegment}");
 
     /// <summary>Pattern for <c>Root.Infrastructure</c> and below.</summary>
     public string InfrastructurePattern => Below(InfrastructureNamespace);
@@ -288,7 +310,7 @@ public sealed class DcaLayout
     public string DomainPattern => Below($"{RootNamespace}.{Segment}.{DomainSegment}");
 
     /// <summary>Pattern for <c>Root.*.Domain.Model</c> and below.</summary>
-    public string DomainModelPattern => Below($"{RootNamespace}.{Segment}.{DomainSegment}.Model");
+    public string DomainModelPattern => Below($"{RootNamespace}.{Segment}.{DomainSegment}.{ModelSegment}");
 
     /// <summary>Pattern for <c>Root.*.Application</c> and below.</summary>
     public string ApplicationPattern => Below($"{RootNamespace}.{Segment}.{ApplicationSegment}");
@@ -309,7 +331,13 @@ public sealed class DcaLayout
 
     public string DomainPatternOf(string contextNamespace) => Below($"{contextNamespace}.{DomainSegment}");
 
-    public string DomainModelPatternOf(string contextNamespace) => Below($"{contextNamespace}.{DomainSegment}.Model");
+    public string DomainModelPatternOf(string contextNamespace) => Below($"{contextNamespace}.{DomainSegment}.{ModelSegment}");
+
+    /// <summary><c>Root.Cart.Domain.Model</c> — a module's domain-model namespace (plain, no pattern).</summary>
+    public string DomainModelNamespaceOf(string contextNamespace) => $"{contextNamespace}.{DomainSegment}.{ModelSegment}";
+
+    /// <summary>ArchUnit's <c>..Adapter.Incoming.Event..</c>: the event consumers of any module, at any depth; every segment from this layout.</summary>
+    public string IncomingEventAdapterPattern => AnySegmentPath($"{AdapterSegment}.{IncomingSegment}.{IncomingEventSegment}");
 
     public string ApplicationPatternOf(string contextNamespace) => Below($"{contextNamespace}.{ApplicationSegment}");
 

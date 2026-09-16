@@ -122,7 +122,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 var violations = new List<string>();
                 foreach (var aggregate in ConcreteTypesAssignableTo(arch, typeof(IAggregateRoot)))
                 {
-                    foreach (var member in DataMembers(arch, aggregate))
+                    foreach (var member in InstanceDataMembers(arch, aggregate))
                     {
                         var fieldType = member.Type;
                         if (IsAssignableTo(arch, fieldType, typeof(IRepository)) || IsAssignableTo(arch, fieldType, typeof(IOutputPort)))
@@ -140,8 +140,8 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 "Non-interface types below the root namespace assignable to IAggregateRoot, "
                 + "abstract ones included.")
             .Checking(
-                "No field or property of the type - inherited and static ones included, "
-                + "record plumbing skipped - has a type assignable to IRepository or to any "
+                "No instance field or property of the type - inherited ones included, static ones "
+                + "excluded, record plumbing skipped - has a type assignable to IRepository or to any "
                 + "other IOutputPort. Only the member's own type is inspected; a port hidden in "
                 + "a generic type argument is not seen. A port passed as a method parameter is "
                 + "not a member and passes.");
@@ -157,7 +157,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 var violations = new List<string>();
                 foreach (var aggregate in ConcreteTypesAssignableTo(arch, typeof(IAggregateRoot)))
                 {
-                    foreach (var member in DataMembers(arch, aggregate))
+                    foreach (var member in InstanceDataMembers(arch, aggregate))
                     {
                         if (IsConcreteAggregateRoot(arch, member.Type))
                         {
@@ -180,7 +180,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 "Non-interface types below the root namespace assignable to IAggregateRoot, "
                 + "abstract ones included.")
             .Checking(
-            "No instance state, including inherited state, arrays and nested generic arguments, involves IAggregateRoot. Same-type references and interfaces extending the marker are included. Interfaces that do not extend the marker are invisible; references by id are valid." );
+            "No instance field or property - inherited ones included, static ones excluded - involves IAggregateRoot through its type, arrays or nested generic arguments. Same-type references and interfaces extending the marker are included. Interfaces that do not extend the marker are invisible; references by id are valid.");
 
     // ---------------------------------------------------------------------------------------------
     // Entity pattern
@@ -917,14 +917,18 @@ public sealed class TacticalPatternRules : IDcaRuleSet
             switch (member)
             {
                 case FieldMember field when !field.IsCompilerGenerated && !field.Name.Contains("k__BackingField", StringComparison.Ordinal):
-                    yield return new DataMember(field.Name, field.Type, ElementTypes(arch, runtime, field.Name, field.Type, field.GenericArguments));
+                    yield return new DataMember(field.Name, field.Type, ElementTypes(arch, runtime, field.Name, field.Type, field.GenericArguments), field.IsStatic == true);
                     break;
                 case PropertyMember property when !property.IsCompilerGenerated && property.Name != "EqualityContract":
-                    yield return new DataMember(property.Name, property.Type, ElementTypes(arch, runtime, property.Name, property.Type, property.GenericArguments));
+                    yield return new DataMember(property.Name, property.Type, ElementTypes(arch, runtime, property.Name, property.Type, property.GenericArguments), property.IsStatic == true);
                     break;
             }
         }
     }
+
+    /// <summary>The instance members of <see cref="DataMembers"/>: static fields and properties carry no aggregate state.</summary>
+    private static IEnumerable<DataMember> InstanceDataMembers(DcaArchitecture arch, IType type) =>
+        DataMembers(arch, type).Where(m => !m.IsStatic);
 
     private static IReadOnlyList<IType> ElementTypes(DcaArchitecture arch, Type? runtime, string memberName, IType memberType, IEnumerable<GenericArgument> genericArguments)
     {
@@ -1111,5 +1115,5 @@ public sealed class TacticalPatternRules : IDcaRuleSet
     private static string ContainsDescription(IType owner, DataMember member, IType element) =>
         $"{owner.FullName} has field '{member.Name}' containing {element.FullName}";
 
-    private sealed record DataMember(string Name, IType Type, IReadOnlyList<IType> ElementTypes);
+    private sealed record DataMember(string Name, IType Type, IReadOnlyList<IType> ElementTypes, bool IsStatic = false);
 }

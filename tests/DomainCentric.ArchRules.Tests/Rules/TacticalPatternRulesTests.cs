@@ -9,6 +9,7 @@ public sealed class TacticalPatternRulesTests
 {
     private const string Good = "DomainCentric.ArchRules.Tests.Fixtures.Tactical.Good";
     private const string Bad = "DomainCentric.ArchRules.Tests.Fixtures.Tactical.Bad";
+    private const string Statics = "DomainCentric.ArchRules.Tests.Fixtures.Tactical.Statics";
 
     private static readonly IReadOnlyDictionary<string, string> NoNegativeFixture = new Dictionary<string, string>();
 
@@ -46,6 +47,12 @@ public sealed class TacticalPatternRulesTests
         var ex = Assert.Throws<DcaRuleViolationException>(() => Rule(Bad, id).Check(Arch(Bad)));
         Assert.False(string.IsNullOrWhiteSpace(ex.Message));
     }
+
+    /// <summary>DCA-TAC-002 and DCA-TAC-003 inspect instance members only.</summary>
+    [Theory]
+    [InlineData("DCA-TAC-002")]
+    [InlineData("DCA-TAC-003")]
+    public void StaticMembersCarryNoAggregateState(string id) => Rule(Statics, id).Check(Arch(Statics));
 
     [Theory]
     [InlineData("DCA-TAC-003", "Order", "LinkedOrder")]

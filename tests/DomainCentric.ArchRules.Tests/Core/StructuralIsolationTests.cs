@@ -69,6 +69,37 @@ public sealed class StructuralIsolationTests
         Assert.Contains(FailuresOf("DCA-HEX-007"), m => m.Contains("ReportController"));
 
     [Fact]
+    public void AnIncomingAdapterMayUseAForeignApiAndAnEventConsumerAnything()
+    {
+        var hex007 = FailuresOf("DCA-HEX-007");
+        Assert.DoesNotContain(hex007, m => m.Contains("ReportApiController"));
+        Assert.DoesNotContain(hex007, m => m.Contains("CatalogChangedConsumer"));
+    }
+
+    /// <summary>The published segments are a layout setting for incoming adapters as well.</summary>
+    [Fact]
+    public void TheIncomingAllowListComesFromTheLayout()
+    {
+        var message = FailureOf(DcaLayout.ForRootNamespace(Root).WithApiSegment("Contract"), "DCA-HEX-007");
+        Assert.Contains("ReportApiController", message, System.StringComparison.Ordinal);
+    }
+
+    /// <summary>The event-consumer exemption is a layout setting, not a hard-coded namespace name.</summary>
+    [Fact]
+    public void TheEventConsumerExemptionComesFromTheLayout()
+    {
+        var message = FailureOf(DcaLayout.ForRootNamespace(Root).WithIncomingEventSegment("Listener"), "DCA-HEX-007");
+        Assert.Contains("CatalogChangedConsumer", message, System.StringComparison.Ordinal);
+    }
+
+    private static string FailureOf(DcaLayout layout, string ruleId)
+    {
+        var arch = Arch(layout);
+        var rule = DcaRules.All(layout).Single(r => r.Id == ruleId);
+        return Assert.Throws<DcaRuleViolationException>(() => rule.Check(arch)).Message;
+    }
+
+    [Fact]
     public void TheDomainLayerMayNotDependOnAnotherModuleNotEvenItsApi() =>
         Assert.Contains(FailuresOf("DCA-STR-004"), m => m.Contains("PeerListing"));
 

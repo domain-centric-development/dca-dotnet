@@ -4,6 +4,20 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+**What can turn a green build red:**
+
+- `DCA-HEX-007` now follows its title: an incoming adapter may depend on another module's published `Api`/`Events`
+  namespaces (the allow-list `DCA-STR-006` grants outgoing adapters); only the other module's internals are reported.
+  Event consumers stay exempt.
+- `DCA-MAP-008`, `DCA-MAP-009` and `DCA-MAP-010` skip declarations with `Status = Planned`, as `DCA-MAP-007` does;
+  `DCA-MAP-011` keeps counting a Planned declaration as declared.
+- `DCA-TAC-002` and `DCA-TAC-003` inspect instance fields and properties only (inherited ones included, static ones
+  excluded); both `Checks` texts say so.
+- `DCA-CYC-001..004`: the `Checks` texts state the limit - slices are per module root, a cycle inside one module's
+  layer is not detected there, `DCA-CYC-005` covers the application layer per operation. No code change.
+- Two more layout segments: `WithModelSegment` (default `Model`) and `WithIncomingEventSegment` (default `Event`).
+  `DCA-CYC-001` and the domain-model patterns read the first, the event-consumer exemption of `DCA-HEX-006` and
+  `DCA-HEX-007` the second; neither is hard-coded any more.
 - `DCA-ONI-002`: `Checks` now states, as the Java twin does, that the shared kernel is allowed only when it is a
   module root with a `Domain` layer of its own; no behaviour change.
 - `DCA-STR-007`: a test proves that a renamed Events segment (`WithEventsSegment`) is honoured; the rule has read the

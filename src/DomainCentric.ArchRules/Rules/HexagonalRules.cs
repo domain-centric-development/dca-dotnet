@@ -51,9 +51,8 @@ public sealed class HexagonalRules : IDcaRuleSet
     /// <summary>The layout this rule set was built for.</summary>
     public DcaLayout Layout { get; }
 
-    /// <summary>Pattern of event consumers, which may depend on other contexts' integration events.</summary>
-    private string EventConsumerPattern() =>
-        DcaLayout.AnySegmentPath($"{Layout.AdapterSegment}.{Layout.IncomingSegment}.Event");
+    /// <summary>Pattern of event consumers - the incoming adapters that react to other modules' integration events; every segment comes from the layout.</summary>
+    private string EventConsumerPattern() => Layout.IncomingEventAdapterPattern;
 
     /// <summary>Regular expression matching any of the given namespace patterns.</summary>
     internal static string AnyOf(IEnumerable<string> patterns) => DcaLayout.AnyOf(patterns);
@@ -161,7 +160,7 @@ public sealed class HexagonalRules : IDcaRuleSet
                 .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllOutgoingAdapterPatterns())))
         .Selecting(
             "Types in <module>.Adapter.Incoming of every module root, excluding those"
-                + " below an Adapter.Incoming.Event namespace (event consumers).")
+                + " below the configured event-consumer segment (Adapter.Incoming.Event by default).")
         .Checking(
             "No dependency on a type in <module>.Adapter.Outgoing of any module root. The"
                 + " reverse direction (an outgoing adapter using an incoming one) and dependencies"
@@ -171,6 +170,8 @@ public sealed class HexagonalRules : IDcaRuleSet
     /// <summary>
     /// DCA-HEX-007. Structural, over every module that owns a DCA layer (<see cref="DcaArchitecture.IsolatedModuleRoots"/>),
     /// declared as a bounded context or not — so an undeclared module can neither reach out nor be reached into.
+    /// The allow-list is the same namespace convention DCA-STR-006 applies to outgoing adapters: another module's
+    /// published Api and Events namespaces are open, everything else in it is internal.
     /// </summary>
     public IDcaRule IncomingAdaptersStayInOwnContext()
     {
@@ -193,10 +194,12 @@ public sealed class HexagonalRules : IDcaRuleSet
                         continue;
                     }
 
+                    // Foreign internals = anything in another module except its published Api/Events namespaces.
+                    var internals = "(?!" + AnyOf(arch.PublishedPatternsExcluding(module)) + ")(?:" + AnyOf(otherModules) + ")";
                     perModule.Add(
                         Types().That().ResideInNamespaceMatching(Layout.IncomingAdapterPatternOf(module))
                             .And().DoNotResideInNamespaceMatching(EventConsumerPattern())
-                            .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(AnyOf(otherModules))
+                            .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(internals)
                             .Because("Incoming adapters in module '" + arch.ContextName(module)
                                 + "' must only orchestrate use cases from their own module - use integration events or the published api for cross-context integration"));
                 }
@@ -206,14 +209,17 @@ public sealed class HexagonalRules : IDcaRuleSet
             .Selecting(
                 "Per isolated module root - every module root except the shared kernel, declared"
                 + " a bounded context or not: types in <module>.Adapter.Incoming, excluding"
-                + " those below an Adapter.Incoming.Event namespace (event consumers). A module that"
-                + " is the only isolated module is skipped.")
+                + " those below the configured event-consumer segment (Adapter.Incoming.Event by"
+                + " default). A module that is the only isolated module is skipped.")
             .Checking(
-                "No dependency on any type in another isolated module root (<other> and below), its"
-                + " published Api and Events namespaces included. Dependencies on the shared kernel"
-                + " and on namespaces outside every module root are not checked. Findings of all"
-                + " modules are collected and reported together; a module without incoming adapters"
-                + " passes.");
+                "No dependency on a type in another isolated module root (<other> and below) unless"
+                + " that type lives in the other module's published namespaces <other>.Api or"
+                + " <other>.Events and below (segment names from the layout) - the same allow-list"
+                + " DCA-STR-006 applies to outgoing adapters. The other module's Domain, Application,"
+                + " Adapter and Infrastructure namespaces are internal and reported. Event consumers"
+                + " are exempt entirely. Dependencies on the shared kernel and on namespaces outside"
+                + " every module root are not checked. Findings of all modules are collected and"
+                + " reported together; a module without incoming adapters passes.");
     }
 
     public IDcaRule RepositoryClassesResideInOutgoingAdapter() =>

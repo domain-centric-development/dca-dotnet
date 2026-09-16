@@ -89,6 +89,8 @@ DcaLayout.ForRootNamespace("Acme.Shop")
     .WithIncomingSegment("In")                 // Adapter.In instead of Adapter.Incoming
     .WithOutgoingSegment("Out")
     .WithApiSegment("Contract")                // published sync contract (default: Api); events: WithEventsSegment
+    .WithModelSegment("Entities")              // Domain.Entities instead of Domain.Model
+    .WithIncomingEventSegment("Listener")      // event consumers under Adapter.Incoming.Listener (default: Event)
     .WithUseCaseSuffix("ApplicationService")
     .WithRestControllerSuffix("Endpoint")
     .AllowingInDomain("NodaTime")              // extra namespaces allowed in the domain

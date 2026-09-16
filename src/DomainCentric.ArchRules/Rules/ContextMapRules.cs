@@ -352,7 +352,8 @@ public sealed class ContextMapRules : IDcaRuleSet
                     var source = ShortName(arch, ns);
                     foreach (var u in arch.NamespaceAttributes<UpstreamAttribute>(ns))
                     {
-                        if (u.Translation != Translation.AntiCorruptionLayer || !namespacesByName.TryGetValue(u.Context, out var targetNs))
+                        if (u.Translation != Translation.AntiCorruptionLayer || u.Status != UpstreamStatus.Implemented
+                            || !namespacesByName.TryGetValue(u.Context, out var targetNs))
                         {
                             continue;
                         }
@@ -380,11 +381,10 @@ public sealed class ContextMapRules : IDcaRuleSet
                 DcaRule.Fail("Anti-Corruption Layer: upstream contract types must stay inside the matching adapter", violations);
             })
         .Selecting(
-            "Every [Upstream] declaration with Translation AntiCorruptionLayer on the"
-                + " marker class of every namespace carrying [BoundedContext] whose Context"
-                + " names an existing bounded context, reading Via. Status is not"
-                + " consulted, so Planned declarations are checked too; declarations towards an"
-                + " unknown context are skipped.")
+            "Every [Upstream] declaration with Translation AntiCorruptionLayer and Status Implemented"
+                + " on the marker class of every namespace carrying [BoundedContext] whose Context"
+                + " names an existing bounded context, reading Via. Planned declarations and"
+                + " declarations towards an unknown context are skipped, as in DCA-MAP-007.")
         .Checking(
             "No type below the declaring context's namespace outside the matching adapter"
                 + " depends on a type in the target context's channel namespace or below:"
@@ -407,7 +407,8 @@ public sealed class ContextMapRules : IDcaRuleSet
                     var source = ShortName(arch, ns);
                     foreach (var u in arch.NamespaceAttributes<UpstreamAttribute>(ns))
                     {
-                        if (u.Translation != Translation.Conformist || !namespacesByName.TryGetValue(u.Context, out var targetNs))
+                        if (u.Translation != Translation.Conformist || u.Status != UpstreamStatus.Implemented
+                            || !namespacesByName.TryGetValue(u.Context, out var targetNs))
                         {
                             continue;
                         }
@@ -429,11 +430,10 @@ public sealed class ContextMapRules : IDcaRuleSet
                 DcaRule.Fail("Conformist: upstream contract types must never reach the domain layer", violations);
             })
         .Selecting(
-            "Every [Upstream] declaration with Translation Conformist on the"
+            "Every [Upstream] declaration with Translation Conformist and Status Implemented on the"
                 + " marker class of every namespace carrying [BoundedContext] whose Context"
-                + " names an existing bounded context, reading Via. Status is not"
-                + " consulted, so Planned declarations are checked too; declarations towards an"
-                + " unknown context are skipped.")
+                + " names an existing bounded context, reading Via. Planned declarations and"
+                + " declarations towards an unknown context are skipped, as in DCA-MAP-007.")
         .Checking(
             "No type in the declaring context's domain layer (<context>.Domain and below)"
                 + " depends on a type in the target context's channel namespace (Api or"
@@ -457,7 +457,7 @@ public sealed class ContextMapRules : IDcaRuleSet
                     var source = ShortName(arch, ns);
                     foreach (var e in arch.NamespaceAttributes<ExternalUpstreamAttribute>(ns))
                     {
-                        if (e.ContractNamespaces.Length == 0)
+                        if (e.ContractNamespaces.Length == 0 || e.Status != UpstreamStatus.Implemented)
                         {
                             continue;
                         }
@@ -493,11 +493,11 @@ public sealed class ContextMapRules : IDcaRuleSet
                 DcaRule.Fail("External system contract types must respect the declared translation and interaction", violations);
             })
         .Selecting(
-            "Every [ExternalUpstream] declaration on the marker class of every namespace"
-                + " carrying [BoundedContext] whose ContractNamespaces is not empty, reading"
-                + " Translation and Interaction. Status is not consulted. A declaration"
-                + " without ContractNamespaces (wire-level contract, no vendor SDK) is skipped"
-                + " - it only documents the relationship.")
+            "Every [ExternalUpstream] declaration with Status Implemented on the marker class of"
+                + " every namespace carrying [BoundedContext] whose ContractNamespaces is not empty,"
+                + " reading Translation and Interaction. Planned declarations are skipped, as in"
+                + " DCA-MAP-007. A declaration without ContractNamespaces (wire-level contract, no"
+                + " vendor SDK) is skipped too - it only documents the relationship.")
         .Checking(
             "With AntiCorruptionLayer, no type below the declaring context's namespace"
                 + " outside the matching adapter - <context>.Adapter.Outgoing for Outbound,"

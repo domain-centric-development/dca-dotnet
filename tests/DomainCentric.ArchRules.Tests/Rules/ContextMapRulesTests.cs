@@ -10,6 +10,7 @@ public sealed class ContextMapRulesTests
     private const string Good = "DomainCentric.ArchRules.Tests.Fixtures.ContextMap.Good";
     private const string Bad = "DomainCentric.ArchRules.Tests.Fixtures.ContextMap.Bad";
     private const string Nested = "DomainCentric.ArchRules.Tests.Fixtures.ContextMap.Nested";
+    private const string Planned = "DomainCentric.ArchRules.Tests.Fixtures.ContextMap.Planned";
 
     private static readonly string[] ExpectedIds =
     {
@@ -50,6 +51,15 @@ public sealed class ContextMapRulesTests
         var set = Set(Good);
         set.Rules.Single(r => r.Id == id).Check(Arch(Good));
     }
+
+    /// <summary>DCA-MAP-008/009/010 skip Planned declarations like DCA-MAP-007; DCA-MAP-011 counts them as declared.</summary>
+    [Theory]
+    [InlineData("DCA-MAP-007")]
+    [InlineData("DCA-MAP-008")]
+    [InlineData("DCA-MAP-009")]
+    [InlineData("DCA-MAP-010")]
+    [InlineData("DCA-MAP-011")]
+    public void PlannedDeclarationsAreNotEnforced(string id) => Set(Planned).Rules.Single(r => r.Id == id).Check(Arch(Planned));
 
     [Theory]
     [MemberData(nameof(NegativeRuleIds))]
