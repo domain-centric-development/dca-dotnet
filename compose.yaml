@@ -2,10 +2,15 @@
 # docker compose run --rm test       → dotnet test (Debug — architecture tests need it)
 # docker compose run --rm catalog    → renders rules.json / RULES.md into the checkout
 # docker compose run --rm dotnet <args>  → any dotnet command, packages cached in a volume
-# docker compose build               → CI-style check: the image builds only if everything is green
+# docker compose --profile ci build  → CI-style check: the image builds only if everything is green
+#
+# The tool services sit in the `tools` profile and the image in `ci`: `docker compose up` and
+# `docker compose build` start and build nothing on their own, and `run --rm <tool>` pulls only the
+# SDK image. Each tool service is spelled out in full — podman-compose 1.6 cannot resolve `extends`.
 services:
   dotnet:
     image: mcr.microsoft.com/dotnet/sdk:10.0
+    profiles: [tools]
     working_dir: /workspace
     volumes:
       - .:/workspace
@@ -16,15 +21,39 @@ services:
     command: ["build"]
 
   build:
-    extends: dotnet
+    image: mcr.microsoft.com/dotnet/sdk:10.0
+    profiles: [tools]
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+      - nuget-cache:/root/.nuget/packages
+    environment:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+    entrypoint: ["dotnet"]
     command: ["build"]
 
   test:
-    extends: dotnet
+    image: mcr.microsoft.com/dotnet/sdk:10.0
+    profiles: [tools]
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+      - nuget-cache:/root/.nuget/packages
+    environment:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+    entrypoint: ["dotnet"]
     command: ["test"]
 
   catalog:
-    extends: dotnet
+    image: mcr.microsoft.com/dotnet/sdk:10.0
+    profiles: [tools]
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+      - nuget-cache:/root/.nuget/packages
+    environment:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+    entrypoint: ["dotnet"]
     command: ["run", "--project", "tools/RulesCatalog", "--", "."]
 
   check:
