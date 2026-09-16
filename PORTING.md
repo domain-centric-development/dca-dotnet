@@ -40,6 +40,14 @@ Facts verified against 0.13.4: an empty selection is reported as failed by ArchU
 **Verify every method you use compiles** — build early, build often. Namespace matching is regex only (`ResideInNamespaceMatching`); a plain `ResideInNamespace(fullName)` matches the exact namespace and, apparently, its children — prefer the regex forms from `DcaLayout`.
 Domain model: `Class` has `BaseClass`, `ImplementedInterfaces`, `Members` (`FieldMember` / `PropertyMember` (Getter/Setter/SetterVisibility) / `MethodMember` (Parameters, ReturnType, Visibility, `MethodForm`: Constructor/Getter/Setter/Normal)), `Dependencies` (`ITypeDependency.Target`, `TargetGenericArguments`), `Visibility`, `IsRecord`, `IsSealed`, `IsAbstract`, `AttributeInstances`, `GenericParameters`. Extension methods in `ArchUnitNET.Domain.Extensions` (`IsAssignableTo(string fullName)`, `ImplementsInterface(...)`, `GetFieldMembers()`, `GetMethodMembers()`, `GetPropertyMembers()`, `HasDependency`, …). Generic full names look like `DomainCentric.BuildingBlocks.Ddd.Tactical.IAggregateRoot`2` — prefer the non-generic base interfaces for assignability.
 
+**The isolation the rules enforce is logical, not physical.** A consumer typically has one project per bounded
+context, and each of those references `Microsoft.AspNetCore.App` (controllers live inside the context) and the
+sibling projects it integrates with — the .NET sample does exactly that. The compiler accepts a domain class that
+uses an MVC type or a sibling's repository; only the rule catalog stops it (`DCA-ONI-002` for the domain's
+dependencies, `DCA-STR-006` for the cross-context seam). Write every rule against namespaces, never against
+assembly or project boundaries: a rule that relied on a project boundary would pass on a consumer that keeps all
+contexts in one project and fail to say anything on one that splits every layer into its own project.
+
 ## Rule shape and ids
 
 Each Java rule becomes one `IDcaRule` **with the same id, title and rationale** (copy them from `RULES.md`; adapt only language-specific words: "package" → "namespace", "AggregateRoot<T, ID>" → "IAggregateRoot", "records" stay (C# has records), "@Service"/Spring/JPA → see n/a rules, "final" → "sealed"/"readonly", "getter/setter" → "property setter", "Impl" fine). Keep the doctrine wording otherwise.
