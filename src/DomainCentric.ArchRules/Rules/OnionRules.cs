@@ -98,7 +98,9 @@ public sealed class OnionRules : IDcaRuleSet
                 + "plus whatever the layout adds) and, of the building blocks, only Ddd.Tactical "
                 + "and Hexagonal.Ports.Out - a building-blocks entry in the allow-list is ignored "
                 + "here, so the strategic annotations and the input ports are not allowed in the "
-                + "domain. A dependency on any other namespace is reported, each distinct pair once.");
+                + "domain. The shared kernel is not on the list either, unless it is a module root "
+                + "with a Domain layer of its own. A dependency on any other namespace is reported, "
+                + "each distinct pair once.");
     }
 
     /// <summary>Domain-model metadata is classified by configured prohibited roles.</summary>

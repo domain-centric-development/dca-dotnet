@@ -4,6 +4,11 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+- `DCA-ONI-002`: `Checks` now states, as the Java twin does, that the shared kernel is allowed only when it is a
+  module root with a `Domain` layer of its own; no behaviour change.
+- `DCA-STR-007`: a test proves that a renamed Events segment (`WithEventsSegment`) is honoured; the rule has read the
+  segment from the layout since 0.4.0, nothing in it is hard-coded.
+
 ## [0.4.0] - 2026-09-10
 
 **Migration from 0.3.0.** Depends on `DomainCentric.BuildingBlocks` 0.1.1 (documentation only). Before 1.0 a minor

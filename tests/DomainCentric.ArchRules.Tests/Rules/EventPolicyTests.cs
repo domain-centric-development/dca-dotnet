@@ -22,6 +22,13 @@ public class EventPolicyTests {
   Assert.Contains("Free.DeleteUseCase.ExecuteAsync deletes an aggregate without",message);
   Assert.DoesNotContain("BoundedSaveUseCase",message);Assert.DoesNotContain("AfterEmptyUseCase",message);
  }
+ [Fact] public void IntegrationEventPlacementFollowsTheConfiguredEventsSegment() {
+  // With the default layout the contract in Module.Events passes; renaming the Events segment makes the same
+  // type misplaced - the segment is read from the layout, not hard-coded.
+  var arch=Arch();Assert.DoesNotContain("Exported",Assert.ThrowsAny<System.Exception>(()=>Rule(arch,"DCA-STR-007").Check(arch)).Message);
+  var renamed=DcaArchitecture.Load(DcaLayout.ForRootNamespace(Root).WithEventsSegment("Contracts"),typeof(EventPolicyTests).Assembly);
+  Assert.Contains("Exported",Assert.ThrowsAny<System.Exception>(()=>Rule(renamed,"DCA-STR-007").Check(renamed)).Message);
+ }
  [Fact] public void BusinessVersionIsAllowedButAdapterContractsAreNot() {
   var arch=Arch();Rule(arch,"DCA-ADV-006").Check(arch);Rule(arch,"DCA-ADV-007").Check(arch);
   Assert.Contains("Misplaced",Assert.ThrowsAny<System.Exception>(()=>Rule(arch,"DCA-STR-007").Check(arch)).Message);
