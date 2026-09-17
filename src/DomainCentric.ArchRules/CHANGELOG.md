@@ -10,8 +10,8 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
   and the outgoing adapters that depends on one of the configured `TransactionApiTypes` (new `FrameworkTypes` role;
   the preset lists `CommittableTransaction`, `IDbTransaction`, `DbTransaction` and the persistence library's
   `IDbContextTransaction`; `TransactionScope` stays the positional setting beside it) or on `ITransactionBoundary`
-  is reported. Implementations of `ITransactionBoundary` and the global infrastructure namespace (the composition
-  root wiring the transaction handle) are the exempt sites.
+  is reported. Implementations of `ITransactionBoundary` and the global and shared-kernel infrastructure namespaces
+  (the composition root wiring the transaction handle and its plumbing) are the exempt sites.
 - `DCA-HEX-007` title and texts now describe the code: "Incoming adapters depend on no other module, except event
   consumers on the events they subscribe to". An incoming adapter may not depend on any namespace of another isolated
   module, published `Api`/`Events` included; the single exemption is the event-consumer segment. Behaviour unchanged.

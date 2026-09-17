@@ -116,9 +116,12 @@ public sealed class LayeredRules : IDcaRuleSet
                 // The configured transaction APIs (TransactionScope plus TransactionApiTypes) and DCA's own
                 // ITransactionBoundary port. The boundary's implementations are the one legitimate site that
                 // depends on both, wherever they live; the composition root (the global infrastructure
-                // namespace) wires the transaction manager and draws no boundary.
+                // namespace) and the shared kernel's infrastructure wire the transaction handle and its plumbing
+                // and draw no boundary.
                 var wiringAllowed = new Regex(DcaLayout.AnyOf(
-                    arch.AllApplicationPatterns().Concat(arch.AllOutgoingAdapterPatterns()).Append(Layout.InfrastructurePattern)));
+                    arch.AllApplicationPatterns().Concat(arch.AllOutgoingAdapterPatterns())
+                        .Append(Layout.InfrastructurePattern)
+                        .Append(DcaLayout.Below($"{Layout.SharedKernelNamespace}.{Layout.InfrastructureSegment}"))));
                 var types = Layout.FrameworkTypes;
                 var transactionApis = new HashSet<string>(types.TransactionApiTypes, StringComparer.Ordinal);
                 if (FrameworkTypes.IsSet(types.TransactionScope)) transactionApis.Add(types.TransactionScope);
@@ -139,8 +142,9 @@ public sealed class LayeredRules : IDcaRuleSet
                 + "IDbContextTransaction) - or on ITransactionBoundary; a field, a local, a method call or a using "
                 + "block all count. Implementations of ITransactionBoundary itself and types in the global "
                 + "infrastructure namespace (<Root>.Infrastructure, the composition root that wires the "
-                + "transaction manager) are not selected. With no transaction type configured only "
-                + "ITransactionBoundary dependencies are selected.")
+                + "transaction handle) or in the shared kernel's infrastructure namespace "
+                + "(<Root>.SharedKernel.Infrastructure, its plumbing) are not selected. With no transaction "
+                + "type configured only ITransactionBoundary dependencies are selected.")
             .Checking(
                 "Each resides in an application namespace of some module root (<module>.Application or "
                 + "below) or in an outgoing adapter namespace of some module root "
