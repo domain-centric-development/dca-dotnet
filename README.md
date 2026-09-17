@@ -227,7 +227,7 @@ cd samples/MinimalConsumer && dotnet test        # the smallest consumer
 git tag archrules/v0.4.0 && git push origin archrules/v0.4.0   # release to NuGet.org — see RELEASING.md
 ```
 
-Without a local SDK, the same through Docker (Podman works too): `docker compose run --rm test`
+Without a local SDK, the same through Docker (Podman works too; podman-compose needs `--profile tools` before `run`): `docker compose run --rm test`
 runs the Debug build and the tests with a cached package volume, `docker compose run --rm catalog`
 renders `rules.json`/`RULES.md`, and `docker build .` is the CI-style gate — the image only builds
 when build, tests and catalog succeed and then carries the `.nupkg` files and the catalog under `/out`.

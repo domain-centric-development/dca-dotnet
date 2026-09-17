@@ -7,6 +7,7 @@
 # The tool services sit in the `tools` profile and the image in `ci`: `docker compose up` and
 # `docker compose build` start and build nothing on their own, and `run --rm <tool>` pulls only the
 # SDK image. Each tool service is spelled out in full — podman-compose 1.6 cannot resolve `extends`.
+# podman-compose does not activate a service's profile on `run`: `podman-compose --profile tools run --rm <tool>`.
 services:
   dotnet:
     image: mcr.microsoft.com/dotnet/sdk:10.0
