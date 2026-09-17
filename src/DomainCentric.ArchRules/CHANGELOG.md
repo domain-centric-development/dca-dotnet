@@ -9,10 +9,13 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 - `DCA-HEX-007` now follows its title: an incoming adapter may depend on another module's published `Api`/`Events`
   namespaces (the allow-list `DCA-STR-006` grants outgoing adapters); only the other module's internals are reported.
   Event consumers stay exempt.
-- `DCA-MAP-008`, `DCA-MAP-009` and `DCA-MAP-010` skip declarations with `Status = Planned`, as `DCA-MAP-007` does;
-  `DCA-MAP-011` keeps counting a Planned declaration as declared.
-- `DCA-TAC-002` and `DCA-TAC-003` inspect instance fields and properties only (inherited ones included, static ones
-  excluded); both `Checks` texts say so.
+- `DCA-MAP-008`, `DCA-MAP-009` and `DCA-MAP-010` separate two questions: placement of code that exists is checked
+  for every declaration, Planned included; only an Implemented `[Upstream]` demands that a translation site exists
+  (`DCA-MAP-008`, as `DCA-MAP-007` demands an implementation). `DCA-MAP-011` keeps counting a Planned declaration as
+  declared.
+- `DCA-TAC-002` inspects every field and property, static ones included - it used to skip statics, unlike the Java
+  twin; a static port breaks persistence ignorance just the same. `DCA-TAC-003` inspects instance members only (a
+  static same-type member holds no aggregate). Both `Checks` texts say so.
 - `DCA-CYC-001..004`: the `Checks` texts state the limit - slices are per module root, a cycle inside one module's
   layer is not detected there, `DCA-CYC-005` covers the application layer per operation. No code change.
 - Two more layout segments: `WithModelSegment` (default `Model`) and `WithIncomingEventSegment` (default `Event`).

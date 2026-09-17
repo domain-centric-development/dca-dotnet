@@ -216,7 +216,7 @@
       "title": "Aggregate Roots must not hold references to Repositories or other Output Ports",
       "rationale": "Aggregates are persistence-ignorant: use cases retrieve facts; external calculations belong in domain services over supplied snapshots. Review callback parameters manually; this field check cannot prove semantic responsibility",
       "selects": "Non-interface types below the root namespace assignable to IAggregateRoot, abstract ones included.",
-      "checks": "No instance field or property of the type - inherited ones included, static ones excluded, record plumbing skipped - has a type assignable to IRepository or to any other IOutputPort. Only the member's own type is inspected; a port hidden in a generic type argument is not seen. A port passed as a method parameter is not a member and passes.",
+      "checks": "No field or property of the type - inherited and static ones included, a static port breaks persistence ignorance just the same; record plumbing skipped - has a type assignable to IRepository or to any other IOutputPort. Only the member's own type is inspected; a port hidden in a generic type argument is not seen. A port passed as a method parameter is not a member and passes.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -571,8 +571,8 @@
       "id": "DCA-MAP-008",
       "title": "Anti-Corruption Layer: upstream contract types must stay inside the matching adapter",
       "rationale": "The ACL sits where the dependency crosses the boundary — outgoing adapters for synchronous API calls, incoming adapters for consumed events — and translates the upstream contract into the context's own model there",
-      "selects": "Every [Upstream] declaration with Translation AntiCorruptionLayer and Status Implemented on the marker class of every namespace carrying [BoundedContext] whose Context names an existing bounded context, reading Via. Planned declarations and declarations towards an unknown context are skipped, as in DCA-MAP-007.",
-      "checks": "No type below the declaring context's namespace outside the matching adapter depends on a type in the target context's channel namespace or below: the outgoing adapter (<context>.Adapter.Outgoing) for the Api channel, the incoming adapter (<context>.Adapter.Incoming) for the Events channel. Each declared interaction needs its own adapter class depending on that upstream channel and its own domain/application. Multiple upstream translators may share a package. Structure establishes a translation site, not translation quality.",
+      "selects": "Every [Upstream] declaration with Translation AntiCorruptionLayer on the marker class of every namespace carrying [BoundedContext] whose Context names an existing bounded context, reading Via and Status. Declarations towards an unknown context are skipped.",
+      "checks": "Placement, whatever the status: no type below the declaring context's namespace outside the matching adapter depends on a type in the target context's channel namespace or below - the outgoing adapter (<context>.Adapter.Outgoing) for the Api channel, the incoming adapter (<context>.Adapter.Incoming) for the Events channel. Presence, only for Status Implemented (as in DCA-MAP-007): each declared interaction needs a type in that adapter depending on both that upstream channel and its own Domain/Application; a Planned declaration without any such code passes. Multiple upstream translators may share the namespace. Structure establishes a translation site, not translation quality.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -581,8 +581,8 @@
       "id": "DCA-MAP-009",
       "title": "Conformist: upstream contract types must never reach the domain layer",
       "rationale": "Conformism does not suspend domain purity — the domain layer stays free of foreign contract types",
-      "selects": "Every [Upstream] declaration with Translation Conformist and Status Implemented on the marker class of every namespace carrying [BoundedContext] whose Context names an existing bounded context, reading Via. Planned declarations and declarations towards an unknown context are skipped, as in DCA-MAP-007.",
-      "checks": "No type in the declaring context's domain layer (<context>.Domain and below) depends on a type in the target context's channel namespace (Api or Events per the layout) or below. Application and adapter types may use the upstream's contract types.",
+      "selects": "Every [Upstream] declaration with Translation Conformist on the marker class of every namespace carrying [BoundedContext] whose Context names an existing bounded context, reading Via. Status is not consulted: this is a placement check on code that exists, so a Planned declaration is checked too - one without any dependent code passes; declarations towards an unknown context are skipped.",
+      "checks": "No type in the declaring context's domain layer (<context>.Domain and below) depends on a type in the target context's channel namespace (Api or Events per the layout) or below. Whether an implementation exists is DCA-MAP-007's question, not this rule's. Application and adapter types may use the upstream's contract types.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -591,7 +591,7 @@
       "id": "DCA-MAP-010",
       "title": "External system contract types must respect the declared translation and interaction",
       "rationale": "An external system's contract types are confined to the adapter where the exchange crosses the boundary (ACL) or at least kept out of the domain (Conformist)",
-      "selects": "Every [ExternalUpstream] declaration with Status Implemented on the marker class of every namespace carrying [BoundedContext] whose ContractNamespaces is not empty, reading Translation and Interaction. Planned declarations are skipped, as in DCA-MAP-007. A declaration without ContractNamespaces (wire-level contract, no vendor SDK) is skipped too - it only documents the relationship.",
+      "selects": "Every [ExternalUpstream] declaration on the marker class of every namespace carrying [BoundedContext] whose ContractNamespaces is not empty, reading Translation and Interaction. Status is not consulted: this is a placement check on code that exists, so a Planned declaration is checked too - one without any dependent code passes. A declaration without ContractNamespaces (wire-level contract, no vendor SDK) is skipped - it only documents the relationship.",
       "checks": "With AntiCorruptionLayer, no type below the declaring context's namespace outside the matching adapter - <context>.Adapter.Outgoing for Outbound, <context>.Adapter.Incoming for Inbound - depends on a type in any of the contract namespaces or below. With any other translation (Conformist), no type in <context>.Domain does. That the adapter actually translates the contract is not established.",
       "implementation": "dotnet",
       "status": "enforced"

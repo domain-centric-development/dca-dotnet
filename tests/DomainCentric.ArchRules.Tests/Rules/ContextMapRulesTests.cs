@@ -11,6 +11,7 @@ public sealed class ContextMapRulesTests
     private const string Bad = "DomainCentric.ArchRules.Tests.Fixtures.ContextMap.Bad";
     private const string Nested = "DomainCentric.ArchRules.Tests.Fixtures.ContextMap.Nested";
     private const string Planned = "DomainCentric.ArchRules.Tests.Fixtures.ContextMap.Planned";
+    private const string PlannedMisplaced = "DomainCentric.ArchRules.Tests.Fixtures.ContextMap.PlannedMisplaced";
 
     private static readonly string[] ExpectedIds =
     {
@@ -52,14 +53,27 @@ public sealed class ContextMapRulesTests
         set.Rules.Single(r => r.Id == id).Check(Arch(Good));
     }
 
-    /// <summary>DCA-MAP-008/009/010 skip Planned declarations like DCA-MAP-007; DCA-MAP-011 counts them as declared.</summary>
+    /// <summary>A Planned declaration without code passes MAP-007..011: nothing is demanded.</summary>
     [Theory]
     [InlineData("DCA-MAP-007")]
     [InlineData("DCA-MAP-008")]
     [InlineData("DCA-MAP-009")]
     [InlineData("DCA-MAP-010")]
     [InlineData("DCA-MAP-011")]
-    public void PlannedDeclarationsAreNotEnforced(string id) => Set(Planned).Rules.Single(r => r.Id == id).Check(Arch(Planned));
+    public void PlannedDeclarationsWithoutCodeDemandNothing(string id) => Set(Planned).Rules.Single(r => r.Id == id).Check(Arch(Planned));
+
+    /// <summary>A Planned declaration does not exempt existing code from placement; only MAP-008's translation-site demand waits.</summary>
+    [Theory]
+    [InlineData("DCA-MAP-008")]
+    [InlineData("DCA-MAP-009")]
+    [InlineData("DCA-MAP-010")]
+    public void PlannedDeclarationsStillGovernPlacement(string id)
+    {
+        Set(PlannedMisplaced).Rules.Single(r => r.Id == "DCA-MAP-007").Check(Arch(PlannedMisplaced));
+        var ex = Assert.Throws<DcaRuleViolationException>(() => Set(PlannedMisplaced).Rules.Single(r => r.Id == id).Check(Arch(PlannedMisplaced)));
+        Assert.Contains("Invoice", ex.Message, System.StringComparison.Ordinal);
+        Assert.DoesNotContain("needs translation evidence", ex.Message, System.StringComparison.Ordinal);
+    }
 
     [Theory]
     [MemberData(nameof(NegativeRuleIds))]

@@ -122,7 +122,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 var violations = new List<string>();
                 foreach (var aggregate in ConcreteTypesAssignableTo(arch, typeof(IAggregateRoot)))
                 {
-                    foreach (var member in InstanceDataMembers(arch, aggregate))
+                    foreach (var member in DataMembers(arch, aggregate))
                     {
                         var fieldType = member.Type;
                         if (IsAssignableTo(arch, fieldType, typeof(IRepository)) || IsAssignableTo(arch, fieldType, typeof(IOutputPort)))
@@ -140,8 +140,9 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 "Non-interface types below the root namespace assignable to IAggregateRoot, "
                 + "abstract ones included.")
             .Checking(
-                "No instance field or property of the type - inherited ones included, static ones "
-                + "excluded, record plumbing skipped - has a type assignable to IRepository or to any "
+                "No field or property of the type - inherited and static ones included, a static port "
+                + "breaks persistence ignorance just the same; record plumbing skipped - has a type "
+                + "assignable to IRepository or to any "
                 + "other IOutputPort. Only the member's own type is inspected; a port hidden in "
                 + "a generic type argument is not seen. A port passed as a method parameter is "
                 + "not a member and passes.");

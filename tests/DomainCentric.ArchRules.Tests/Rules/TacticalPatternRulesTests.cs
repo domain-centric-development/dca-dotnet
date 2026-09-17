@@ -48,11 +48,14 @@ public sealed class TacticalPatternRulesTests
         Assert.False(string.IsNullOrWhiteSpace(ex.Message));
     }
 
-    /// <summary>DCA-TAC-002 and DCA-TAC-003 inspect instance members only.</summary>
-    [Theory]
-    [InlineData("DCA-TAC-002")]
-    [InlineData("DCA-TAC-003")]
-    public void StaticMembersCarryNoAggregateState(string id) => Rule(Statics, id).Check(Arch(Statics));
+    /// <summary>A static port breaks persistence ignorance (TAC-002); a static same-type member holds no aggregate (TAC-003).</summary>
+    [Fact]
+    public void StaticMembersArePortsButNotAggregateState()
+    {
+        var message = Assert.Throws<DcaRuleViolationException>(() => Rule(Statics, "DCA-TAC-002").Check(Arch(Statics))).Message;
+        Assert.Contains("Lookup", message, System.StringComparison.Ordinal);
+        Rule(Statics, "DCA-TAC-003").Check(Arch(Statics));
+    }
 
     [Theory]
     [InlineData("DCA-TAC-003", "Order", "LinkedOrder")]

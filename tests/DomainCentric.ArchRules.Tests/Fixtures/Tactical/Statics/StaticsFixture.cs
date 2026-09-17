@@ -1,5 +1,5 @@
-// Static members carry no aggregate state: a static repository reference and a static template of the own
-// aggregate type are neither an injected port (DCA-TAC-002) nor a held aggregate (DCA-TAC-003).
+// A static repository reference is a port in the aggregate all the same (DCA-TAC-002 reports it); a static
+// template of the own aggregate type carries no aggregate state (DCA-TAC-003 does not).
 using DomainCentric.BuildingBlocks.Ddd.Strategic;
 using DomainCentric.BuildingBlocks.Ddd.Tactical;
 using DomainCentric.BuildingBlocks.Hexagonal.Ports.Out;

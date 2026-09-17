@@ -1,5 +1,5 @@
-// Context-map fixture — every declaration is Planned, so DCA-MAP-008/009/010 do not enforce it yet
-// (like DCA-MAP-007), while DCA-MAP-011 counts it as declared.
+// Context-map fixture — every declaration is Planned and no code depends on the upstreams yet: nothing to
+// place, nothing to demand (DCA-MAP-007..010 pass), while DCA-MAP-011 counts the declarations as declared.
 using System;
 using DomainCentric.BuildingBlocks.Ddd.Strategic;
 using DomainCentric.BuildingBlocks.Ddd.Strategic.Relationships;
@@ -48,14 +48,6 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.ContextMap.Planned.Billing
 
 namespace DomainCentric.ArchRules.Tests.Fixtures.ContextMap.Planned.Billing.Domain.Model
 {
-    using External.Tax;
-    using Ledger.Api;
-    using Ledger.Events;
-
-    /// <summary>
-    /// Would violate DCA-MAP-008 (Api contract outside the outgoing adapter), DCA-MAP-009 (Events contract in the
-    /// domain) and DCA-MAP-010 (external contract outside the adapter) - but every declaration is Planned, so none
-    /// of the three enforces it yet.
-    /// </summary>
-    public sealed record Invoice(ILedgerApi Ledger, EntryPosted Posted, TaxClient Tax);
+    /// <summary>No code depends on the Planned upstreams yet - nothing to place, nothing to demand.</summary>
+    public sealed record Invoice(string Number);
 }
