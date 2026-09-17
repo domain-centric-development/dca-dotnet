@@ -67,8 +67,24 @@ public sealed class LayeredRulesTests
         var rule = Rules(Bad).Rules.Single(r => r.Id == "DCA-LAY-004");
         var message = Assert.Throws<DcaRuleViolationException>(() => rule.Check(Arch(Bad))).Message;
         Assert.Contains("SeedRunner", message, System.StringComparison.Ordinal);
+        Assert.Contains("TransactionalSeeder", message, System.StringComparison.Ordinal);
         Assert.Contains("TransactionalPricing", message, System.StringComparison.Ordinal);
         Assert.Contains("OrderController", message, System.StringComparison.Ordinal);
+    }
+
+    /// <summary>The composition root may declare a configured transaction manager; the shared kernel's plumbing may hook into the boundary.</summary>
+    [Fact]
+    public void TheCompositionRootMayDeclareTheTransactionManager()
+    {
+        var layout = DcaLayout.ForRootNamespace(Good).WithFrameworkTypes(
+            FrameworkTypes.AspNetCore() with { TransactionManagerTypes = new[] { Good + ".Infrastructure.Config.IUnitOfWorkManager" } });
+        var arch = DcaArchitecture.Load(layout, typeof(LayeredRulesTests).Assembly);
+        new LayeredRules(layout).Rules.Single(r => r.Id == "DCA-LAY-004").Check(arch);
+        var bad = DcaLayout.ForRootNamespace(Bad).WithFrameworkTypes(
+            FrameworkTypes.AspNetCore() with { TransactionManagerTypes = new[] { Good + ".Infrastructure.Config.IUnitOfWorkManager" } });
+        var message = Assert.Throws<DcaRuleViolationException>(() => new LayeredRules(bad).Rules.Single(r => r.Id == "DCA-LAY-004")
+            .Check(DcaArchitecture.Load(bad, typeof(LayeredRulesTests).Assembly))).Message;
+        Assert.Contains("TransactionalSeeder", message, System.StringComparison.Ordinal);
     }
 
     /// <summary>DCA-LAY-004 accepts ITransactionBoundary in a use case.</summary>

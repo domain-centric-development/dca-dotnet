@@ -35,8 +35,11 @@ public sealed record FrameworkTypes(
     /// <summary>Optional declarative transaction attribute used to cover publication entry paths.</summary>
     public string TransactionalAttribute { get; init; } = "";
 
-    /// <summary>Full type names of programmatic transaction-management APIs beside <see cref="TransactionScope"/> — committable transactions, connection transactions, a persistence library's transaction handle. Like the scope they belong to the application layer and the outgoing adapters; a domain type or an incoming adapter that depends on one is reported.</summary>
+    /// <summary>Full type names of the APIs code <em>uses</em> to run a transaction beside <see cref="TransactionScope"/> — committable transactions, connection transactions, a persistence library's transaction handle. Like the scope they belong to the application layer and the outgoing adapters; any other type that depends on one is reported.</summary>
     public IReadOnlyList<string> TransactionApiTypes { get; init; } = Array.Empty<string>();
+
+    /// <summary>Full type names a composition root <em>declares or wires</em> (a transaction manager). The global and the shared kernel's infrastructure may depend on them; the domain, incoming adapters and a module's own infrastructure may not. Empty by default — the platform has no such type; a project's own manager abstraction is added via a with-expression.</summary>
+    public IReadOnlyList<string> TransactionManagerTypes { get; init; } = Array.Empty<string>();
 
     /// <summary>Attribute namespaces classified as persistence metadata, including derived attributes.</summary>
     public IReadOnlyList<string> PersistenceAttributeNamespaces { get; init; } = Array.Empty<string>();

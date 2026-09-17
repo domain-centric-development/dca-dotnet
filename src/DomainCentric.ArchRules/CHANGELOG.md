@@ -6,12 +6,15 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 **What can turn a green build red:**
 
-- `DCA-LAY-004` also sees programmatic boundaries beyond `TransactionScope`: a type outside the application layer
-  and the outgoing adapters that depends on one of the configured `TransactionApiTypes` (new `FrameworkTypes` role;
-  the preset lists `CommittableTransaction`, `IDbTransaction`, `DbTransaction` and the persistence library's
-  `IDbContextTransaction`; `TransactionScope` stays the positional setting beside it) or on `ITransactionBoundary`
-  is reported. Implementations of `ITransactionBoundary` and the global and shared-kernel infrastructure namespaces
-  (the composition root wiring the transaction handle and its plumbing) are the exempt sites.
+- `DCA-LAY-004` also sees programmatic boundaries beyond `TransactionScope`, through two new `FrameworkTypes` roles.
+  `TransactionApiTypes` (the types code runs a transaction with; the preset lists `CommittableTransaction`,
+  `IDbTransaction`, `DbTransaction` and the persistence library's `IDbContextTransaction`; `TransactionScope` stays
+  the positional setting beside it) is allowed exactly in the application layer and the outgoing adapters; any other
+  type that depends on one is reported, a bootstrap runner in the global infrastructure namespace included.
+  `TransactionManagerTypes` (a project's own manager abstraction; empty by default) and `ITransactionBoundary` are
+  wiring and plumbing: the global and the shared kernel's infrastructure namespaces may depend on them too; the
+  domain, incoming adapters and a module's own infrastructure may not. Implementations of `ITransactionBoundary` are
+  exempt everywhere.
 - `DCA-HEX-007` title and texts now describe the code: "Incoming adapters depend on no other module, except event
   consumers on the events they subscribe to". An incoming adapter may not depend on any namespace of another isolated
   module, published `Api`/`Events` included; the single exemption is the event-consumer segment. Behaviour unchanged.
