@@ -58,6 +58,23 @@ public sealed class LayeredRulesTests
     }
 
     private const string Infra = "DomainCentric.ArchRules.Tests.Fixtures.Layout.Infra";
+    private const string EventPolicy = "DomainCentric.ArchRules.Tests.Fixtures.EventPolicy";
+
+    /// <summary>DCA-LAY-004 sees programmatic boundaries: a transaction API in an incoming adapter, ITransactionBoundary in the domain.</summary>
+    [Fact]
+    public void ProgrammaticBoundariesOutsideTheApplicationLayerAreReported()
+    {
+        var rule = Rules(Bad).Rules.Single(r => r.Id == "DCA-LAY-004");
+        var message = Assert.Throws<DcaRuleViolationException>(() => rule.Check(Arch(Bad))).Message;
+        Assert.Contains("SeedRunner", message, System.StringComparison.Ordinal);
+        Assert.Contains("TransactionalPricing", message, System.StringComparison.Ordinal);
+        Assert.Contains("OrderController", message, System.StringComparison.Ordinal);
+    }
+
+    /// <summary>DCA-LAY-004 accepts ITransactionBoundary in a use case.</summary>
+    [Fact]
+    public void AUseCaseMayDrawTheBoundaryItself() =>
+        Rules(EventPolicy).Rules.Single(r => r.Id == "DCA-LAY-004").Check(Arch(EventPolicy));
 
     private static IDcaRule InfraRule(string id) => new LayeredRules(DcaLayout.ForRootNamespace(Infra)).Rules.Single(r => r.Id == id);
 

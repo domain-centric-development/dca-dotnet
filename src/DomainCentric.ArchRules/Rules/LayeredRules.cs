@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using DomainCentric.BuildingBlocks.Hexagonal.Ports.Out;
+using ArchUnitNET.Domain;
+using ArchUnitNET.Domain.Extensions;
 using static ArchUnitNET.Fluent.ArchRuleDefinition;
 
 namespace DomainCentric.ArchRules.Rules;
@@ -28,6 +30,9 @@ public sealed class LayeredRules : IDcaRuleSet
             OutputPortMarkersMustBeInterfaces(),
         }.AsReadOnly();
     }
+
+    /// <summary>DCA's own transaction port, matched by name: the rules do not reference the building blocks' assembly for it.</summary>
+    private const string BoundaryPort = "DomainCentric.BuildingBlocks.Application.Transactions.ITransactionBoundary";
 
     public string Name => "layered";
 
@@ -110,25 +115,36 @@ public sealed class LayeredRules : IDcaRuleSet
                 // (which implement the transaction boundary) of any module, at any depth.
                 var allowed = new Regex(
                     DcaLayout.AnyOf(arch.AllApplicationPatterns().Concat(arch.AllOutgoingAdapterPatterns())));
-                var transactionType = Layout.FrameworkTypes.TransactionScope;
+                // The configured transaction APIs (TransactionScope plus TransactionApiTypes) and DCA's own
+                // ITransactionBoundary port. The boundary's implementations are the one legitimate site that
+                // depends on both, wherever they live.
+                var types = Layout.FrameworkTypes;
+                var transactionApis = new HashSet<string>(types.TransactionApiTypes, StringComparer.Ordinal);
+                if (FrameworkTypes.IsSet(types.TransactionScope)) transactionApis.Add(types.TransactionScope);
+                bool IsBoundary(IType t) => t.FullName == BoundaryPort || t.ImplementsInterface(BoundaryPort);
+                bool Programmatic(IType target) => transactionApis.Contains(target.FullName) || IsBoundary(target);
                 var violations = arch.Types
-                    .Where(t => FrameworkTypes.IsSet(transactionType) && t.Dependencies.Any(d => d.Target.FullName == transactionType))
                     .Where(t => t.Namespace is null || !allowed.IsMatch(t.Namespace.FullName))
-                    .Select(t => $"{t.FullName} uses {transactionType} outside the application layer")
+                    .Where(t => !IsBoundary(t))
+                    .SelectMany(t => t.Dependencies.Select(d => d.Target).Where(Programmatic).Select(target => target.FullName).Distinct()
+                        .Select(target => $"{t.FullName} uses {target} outside the application layer"))
                     .ToList();
                 DcaRule.Fail($"Transaction boundaries belong to the application layer\nbecause {rationale}", violations);
             })
             .Selecting(
-                "Types under scan that have any dependency on the configured transaction type (by default "
-                + "System.Transactions.TransactionScope) - a field, a local, a method call or a using block "
-                + "all count. With no transaction type configured nothing is selected.")
+                "Types under scan that have any dependency on a configured transaction type - TransactionScope "
+                + "(by default System.Transactions.TransactionScope) or one of the TransactionApiTypes (by default "
+                + "CommittableTransaction, IDbTransaction, DbTransaction and the persistence library's "
+                + "IDbContextTransaction) - or on ITransactionBoundary; a field, a local, a method call or a using "
+                + "block all count. Implementations of ITransactionBoundary itself are not selected. With no "
+                + "transaction type configured only ITransactionBoundary dependencies are selected.")
             .Checking(
                 "Each resides in an application namespace of some module root (<module>.Application or "
                 + "below) or in an outgoing adapter namespace of some module root "
                 + "(<module>.Adapter.Outgoing or below). A use in a domain, incoming-adapter or "
-                + "infrastructure namespace is reported; all findings are collected into one violation. The "
-                + "check is per type, not per method, and other transaction APIs (a DbContext transaction, "
-                + "TransactionScope subclasses) are not looked for.");
+                + "infrastructure namespace is reported, one finding per type and transaction type; all "
+                + "findings are collected into one violation. The check is per type, not per method; which "
+                + "transaction a boundary opens is not checked.");
     }
 
     /// <summary>

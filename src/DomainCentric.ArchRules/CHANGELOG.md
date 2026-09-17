@@ -6,6 +6,11 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 **What can turn a green build red:**
 
+- `DCA-LAY-004` also sees programmatic boundaries beyond `TransactionScope`: a type outside the application layer
+  and the outgoing adapters that depends on one of the configured `TransactionApiTypes` (new `FrameworkTypes` role;
+  the preset lists `CommittableTransaction`, `IDbTransaction`, `DbTransaction` and the persistence library's
+  `IDbContextTransaction`; `TransactionScope` stays the positional setting beside it) or on `ITransactionBoundary`
+  is reported. Implementations of `ITransactionBoundary` are the one exempt site.
 - `DCA-HEX-007` title and texts now describe the code: "Incoming adapters depend on no other module, except event
   consumers on the events they subscribe to". An incoming adapter may not depend on any namespace of another isolated
   module, published `Api`/`Events` included; the single exemption is the event-consumer segment. Behaviour unchanged.

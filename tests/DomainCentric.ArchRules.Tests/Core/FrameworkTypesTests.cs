@@ -30,6 +30,8 @@ public sealed class FrameworkTypesTests
         Assert.False(FrameworkTypes.IsSet(none.PageModelBase));
         Assert.False(FrameworkTypes.IsSet(none.TransactionScope));
         Assert.True(FrameworkTypes.IsSet(FrameworkTypes.AspNetCore().TransactionScope));
+        Assert.Empty(none.TransactionApiTypes);
+        Assert.NotEmpty(FrameworkTypes.AspNetCore().TransactionApiTypes);
     }
 
     [Fact]

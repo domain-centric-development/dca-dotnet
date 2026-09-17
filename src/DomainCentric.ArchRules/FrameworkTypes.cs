@@ -35,6 +35,9 @@ public sealed record FrameworkTypes(
     /// <summary>Optional declarative transaction attribute used to cover publication entry paths.</summary>
     public string TransactionalAttribute { get; init; } = "";
 
+    /// <summary>Full type names of programmatic transaction-management APIs beside <see cref="TransactionScope"/> — committable transactions, connection transactions, a persistence library's transaction handle. Like the scope they belong to the application layer and the outgoing adapters; a domain type or an incoming adapter that depends on one is reported.</summary>
+    public IReadOnlyList<string> TransactionApiTypes { get; init; } = Array.Empty<string>();
+
     /// <summary>Attribute namespaces classified as persistence metadata, including derived attributes.</summary>
     public IReadOnlyList<string> PersistenceAttributeNamespaces { get; init; } = Array.Empty<string>();
     /// <summary>Full attribute type names classified as persistence metadata (base types included) — for mapping attributes that live in a namespace whose other attributes are harmless, such as the key/concurrency attributes beside the validation attributes of System.ComponentModel.DataAnnotations. Mappings of other persistence libraries are added per project via a with-expression.</summary>
@@ -57,7 +60,8 @@ public sealed record FrameworkTypes(
         {
             PersistenceAttributeNamespaces = Array.AsReadOnly(new[] { "System.ComponentModel.DataAnnotations.Schema", "Microsoft.EntityFrameworkCore" }),
             PersistenceAttributeTypes = Array.AsReadOnly(new[] { "System.ComponentModel.DataAnnotations.KeyAttribute", "System.ComponentModel.DataAnnotations.TimestampAttribute", "System.ComponentModel.DataAnnotations.ConcurrencyCheckAttribute" }),
-            InjectionAttributeNamespaces = Array.AsReadOnly(new[] { "Microsoft.Extensions.DependencyInjection" })
+            InjectionAttributeNamespaces = Array.AsReadOnly(new[] { "Microsoft.Extensions.DependencyInjection" }),
+            TransactionApiTypes = Array.AsReadOnly(new[] { "System.Transactions.CommittableTransaction", "System.Data.IDbTransaction", "System.Data.Common.DbTransaction", "Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction" })
         };
 
     /// <summary>
