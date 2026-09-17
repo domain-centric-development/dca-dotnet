@@ -143,10 +143,10 @@
     {
       "set": "hexagonal",
       "id": "DCA-HEX-007",
-      "title": "Incoming adapters must only access their own bounded context (except event consumers and Open Host Services)",
-      "rationale": "Incoming adapters must only orchestrate use cases from their own bounded context - use integration events or the published api for cross-context integration",
-      "selects": "Per isolated module root - every module root except the shared kernel, declared a bounded context or not: types in <module>.Adapter.Incoming, excluding those below the configured event-consumer segment (Adapter.Incoming.Event by default). A module that is the only isolated module is skipped.",
-      "checks": "No dependency on a type in another isolated module root (<other> and below) unless that type lives in the other module's published namespaces <other>.Api or <other>.Events and below (segment names from the layout) - the same allow-list DCA-STR-006 applies to outgoing adapters. The other module's Domain, Application, Adapter and Infrastructure namespaces are internal and reported. Event consumers are exempt entirely. Dependencies on the shared kernel and on namespaces outside every module root are not checked. Findings of all modules are collected and reported together; a module without incoming adapters passes.",
+      "title": "Incoming adapters depend on no other module, except event consumers on the events they subscribe to",
+      "rationale": "An incoming adapter drives its own module only: a controller that needs a sibling's data goes through its own use case, output port and outgoing adapter to the sibling's published api - only a subscription legitimately meets a foreign contract on the incoming side",
+      "selects": "Per isolated module root - every module root except the shared kernel, declared a bounded context or not: types in <module>.Adapter.Incoming, excluding those below the configured event-consumer segment (Adapter.Incoming.Event by default), which are the exemption. A module that is the only isolated module is skipped.",
+      "checks": "No dependency on any type in another isolated module root (<other> and below), its published Api and Events namespaces included - the allow-list DCA-STR-006 grants outgoing adapters does not apply on the incoming side. Event consumers are not selected and so may depend on the events they subscribe to. Dependencies on the shared kernel and on namespaces outside every module root are not checked. Findings of all modules are collected and reported together; a module without incoming adapters passes.",
       "implementation": "dotnet",
       "status": "enforced"
     },

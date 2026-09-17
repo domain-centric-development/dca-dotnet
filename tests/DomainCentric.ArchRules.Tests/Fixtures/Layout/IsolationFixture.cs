@@ -121,8 +121,9 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Layout.Isolation.Reporting.Adap
     }
 
     /// <summary>
-    /// Allowed: an incoming adapter depending on another module's published Api namespace - the same
-    /// allow-list DCA-STR-006 grants outgoing adapters (DCA-HEX-007).
+    /// Forbidden too: an incoming adapter depending on another module's <em>published</em> Api namespace (DCA-HEX-007).
+    /// The controller reaches a sibling through its own use case, output port and outgoing adapter; only DCA-STR-006
+    /// opens the Api to outgoing adapters.
     /// </summary>
     public sealed class ReportApiController
     {

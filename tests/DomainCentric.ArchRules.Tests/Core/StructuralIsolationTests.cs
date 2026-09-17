@@ -69,19 +69,11 @@ public sealed class StructuralIsolationTests
         Assert.Contains(FailuresOf("DCA-HEX-007"), m => m.Contains("ReportController"));
 
     [Fact]
-    public void AnIncomingAdapterMayUseAForeignApiAndAnEventConsumerAnything()
+    public void AnIncomingAdapterMayNotUseAForeignApiButAnEventConsumerIsExempt()
     {
         var hex007 = FailuresOf("DCA-HEX-007");
-        Assert.DoesNotContain(hex007, m => m.Contains("ReportApiController"));
+        Assert.Contains(hex007, m => m.Contains("ReportApiController"));
         Assert.DoesNotContain(hex007, m => m.Contains("CatalogChangedConsumer"));
-    }
-
-    /// <summary>The published segments are a layout setting for incoming adapters as well.</summary>
-    [Fact]
-    public void TheIncomingAllowListComesFromTheLayout()
-    {
-        var message = FailureOf(DcaLayout.ForRootNamespace(Root).WithApiSegment("Contract"), "DCA-HEX-007");
-        Assert.Contains("ReportApiController", message, System.StringComparison.Ordinal);
     }
 
     /// <summary>The event-consumer exemption is a layout setting, not a hard-coded namespace name.</summary>

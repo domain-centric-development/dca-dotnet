@@ -6,9 +6,9 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 **What can turn a green build red:**
 
-- `DCA-HEX-007` now follows its title: an incoming adapter may depend on another module's published `Api`/`Events`
-  namespaces (the allow-list `DCA-STR-006` grants outgoing adapters); only the other module's internals are reported.
-  Event consumers stay exempt.
+- `DCA-HEX-007` title and texts now describe the code: "Incoming adapters depend on no other module, except event
+  consumers on the events they subscribe to". An incoming adapter may not depend on any namespace of another isolated
+  module, published `Api`/`Events` included; the single exemption is the event-consumer segment. Behaviour unchanged.
 - `DCA-MAP-008`, `DCA-MAP-009` and `DCA-MAP-010` separate two questions: placement of code that exists is checked
   for every declaration, Planned included; only an Implemented `[Upstream]` demands that a translation site exists
   (`DCA-MAP-008`, as `DCA-MAP-007` demands an implementation). `DCA-MAP-011` keeps counting a Planned declaration as
@@ -20,7 +20,8 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
   layer is not detected there, `DCA-CYC-005` covers the application layer per operation. No code change.
 - Two more layout segments: `WithModelSegment` (default `Model`) and `WithIncomingEventSegment` (default `Event`).
   `DCA-CYC-001` and the domain-model patterns read the first, the event-consumer exemption of `DCA-HEX-006` and
-  `DCA-HEX-007` the second; neither is hard-coded any more.
+  `DCA-HEX-007` the second; neither is hard-coded any more. `DcaLayout.IncomingEventAdapterPattern` and
+  `DomainModelNamespaceOf(module)` are new.
 - `DCA-ONI-002`: `Checks` now states, as the Java twin does, that the shared kernel is allowed only when it is a
   module root with a `Domain` layer of its own; no behaviour change.
 - `DCA-STR-007`: a test proves that a renamed Events segment (`WithEventsSegment`) is honoured; the rule has read the
