@@ -103,7 +103,49 @@ public sealed class DcaArchitecture
             loader.LoadNamespacesWithinAssembly(assembly, DcaLayout.BuildingBlocksPortsOutNamespace);
         }
 
+        RequireImportedTypes(layout, assemblies);
+
         return new DcaArchitecture(layout, loader.Build(), assemblies);
+    }
+
+    /// <summary>
+    /// Refuses a run whose assemblies hold no type the layout describes: every rule would then pass
+    /// without having looked at anything. Reflection over the passed assemblies, not the built model —
+    /// the always-loaded building blocks would otherwise make the model look populated.
+    /// </summary>
+    private static void RequireImportedTypes(DcaLayout layout, IReadOnlyList<Assembly> assemblies)
+    {
+        foreach (var assembly in assemblies)
+        {
+            foreach (var type in Exported(assembly))
+            {
+                if (type.Namespace is not null
+                    && (DcaLayout.IsBelow(type.Namespace, layout.RootNamespace)
+                        || DcaLayout.IsBelow(type.Namespace, DcaLayout.BuildingBlocksPortsOutNamespace)))
+                {
+                    return;
+                }
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"No type was imported below the root namespace '{layout.RootNamespace}', so every rule would " +
+            "pass without having looked at anything. Check that the root namespace is spelled as the " +
+            "production code declares it, and that every production project holding code below it is " +
+            "referenced by the test project and passed to Load. Assemblies passed: " +
+            string.Join(", ", assemblies.Select(a => a.GetName().Name)) + ".");
+    }
+
+    private static IEnumerable<Type> Exported(Assembly assembly)
+    {
+        try
+        {
+            return assembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException partiallyLoaded)
+        {
+            return partiallyLoaded.Types.Where(t => t is not null)!;
+        }
     }
 
     /// <summary>Wraps an already built ArchUnitNET architecture — for tests and custom loaders.</summary>

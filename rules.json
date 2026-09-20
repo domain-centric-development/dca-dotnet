@@ -511,6 +511,16 @@
       "status": "informational"
     },
     {
+      "set": "strategic",
+      "id": "DCA-STR-011",
+      "title": "At least one bounded context is declared",
+      "rationale": "Without a declared context the context-map and isolation rules select nothing and report success over an empty model",
+      "selects": "The declared bounded contexts of the imported types — every namespace carrying a [BoundedContext] marker class, at any depth below the root namespace. No individual type is reported.",
+      "checks": "At least one such namespace exists. The rule says nothing about how many contexts there should be, about their boundaries, or about modules that own a layer without declaring a context — those are governed structurally and are not a substitute for the declaration.",
+      "implementation": "dotnet",
+      "status": "enforced"
+    },
+    {
       "set": "contextmap",
       "id": "DCA-MAP-001",
       "title": "Upstream, ExternalUpstream, and Partnership may only be declared on bounded context namespaces",

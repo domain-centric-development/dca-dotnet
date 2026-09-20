@@ -315,7 +315,7 @@ public sealed class DcaRuleSelection
 
     private static IReadOnlyList<IDcaRuleSet> CatalogSets => DcaRules.RuleSets(DcaLayout.ForRootNamespace("Catalog"));
 
-    private static void RequireKnownId(string ruleId)
+    internal static void RequireKnownId(string ruleId)
     {
         if (!DcaRules.AllIds().Contains(ruleId) && !DcaRules.Retired().ContainsKey(ruleId))
         {
@@ -323,7 +323,7 @@ public sealed class DcaRuleSelection
         }
     }
 
-    private static void RequireKnownSet(string ruleSetName)
+    internal static void RequireKnownSet(string ruleSetName)
     {
         var known = CatalogSets.Select(s => s.Name).ToList();
         if (!known.Contains(ruleSetName))

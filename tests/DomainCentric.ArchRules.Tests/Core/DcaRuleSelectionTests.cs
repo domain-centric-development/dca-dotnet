@@ -27,6 +27,26 @@ public sealed class DcaRuleSelectionTests
     }
 
     [Fact]
+    public void OnlyRejectsAnUnknownSetName()
+    {
+        var rejected = Assert.Throws<ArgumentException>(() => DcaRules.Only(Layout, "cycle"));
+
+        Assert.Contains("cycles", rejected.Message);
+    }
+
+    [Fact]
+    public void AllExceptRejectsAnUnknownRuleId()
+    {
+        var rejected = Assert.Throws<ArgumentException>(() => DcaRules.AllExcept(Layout, new[] { "DCA-NAM-2" }));
+
+        Assert.Contains("Unknown rule id", rejected.Message);
+    }
+
+    [Fact]
+    public void AllExceptAcceptsARetiredRuleId() =>
+        Assert.NotEmpty(DcaRules.AllExcept(Layout, new[] { DcaRules.Retired().Keys.First() }));
+
+    [Fact]
     public void ExcludedRuleKeepsItsReasonAndStaysInTheRun()
     {
         var selection = DcaRuleSelection.All().Excluding("DCA-NAM-005", "no DI framework");

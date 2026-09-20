@@ -361,3 +361,24 @@ Fixtures: Java `transactions/savenoboundary`, `eventpolicy/free/BoundedSaveUseCa
 `dca-building-blocks` 0.2.0 + `dca-archunit` 0.4.0, `DomainCentric.BuildingBlocks` 0.1.1 + `DomainCentric.ArchRules`
 (+`.Xunit`) 0.4.0. Nothing is pushed, tagged or published; the markers must be released before the rules that depend on
 their exact version. `dca-spring` and `dca-archunit-spring-modulith` stay at 0.2.0-SNAPSHOT and follow afterwards.
+
+## 2026-09-20 — empty selections stop being green (TODO #28/#54)
+
+`DCA-STR-011` is added to the strategic set in both libraries with the same id, title and texts: at least one package
+(namespace) declares a bounded context. Without a declaration the context-map and isolation rules select nothing and
+report success over an empty model. Negative fixture: Java `fixtures/strategic/undeclared`, .NET
+`Fixtures/Strategic/Undeclared` — a module that owns a domain layer and declares no context. Both fixtures are read by a
+separate test; the shared bad fixture declares its contexts and is therefore excluded from the rule's negative sweep.
+
+The loaders now refuse a run that imported nothing. Java `DcaArchitecture.load` throws when no class was imported below
+the base package; .NET `DcaArchitecture.Load` throws when the passed assemblies hold no type below the root namespace
+(reflection over the assemblies, not over the built model — the always-loaded building blocks would otherwise make the
+model look populated). `DcaArchitecture.of` / `Of` stay unchecked: an explicitly imported set is the caller's.
+
+The import defect itself is Java-only: `load` dropped `DO_NOT_INCLUDE_JARS` / `DO_NOT_INCLUDE_ARCHIVES`, which also
+excluded the sibling modules of a multi-module build, since `importPackages` already restricts the result to the base
+package. `load(layout, ImportOption...)` narrows it again where a third-party artifact ships the project's own base
+package. .NET names its assemblies, so it has no counterpart.
+
+`DcaRules.only` / `Only` reject an unknown rule-set name and `allExcept` / `AllExcept` an identifier that is neither in
+the catalog nor retired (TODO #54); `DcaRuleSelection` validated both all along.

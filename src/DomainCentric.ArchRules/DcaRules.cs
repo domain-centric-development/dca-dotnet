@@ -54,17 +54,33 @@ public static class DcaRules
     public static IReadOnlyList<IDcaRule> All(DcaLayout layout) =>
         RuleSets(layout).SelectMany(s => s.Rules).ToList();
 
-    /// <summary>Every rule except the given identifiers.</summary>
+    /// <summary>
+    /// Every rule except the given identifiers. An identifier that is neither in the catalog nor
+    /// retired is rejected: it would exclude nothing and leave the caller believing it had.
+    /// </summary>
     public static IReadOnlyList<IDcaRule> AllExcept(DcaLayout layout, IEnumerable<string> excludedIds)
     {
         var excluded = new HashSet<string>(excludedIds, StringComparer.Ordinal);
+        foreach (var id in excluded)
+        {
+            DcaRuleSelection.RequireKnownId(id);
+        }
+
         return All(layout).Where(r => !excluded.Contains(r.Id)).ToList();
     }
 
-    /// <summary>The rules of the named sets only (<c>"tactical"</c>, <c>"hexagonal"</c>, …).</summary>
+    /// <summary>
+    /// The rules of the named sets only (<c>"tactical"</c>, <c>"hexagonal"</c>, …). An unknown set
+    /// name is rejected rather than silently selecting no rule.
+    /// </summary>
     public static IReadOnlyList<IDcaRule> Only(DcaLayout layout, params string[] ruleSetNames)
     {
         var names = new HashSet<string>(ruleSetNames, StringComparer.Ordinal);
+        foreach (var name in names)
+        {
+            DcaRuleSelection.RequireKnownSet(name);
+        }
+
         return RuleSets(layout).Where(s => names.Contains(s.Name)).SelectMany(s => s.Rules).ToList();
     }
 

@@ -1,6 +1,6 @@
 # DCA rule catalog (.NET)
 
-Generated from `DomainCentric.ArchRules` — do not edit. 112 enforced, 4 informational, 3 retired in 11 sets; 3 Java rules not applicable in .NET.
+Generated from `DomainCentric.ArchRules` — do not edit. 113 enforced, 4 informational, 3 retired in 11 sets; 3 Java rules not applicable in .NET.
 
 ## `layered`
 
@@ -77,6 +77,7 @@ Generated from `DomainCentric.ArchRules` — do not edit. 112 enforced, 4 inform
 | `DCA-STR-008` | Integration Events should have immutable shape (enforced) | Integration Events must be immutable to ensure event integrity across contexts (Event Sourcing best practice) | Non-interface types below the root namespace whose implemented interfaces include IIntegrationEvent - directly or through a derived interface; classes, records and structs alike, compiler-generated types excluded. | Classes are sealed or records; structs are allowed. Every inherited instance field is readonly, every property is get-only or init-only and no instance Set*(x): void method exists. Referenced objects and collection contents are not inspected. |
 | `DCA-STR-009` | Anti-Corruption Layer components must be in Acl namespaces (enforced) | Anti-Corruption Layer components must be in 'Acl' namespaces for clear architectural intent (DDD Strategic Pattern) | Types anywhere below the root namespace whose name ends with EventTranslator, ACL or AntiCorruptionLayer - selected by name alone, no marker or attribute is read. | Each resides in a namespace whose path contains an Acl segment, at any depth. A translation class named otherwise is neither selected nor checked. |
 | `DCA-STR-010` | Event Listeners consuming integration events should use Anti-Corruption Layer (informational) | Consumed integration events are translated into the consuming context's own language before they reach its domain — verified by code review, not statically | Informational - selects nothing and never fails; it carries doctrine only. | Nothing is asserted. Whether a consumed integration event is translated into the consuming context's own language before it reaches the domain is a code-review check. |
+| `DCA-STR-011` | At least one bounded context is declared (enforced) | Without a declared context the context-map and isolation rules select nothing and report success over an empty model | The declared bounded contexts of the imported types — every namespace carrying a [BoundedContext] marker class, at any depth below the root namespace. No individual type is reported. | At least one such namespace exists. The rule says nothing about how many contexts there should be, about their boundaries, or about modules that own a layer without declaring a context — those are governed structurally and are not a substitute for the declaration. |
 
 ## `contextmap`
 

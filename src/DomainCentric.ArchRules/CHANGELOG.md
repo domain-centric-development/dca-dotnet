@@ -6,6 +6,17 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 **What can turn a green build red:**
 
+- `DCA-STR-011` is new: at least one namespace below the root namespace declares `[BoundedContext]`. Without a
+  declaration the context-map and isolation rules select nothing and report success over an empty model. A code base
+  that deliberately declares no context switches the rule off with a recorded reason; the structural isolation rules
+  keep governing the modules.
+- `DcaArchitecture.Load` refuses a run whose assemblies hold no type below the root namespace, instead of running
+  every rule over nothing. The message names the root namespace and the assemblies that were passed.
+  `DcaArchitecture.Of(...)` is unchanged - an explicitly built model is the caller's.
+- `DcaRules.Only(layout, ...)` rejects an unknown rule-set name and `DcaRules.AllExcept(layout, ...)` an identifier
+  that is neither in the catalog nor retired; both used to select or exclude nothing silently. `DcaRuleSelection`
+  validated these all along.
+
 - `DCA-LAY-004` also sees programmatic boundaries beyond `TransactionScope`, through two new `FrameworkTypes` roles.
   `TransactionApiTypes` (the types code runs a transaction with; the preset lists `CommittableTransaction`,
   `IDbTransaction`, `DbTransaction` and the persistence library's `IDbContextTransaction`; `TransactionScope` stays

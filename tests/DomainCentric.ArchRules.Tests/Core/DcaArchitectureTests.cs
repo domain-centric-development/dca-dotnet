@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using DomainCentric.BuildingBlocks.Ddd.Strategic.Relationships;
 using DomainCentric.BuildingBlocks.Ddd.Tactical;
@@ -12,6 +13,17 @@ public sealed class DcaArchitectureTests
 
     private static DcaArchitecture Arch() =>
         DcaArchitecture.Load(DcaLayout.ForRootNamespace(Root), typeof(DcaArchitectureTests).Assembly);
+
+    [Fact]
+    public void RefusesAnImportThatFoundNothing()
+    {
+        var empty = Assert.Throws<InvalidOperationException>(
+            () => DcaArchitecture.Load(
+                DcaLayout.ForRootNamespace("Absent.Example"), typeof(DcaArchitectureTests).Assembly));
+
+        Assert.Contains("Absent.Example", empty.Message);
+        Assert.Contains("DomainCentric.ArchRules.Tests", empty.Message);
+    }
 
     [Fact]
     public void DiscoversBoundedContextsInEncounterOrderAndSharedKernel()
