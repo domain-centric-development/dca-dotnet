@@ -382,3 +382,21 @@ package. .NET names its assemblies, so it has no counterpart.
 
 `DcaRules.only` / `Only` reject an unknown rule-set name and `allExcept` / `AllExcept` an identifier that is neither in
 the catalog nor retired (TODO #54); `DcaRuleSelection` validated both all along.
+
+## Errors
+
+Twin of `dca-java`'s `ErrorHandlingRules` (`DCA-ERR-001` … `DCA-ERR-006`, `Name` = `"errors"`), pinned to the two
+new building blocks `DomainException` (`Ddd.Tactical`) and `UseCaseException` (`Application`). Same ids, same
+titles, same rationales; the mechanics texts speak namespaces instead of packages. Nothing is `NotApplicable`.
+
+- **`UseCaseException`, not `ApplicationException`.** `System.ApplicationException` exists and Microsoft
+  discourages deriving from it; a namespace-resolved clash would force a qualification in every file that has the
+  implicit `System` using. Java follows the .NET name so both libraries say one word. The Java ADR-002 carries
+  the decision.
+- **ERR-004 classifies through the layout's attribute roles**, not a fixed list: container, persistence and
+  transaction namespaces plus the explicit persistence attribute type names, direct or through a base attribute
+  type — the same classification `DomainMetadata` uses. Type level only.
+- **ERR-006 is informational in both libraries.** ArchUnitNET's type model contains no `throw` and no `catch`
+  either; the diagnostic lists incoming adapters that drive an input port and depend on neither failure type.
+- **The base types are excluded by namespace** (`DomainCentric.BuildingBlocks`): they are library code, and
+  ERR-002 would otherwise report them as residing outside the project's layers.

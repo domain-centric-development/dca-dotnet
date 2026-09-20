@@ -219,7 +219,7 @@ public sealed class DcaRuleSelectionTests
     [Fact]
     public void CatalogMetadataIsComplete()
     {
-        Assert.Equal(11, DcaRules.SetNames().Count);
+        Assert.Equal(12, DcaRules.SetNames().Count);
         Assert.Equal(DcaRules.AllIds().Count, DcaRules.SetOfRule().Count);
     }
 }

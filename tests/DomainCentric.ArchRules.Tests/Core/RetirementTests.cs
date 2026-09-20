@@ -36,7 +36,7 @@ public class RetirementTests {
   Assert.Contains("ConsumerImplementation",Assert.Throws<DcaRuleViolationException>(()=>new LayeredRules(layout).OutputPortMarkersMustBeInterfaces().Check(arch)).Message);
  }
  [Fact] public void InformationalEntriesHaveExplicitKind() {
-  Assert.Equal(new[]{"DCA-LAY-001","DCA-MAP-013","DCA-STR-001","DCA-STR-010"},DcaRules.All(DcaLayout.ForRootNamespace("Example")).Where(r=>r.Kind==DcaRuleKind.Informational).Select(r=>r.Id).OrderBy(x=>x));
+  Assert.Equal(new[]{"DCA-ERR-006","DCA-LAY-001","DCA-MAP-013","DCA-STR-001","DCA-STR-010"},DcaRules.All(DcaLayout.ForRootNamespace("Example")).Where(r=>r.Kind==DcaRuleKind.Informational).Select(r=>r.Id).OrderBy(x=>x));
  }
  [Fact] public void RendererDisambiguatesExternalNames() {
   var arch=DcaArchitecture.Load(DcaLayout.ForRootNamespace("DomainCentric.ArchRules.Tests.Fixtures.ContextMap.Bad"),typeof(RetirementTests).Assembly);

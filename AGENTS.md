@@ -60,3 +60,11 @@ implementations valid, unrelated methods/properties forbidden). MAP-008 requires
 translation site for each declared upstream/channel; shared adapter packages are allowed.
 
 WP-36 policy (2026-09-09): integration contracts use the configured events segment only; translators use adapter/outgoing/event. Events are optional with conservative USE-009 proof. USE-012 exists in both libraries; static boundary evidence is not runtime containment. Delivery is per consumer/effect with snapshot replay, bounded retry and explicit manual recovery; never claim local keys alone prevent external duplicates.
+
+WP-22 policy (2026-09-20): failures have three layers — `DomainException` (business rule, domain
+layer), `UseCaseException` (use-case failure, application layer; the name avoids
+`System.ApplicationException` and is the same word in the Java library), translation in the
+incoming adapter. Argument guards keep the platform's own exceptions. `DCA-ERR-001…005` enforce
+base type, layer, metadata and naming; `DCA-ERR-006` is informational because the type model
+carries neither `throw` nor `catch`. The base types carry no code or status field — that is the
+adapter's decision.

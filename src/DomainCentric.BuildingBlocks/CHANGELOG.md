@@ -4,6 +4,15 @@ All notable changes to this package. Format: [Keep a Changelog](https://keepacha
 
 ## [Unreleased]
 
+### Added
+
+- `Ddd.Tactical.DomainException` and `Application.UseCaseException` — abstract, unchecked base classes for the two
+  kinds of failure an inner layer raises: a broken business rule of the model and a request the use case cannot
+  serve. Neither carries a code or status field; mapping an outcome onto a protocol answer is the incoming
+  adapter's decision. `UseCaseException` rather than `ApplicationException` because the platform occupies that
+  name and discourages deriving from it, and because one word should name the concept in both libraries. The
+  `errors` rule set of `DomainCentric.ArchRules` (`DCA-ERR-001` … `DCA-ERR-006`) checks their use.
+
 ## [0.1.1] - 2026-09-10
 
 Documentation-only release: no type, signature or behaviour changed; the XML docs that ship in the package are what the

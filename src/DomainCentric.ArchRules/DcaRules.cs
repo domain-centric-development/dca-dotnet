@@ -48,6 +48,7 @@ public static class DcaRules
             new NamingRules(layout),
             new CycleRules(layout),
             new DotnetRules(layout),
+            new ErrorHandlingRules(layout),
         };
 
     /// <summary>Every rule of every set.</summary>

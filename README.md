@@ -50,11 +50,13 @@ Namespaces:
 DomainCentric.BuildingBlocks
 ├── Ddd.Tactical                 IAggregateRoot, AggregateRootBase, IEntity, IValue, IId, IDomainEvent,
 │                                IIntegrationEvent, [IntegrationEventType], IDomainService, IDomainGateway,
-│                                IFactory, ISpecification<T>
+│                                IFactory, ISpecification<T>, DomainException
 ├── Ddd.Strategic                [BoundedContext]
 ├── Ddd.Strategic.Relationships  [SharedKernel], [OpenHostService], [Upstream], [ExternalUpstream], [Partnership]
-└── Hexagonal.Ports.In / .Out    IInputPort, IUseCase<TIn,TOut>  |  IOutputPort, IRepository, IStore,
-                                 IDomainEventPublisher, IIntegrationEventPublisher
+├── Hexagonal.Ports.In / .Out    IInputPort, IUseCase<TIn,TOut>  |  IOutputPort, IRepository, IStore,
+│                                IDomainEventPublisher, IIntegrationEventPublisher
+└── Application                  ITransactionBoundary (execution abstraction, not a port),
+                                 UseCaseException
 ```
 
 Ports are **async only** (`Task<TOut> ExecuteAsync(TIn, CancellationToken)`, `FindByIdAsync`, …); the
@@ -180,6 +182,7 @@ one rule across both languages):
 | `usecase` | `DCA-USE` | one use case per namespace, `I*InputPort` / `*UseCase` / `*Command` / `*Result` shape |
 | `naming` | `DCA-NAM` | naming conventions, forbidden technical suffixes and bucket namespaces |
 | `cycles` | `DCA-CYC` | no cycles between contexts, layers, use-case namespaces |
+| `errors` | `DCA-ERR` | domain and use-case exceptions: base types, their layer, no framework or transport vocabulary |
 | `dotnet` | `DCA-NET` | .NET only: synchronous domain, `Async` suffix on port methods, one `ExecuteAsync`, records for values and ids |
 
 The full list with rationale is in [RULES.md](RULES.md) (generated — `dotnet run --project tools/RulesCatalog -- .`).
