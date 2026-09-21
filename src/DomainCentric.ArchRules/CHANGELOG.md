@@ -4,6 +4,55 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+**A run says which preset and which vocabulary it resolved.** `DcaArchitectureTest` gained a
+`LayoutDiagnostics` fact that prints `framework annotations: aspnetcore (default)` and
+`building block markers: dca (library default)` — the same two lines, in the same wording, the Java
+carrier has printed since 0.4.0. New: `DcaLayout.FrameworkTypesReport()`. A mistyped role or a wrong
+root namespace is no longer a green suite with nothing to read. The README now also states, in the
+paragraph that exists for exactly this, that .NET has neither framework detection nor a preset SPI.
+
+**The advanced rules no longer change their verdict when a type cannot be loaded.**
+`DCA-ADV-006`, `-007`, `-008`, `-012` and `-016` read fields through the CLR only; for a type
+ArchUnitNET models but the loader cannot resolve, four of them passed silently and `DCA-ADV-008`
+reported a violation that was not there. They now fall back to the ArchUnitNET member model, and the
+five `checks` texts say what that model does not carry — the backing fields of auto-properties — and
+that a field whose writability neither model states is not reported.
+
+**`DCA-USE-012` says what to change.** The message named the missing property, not which of the two
+accepted forms to add — and with no transactional attribute configured, which is the .NET default,
+only one of them was available. It now names the configured attribute (or "none configured") and
+`ITransactionBoundary.InTransactionAsync(...)`, mirroring the Java wording, and the header is the
+rule's own title. Its `checks` text now states that the declarative path is empty by default here
+while the Java presets fill it.
+
+**`DCA-ERR-005` no longer rejects Ubiquitous-Language names.** The word list matched `Status` and
+`Response` as substrings, so `OrderStatusInvalidException` failed the rule that exists to protect the
+language. It now matches `Http`, `StatusCode`, `ResponseStatus` and `ResponseEntity`, in both
+languages.
+
+**`DCA-TAC-021` matches the same six write names in both languages**, compared case-insensitively
+instead of through a nine-entry list that spelled the Java names out.
+
+**`DCA-NET-004` says what it checks.** The rule is "Struct value objects must be readonly", but its
+rationale argued for records, its factory was called `ValueObjectsShouldBeRecords()` and the set's
+comment said "records for values". A reader who followed the rationale converted classes to records
+for no reason — `DCA-TAC-012` accepts any immutable type with value equality. Renamed to
+`StructValueObjectsMustBeReadonly()`; the rationale now argues from the copy semantics of a struct.
+
+**Four `DCA-USE` titles say what the rule checks** — `DCA-USE-002`, `-003`, `-006` and `-008` named
+the suffix as a requirement when it is the selection. Titles are not ids; nothing breaks.
+
+**`DCA-USE-015`'s `checks` text matches the walk**, which binds public and non-public members, and
+says that a type the loader cannot resolve is not walked.
+
+**The web adapter and shared segments are configurable.** `WithWebSegment(...)` and
+`WithSharedSegment(...)` join the other segments; `Web` was hard-wired in `DCA-NAM-011` and `Shared`
+in the shared-output-port patterns and the cycle slicing. Defaults unchanged, and the shared segment
+stays reserved against the operation containers whatever it is called.
+
+**`DCA-STR-008` cites the right reason** — a published contract, not event sourcing, which DCA
+prescribes nowhere.
+
 **`dca.framework` works here too.** The Java library lets `dca-archunit.properties` select a framework
 preset by name; .NET only accepted one in code. `dca.framework=aspnetcore|none` is now read from the
 same file, an unknown name fails and lists the known ones, and a layout that sets its framework types

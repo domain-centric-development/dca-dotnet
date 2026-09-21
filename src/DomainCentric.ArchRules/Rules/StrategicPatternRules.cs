@@ -309,7 +309,7 @@ public sealed class StrategicPatternRules : IDcaRuleSet
         DcaRule.Check(
             "DCA-STR-008",
             "Integration Events should have immutable shape",
-            "Integration Events must be immutable to ensure event integrity across contexts (Event Sourcing best practice)",
+            "An integration event is a published contract: once another context has read it, its shape may only grow, never change under an existing reader. A mutable event cannot make that promise - any holder can rewrite what a second consumer will read",
             arch =>
             {
                 var violations = arch.Types

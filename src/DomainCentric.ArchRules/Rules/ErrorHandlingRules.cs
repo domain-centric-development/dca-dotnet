@@ -29,7 +29,7 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
 
     private static readonly string[] ForbiddenSuffixes = { "Error", "Fault", "Failure" };
 
-    private static readonly string[] ForbiddenWords = { "Http", "Status", "Response" };
+    private static readonly string[] ForbiddenWords = { "Http", "StatusCode", "ResponseStatus", "ResponseEntity" };
 
     public ErrorHandlingRules(DcaLayout layout)
     {
@@ -239,9 +239,12 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                 + "role types live in are not selected, so a project's own base type is not reported as "
                 + "residing outside a layer it never claimed.")
             .Checking(
-                "The type name ends with none of Error, Fault, Failure and contains none of Http, Status, "
-                + "Response. Whether the remaining name is a term of the Ubiquitous Language is not "
-                + "decidable here and stays with review. An empty selection passes.");
+                "The type name ends with none of Error, Fault, Failure and contains none of Http, "
+                + "StatusCode, ResponseStatus, ResponseEntity. The bare words Status and Response are "
+                + "not matched: they are transport words and domain words, and the name alone does not "
+                + "tell them apart, so OrderStatusInvalidException passes. Whether the remaining name "
+                + "is a term of the Ubiquitous Language is not decidable here and stays with review. "
+                + "An empty selection passes.");
 
     public IDcaRule AdaptersWithoutTranslation() =>
         DcaRule.Informational(

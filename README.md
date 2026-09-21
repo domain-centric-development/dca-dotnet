@@ -140,7 +140,7 @@ Both sources combine: the file is the base, `AdditionalSelection` is merged on t
 wins per rule id. Override `AdditionalSelection`, not `Selection` — the latter *replaces* the file, so
 a `dca-archunit.properties` added later would be ignored without a word.
 
-**Three differences from the Java library.** There is no baseline dial yet (`frozen` /
+**Four differences from the Java library.** There is no baseline dial yet (`frozen` /
 `dca.rules.freeze`). ArchUnitNET does ship a `FreezingArchRule`, but the rules of this library do not
 expose the ArchUnitNET rule behind them, so there is nothing to build a baseline from; the properties
 key is rejected with a message saying so. **On an existing code base, use `dca.rule.<id>.ignore`
@@ -152,7 +152,18 @@ only the **file** shapes the report: theory cases are built statically, before a
 rule the file scopes out produces no case at all and one it lowers is named
 `naming / DCA-NAM-005 [OFF: no MVC controllers here]`. The same settings made in `AdditionalSelection`
 take effect but appear only in the test output — put them in the file when the report should carry the
-decision.
+decision. Finally, there is **no framework detection and no preset SPI**: `FrameworkTypes` ships two
+presets, `AspNetCore()` (the default) and `None()`, both selectable in code or with
+`dca.framework=aspnetcore|none`, while the Java library ships five, recognises the one on the test
+class path and lets a project register its own through `META-INF/services`. A project on a platform
+neither preset covers builds its own `FrameworkTypes` in code. Which preset and which marker
+vocabulary a run resolved is printed by the `LayoutDiagnostics` fact of `DcaArchitectureTest`, in the
+same wording the Java report uses:
+
+```
+framework annotations: aspnetcore (default)
+building block markers: dca (library default)
+```
 
 The older `ExcludedRuleIds` and `Rules` overrides keep working and feed the same selection.
 

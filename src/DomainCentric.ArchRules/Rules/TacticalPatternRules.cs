@@ -26,11 +26,14 @@ public sealed class TacticalPatternRules : IDcaRuleSet
     private const string RepositorySuffix = "Repository";
     private const string StoreSuffix = "Store";
 
-    private static readonly HashSet<string> RepositoryMethodNames = new(StringComparer.Ordinal)
+    /// <summary>
+    /// Write vocabulary a Store must not declare, compared case-insensitively so that the same six
+    /// names are matched in both languages — <c>Save</c> and <c>save</c> are the same name.
+    /// </summary>
+    private static readonly HashSet<string> RepositoryMethodNames = new(StringComparer.OrdinalIgnoreCase)
     {
-        "SaveAsync", "DeleteByIdAsync", "DeleteAsync",
         "Save", "DeleteById", "Delete",
-        "save", "deleteById", "delete",
+        "SaveAsync", "DeleteByIdAsync", "DeleteAsync",
     };
 
     /// <summary>Rule ids of the Java catalog that have no .NET reading (none in this set).</summary>
@@ -775,12 +778,13 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 "Interfaces below the root namespace assignable to IStore; an interface named "
                 + "exactly Store excluded.")
             .Checking(
-                "No method declared on the interface itself is named "
-                + "SaveAsync, DeleteByIdAsync or DeleteAsync, nor their synchronous forms "
-                + "Save, DeleteById and Delete, nor the camel-cased save, "
-                + "deleteById and delete - matched by name alone, parameters and return type "
-                + "disregarded. Inherited methods are not inspected, and no particular "
-                + "vocabulary (Record, Count, Exists) is required. The three names are fixed and are not part of the marker roles: a vocabulary that writes under another name is selected and then found to declare no write.");
+                "No method declared on the interface itself is named Save, DeleteById, Delete "
+                + "or one of their asynchronous forms SaveAsync, DeleteByIdAsync, DeleteAsync - "
+                + "matched by name alone, parameters and return type disregarded and case "
+                + "ignored, so both languages match the same six names. Inherited methods are not "
+                + "inspected, and no particular vocabulary (Record, Count, Exists) is required. "
+                + "The six names are fixed and are not part of the marker roles: a vocabulary that "
+                + "writes under another name is selected and then found to declare no write.");
 
     // ---------------------------------------------------------------------------------------------
     // Enriched domain model pattern

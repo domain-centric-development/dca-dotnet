@@ -271,14 +271,15 @@ public sealed class NamingRules : IDcaRuleSet
 
     /// <summary>
     /// The web-adapter namespaces are derived from the discovered module roots
-    /// (<c>Root.Adapter.Incoming.Web</c> and below, per module), so a grouped context and a single-context
+    /// (<c>Root.Adapter.Incoming.&lt;Web&gt;</c> and below, per module), so a grouped context and a single-context
     /// application whose root namespace is the context are governed like a flat layout.
     /// </summary>
     public static IDcaRule ViewModelsResideInIncomingWebAdapters(DcaLayout layout) =>
         DcaRule.Of(
             "DCA-NAM-011",
-            "ViewModels must reside in Adapter.Incoming.Web namespaces",
-            "ViewModels are presentation concerns and must reside in incoming web adapter namespaces",
+            "ViewModels must reside in the configured web adapter namespace",
+            "A ViewModel is shaped for the protocol of one incoming adapter and belongs in it. It has no"
+            + " reading in the domain or the application layer, and none in a second adapter",
             arch =>
                 Types()
                     .That()
@@ -287,14 +288,15 @@ public sealed class NamingRules : IDcaRuleSet
                     .ResideInNamespaceMatching(DcaLayout.Below(layout.RootNamespace))
                     .Should()
                     .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.ModuleRoots().Select(root =>
-                        DcaLayout.Below($"{root}.{layout.AdapterSegment}.{layout.IncomingSegment}.Web")))))
+                        DcaLayout.Below($"{root}.{layout.AdapterSegment}.{layout.IncomingSegment}.{layout.WebSegment}")))))
         .Selecting(
             "Types under the root namespace whose name ends with ViewModel.")
         .Checking(
-            "Each resides in <module>.Adapter.Incoming.Web of some module root - the adapter"
-                + " and incoming segments are the configured ones, the Web segment is fixed. A"
-                + " ViewModel in a domain or application namespace, or in a non-web incoming adapter"
-                + " such as Adapter.Incoming.Mcp, is reported. An empty selection passes.");
+            "Each resides in <module>.Adapter.Incoming.<Web> of some module root - all three"
+                + " segments are the configured ones (WithWebSegment changes the last). A"
+                + " ViewModel in a domain or application namespace, or in an incoming adapter"
+                + " other than the configured web one, such as Adapter.Incoming.Mcp, is"
+                + " reported. An empty selection passes.");
 
     // ---------------------------------------------------------------------------------------------
     // Helpers

@@ -16,7 +16,8 @@ namespace DomainCentric.ArchRules.Rules;
 /// <summary>
 /// Rules that only exist in the .NET edition of Domain-Centric Architecture (<c>DCA-NET-*</c>): they
 /// pin down how the doctrine maps onto C# idioms — a synchronous domain, async-only ports with the
-/// <c>Async</c> suffix, one <c>ExecuteAsync</c> per use case, records for values and identifiers.
+/// <c>Async</c> suffix, one <c>ExecuteAsync</c> per use case, readonly structs for struct values,
+/// readonly record structs for identifiers.
 /// They have no Java counterpart and therefore no entry in the shared catalog of ported rules.
 /// </summary>
 public sealed class DotnetRules : IDcaRuleSet
@@ -32,7 +33,7 @@ public sealed class DotnetRules : IDcaRuleSet
             DomainLayerMustStaySynchronous(),
             PortMethodsReturningTaskMustEndWithAsync(),
             UseCasesMustExposeExactlyOneExecuteAsync(),
-            ValueObjectsShouldBeRecords(),
+            StructValueObjectsMustBeReadonly(),
             IdentifiersShouldBeReadonlyRecordStructs(),
             ApplicationLayerMustNotUsePersistenceFrameworks(),
         };
@@ -216,12 +217,12 @@ public sealed class DotnetRules : IDcaRuleSet
         .Selecting("Concrete classes under scan implementing IUseCase<TIn,TOut> (directly, inherited or explicitly), plus application operations (marker or suffix) that declare a public ExecuteAsync without the generic contract, with loadable runtime types. A marker-only IInputPort implementation without ExecuteAsync is not selected.")
         .Checking("Every IUseCase<TIn,TOut> interface map supplies ExecuteAsync(input, CancellationToken) returning Task<T>; explicit, inherited and ordinary implementations pass. An ExecuteAsync declared without the generic contract (plain Task, own signature) fails. Other public members are checked by USE-017, not counted here.");
 
-    /// <summary>DCA-NET-004: value objects are records or (record) structs.</summary>
-    public static IDcaRule ValueObjectsShouldBeRecords() =>
+    /// <summary>DCA-NET-004: a value object declared as a struct is a readonly struct.</summary>
+    public static IDcaRule StructValueObjectsMustBeReadonly() =>
         DcaRule.Check(
             "DCA-NET-004",
             "Struct value objects must be readonly",
-            "Records give attribute-based equality, immutability by default and with-expressions — the C# way to write a Value Object",
+            "A struct is copied by value but its fields stay assignable unless the struct is declared readonly, so a mutating method silently changes a copy and leaves the original behind. readonly makes the compiler enforce what a Value Object promises. Whether a value object is a record, a class or a struct is not prescribed here - DCA-TAC-012 accepts any immutable type with value equality",
             arch =>
             {
                 var domain = arch.AllDomainPatterns().Select(p => new Regex(p)).ToList();

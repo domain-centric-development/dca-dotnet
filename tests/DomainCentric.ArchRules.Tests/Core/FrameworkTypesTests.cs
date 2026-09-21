@@ -112,4 +112,22 @@ public sealed class FrameworkTypesTests
         Assert.Equal("aspnetcore", noKey.FrameworkTypes.Name);
         Assert.Equal(DcaLayout.FrameworkTypesOrigin.Default, noKey.FrameworkTypesSource);
     }
+
+    /// <summary>
+    /// The report line the <c>LayoutDiagnostics</c> fact prints names the preset and where it came
+    /// from, so a run says which attributes the rules looked for.
+    /// </summary>
+    [Fact]
+    public void TheFrameworkReportNamesThePresetAndItsOrigin()
+    {
+        Assert.Equal("aspnetcore (default)", DcaLayout.ForRootNamespace("Acme.Shop").FrameworkTypesReport());
+
+        var configured = DcaLayout.ApplyConfiguredFramework(
+            DcaLayout.ForRootNamespace("Acme.Shop"),
+            new Dictionary<string, string>(StringComparer.Ordinal) { ["dca.framework"] = "none" });
+        Assert.Equal("none (configured)", configured.FrameworkTypesReport());
+
+        var inCode = DcaLayout.ForRootNamespace("Acme.Shop").WithFrameworkTypes(FrameworkTypes.None());
+        Assert.Equal("none (explicit)", inCode.FrameworkTypesReport());
+    }
 }

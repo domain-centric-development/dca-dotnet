@@ -72,6 +72,8 @@ public sealed class DcaLayout
         IReadOnlyList<string>? operationContainers = null,
         string modelSegment = "Model",
         string incomingEventSegment = "Event",
+        string webSegment = "Web",
+        string sharedSegment = "Shared",
         DcaMarkers? markers = null)
     {
         RootNamespace = RequireSegment(rootNamespace, nameof(rootNamespace));
@@ -79,9 +81,11 @@ public sealed class DcaLayout
         DomainSegment = RequireSegment(domainSegment, nameof(domainSegment));
         ModelSegment = RequireSegment(modelSegment, nameof(modelSegment));
         ApplicationSegment = RequireSegment(applicationSegment, nameof(applicationSegment));
+        SharedSegment = RequireSegment(sharedSegment, nameof(sharedSegment));
         AdapterSegment = RequireSegment(adapterSegment, nameof(adapterSegment));
         IncomingSegment = RequireSegment(incomingSegment, nameof(incomingSegment));
         IncomingEventSegment = RequireSegment(incomingEventSegment, nameof(incomingEventSegment));
+        WebSegment = RequireSegment(webSegment, nameof(webSegment));
         OutgoingSegment = RequireSegment(outgoingSegment, nameof(outgoingSegment));
         InfrastructureSegment = RequireSegment(infrastructureSegment, nameof(infrastructureSegment));
         ApiSegment = RequireSegment(apiSegment, nameof(apiSegment));
@@ -92,6 +96,11 @@ public sealed class DcaLayout
         }
 
         OperationContainers = Array.AsReadOnly((operationContainers ?? Array.Empty<string>()).ToArray());
+        if (OperationContainers.Contains(SharedSegment))
+        {
+            throw new ArgumentException($"The shared segment '{SharedSegment}' may not also be an operation container", nameof(operationContainers));
+        }
+
         UseCaseSuffix = RequireSegment(useCaseSuffix, nameof(useCaseSuffix));
         ControllerSuffix = RequireSegment(controllerSuffix, nameof(controllerSuffix));
         RestControllerSuffix = RequireSegment(restControllerSuffix, nameof(restControllerSuffix));
@@ -144,11 +153,17 @@ public sealed class DcaLayout
     public string ModelSegment { get; }
 
     public string ApplicationSegment { get; }
+
+    /// <summary>Segment of the application layer that holds the output ports shared by the use cases of one context (<c>Shared</c> by default); reserved, so it may not be an operation container.</summary>
+    public string SharedSegment { get; }
     public string AdapterSegment { get; }
     public string IncomingSegment { get; }
 
     /// <summary>Segment of the incoming adapters that holds the event consumers (<c>Event</c> by default) — the one kind of incoming adapter the adapter-isolation rules exempt.</summary>
     public string IncomingEventSegment { get; }
+
+    /// <summary>Segment of the incoming adapters that holds the web adapter (<c>Web</c> by default); only <c>DCA-NAM-011</c> reads it.</summary>
+    public string WebSegment { get; }
 
     public string OutgoingSegment { get; }
     public string InfrastructureSegment { get; }
@@ -232,6 +247,9 @@ public sealed class DcaLayout
 
     public DcaLayout WithApplicationSegment(string value) => Copy(application: value);
 
+    /// <summary>Segment of the application layer that holds a context's shared output ports, e.g. <c>Shared</c> (default), <c>Ports</c> or <c>Spi</c>; the name is reserved and may not be an operation container.</summary>
+    public DcaLayout WithSharedSegment(string value) => Copy(shared: value);
+
     public DcaLayout WithAdapterSegment(string value) => Copy(adapter: value);
 
     /// <summary>Name of the incoming (driving/primary) adapter namespace segment — <c>In</c> in some projects.</summary>
@@ -239,6 +257,9 @@ public sealed class DcaLayout
 
     /// <summary>Segment of the event consumers below the incoming adapters, e.g. <c>Event</c> (default) or <c>Listener</c>; types below <c>&lt;Module&gt;.Adapter.Incoming.&lt;Event&gt;</c> are exempt from the adapter-isolation rules.</summary>
     public DcaLayout WithIncomingEventSegment(string value) => Copy(incomingEvent: value);
+
+    /// <summary>Segment of the web adapter below the incoming adapters, e.g. <c>Web</c> (default), <c>Ui</c> or <c>Mvc</c>; <c>DCA-NAM-011</c> requires a ViewModel below <c>&lt;Module&gt;.Adapter.Incoming.&lt;Web&gt;</c>.</summary>
+    public DcaLayout WithWebSegment(string value) => Copy(web: value);
 
     /// <summary>Name of the outgoing (driven/secondary) adapter namespace segment — <c>Out</c> in some projects.</summary>
     public DcaLayout WithOutgoingSegment(string value) => Copy(outgoing: value);
@@ -260,7 +281,7 @@ public sealed class DcaLayout
     {
         foreach (var name in names)
         {
-            if (string.IsNullOrWhiteSpace(name) || !Regex.IsMatch(name, "^[A-Za-z_][A-Za-z0-9_]*$") || name == "Shared")
+            if (string.IsNullOrWhiteSpace(name) || !Regex.IsMatch(name, "^[A-Za-z_][A-Za-z0-9_]*$") || name == SharedSegment)
                 throw new ArgumentException("Invalid operation container: " + name, nameof(names));
         }
         return Copy(operationContainers: names);
@@ -337,6 +358,8 @@ public sealed class DcaLayout
         IReadOnlyList<string>? operationContainers = null,
         string? model = null,
         string? incomingEvent = null,
+        string? web = null,
+        string? shared = null,
         DcaMarkers? markers = null,
         FrameworkTypesOrigin? frameworkTypesSource = null) =>
         new(
@@ -358,6 +381,8 @@ public sealed class DcaLayout
             operationContainers ?? OperationContainers,
             model ?? ModelSegment,
             incomingEvent ?? IncomingEventSegment,
+            web ?? WebSegment,
+            shared ?? SharedSegment,
             markers ?? Markers)
         {
             FrameworkTypesSource = frameworkTypesSource ?? FrameworkTypesSource,
@@ -394,8 +419,8 @@ public sealed class DcaLayout
     /// <summary>Pattern for <c>Root.*.Application</c> and below.</summary>
     public string ApplicationPattern => Below($"{RootNamespace}.{Segment}.{ApplicationSegment}");
 
-    /// <summary>Pattern for <c>Root.*.Application.Shared</c> and below — output ports shared by the use cases of one context.</summary>
-    public string SharedOutputPortPattern => Below($"{RootNamespace}.{Segment}.{ApplicationSegment}.Shared");
+    /// <summary>Pattern for <c>Root.*.Application.&lt;Shared&gt;</c> and below — output ports shared by the use cases of one context.</summary>
+    public string SharedOutputPortPattern => Below($"{RootNamespace}.{Segment}.{ApplicationSegment}.{SharedSegment}");
 
     /// <summary>Pattern for <c>Root.*.Adapter</c> and below.</summary>
     public string AdapterPattern => Below($"{RootNamespace}.{Segment}.{AdapterSegment}");
@@ -420,7 +445,7 @@ public sealed class DcaLayout
 
     public string ApplicationPatternOf(string contextNamespace) => Below($"{contextNamespace}.{ApplicationSegment}");
 
-    public string SharedOutputPortPatternOf(string contextNamespace) => Below($"{contextNamespace}.{ApplicationSegment}.Shared");
+    public string SharedOutputPortPatternOf(string contextNamespace) => Below($"{contextNamespace}.{ApplicationSegment}.{SharedSegment}");
 
     public string AdapterPatternOf(string contextNamespace) => Below($"{contextNamespace}.{AdapterSegment}");
 
@@ -464,6 +489,19 @@ public sealed class DcaLayout
 
     private static string EscapeKeepingSegments(string ns) =>
         string.Join(Segment, ns.Split(new[] { Segment }, StringSplitOptions.None).Select(Regex.Escape));
+
+    /// <summary>
+    /// One line for a report: the framework preset the rules resolved their attributes with, and where
+    /// that choice came from. The counterpart of <c>dca-archunit</c>'s
+    /// <c>frameworkAnnotationsReport()</c>; .NET has no detection, so the origin is never
+    /// <c>detected</c>.
+    /// </summary>
+    public string FrameworkTypesReport() => FrameworkTypesSource switch
+    {
+        FrameworkTypesOrigin.Preset => $"{FrameworkTypes.Name} (configured)",
+        FrameworkTypesOrigin.Explicit => $"{FrameworkTypes.Name} (explicit)",
+        _ => $"{FrameworkTypes.Name} (default)",
+    };
 
     /// <summary>
     /// One line for a report: <c>dca (library default)</c> while every role names the building blocks' own

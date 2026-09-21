@@ -129,6 +129,19 @@ public abstract class DcaArchitectureTest
         return reason is null ? $" [{label}]" : $" [{label}: {reason}]";
     }
 
+    /// <summary>
+    /// The two facts of the layout worth seeing in the report: the framework preset the rules
+    /// resolved their attributes with, and the vocabulary they resolved their building blocks with.
+    /// The wording matches the <c>layout</c> container of the Java carrier, so a run is
+    /// self-describing on both stacks.
+    /// </summary>
+    [Fact]
+    public void LayoutDiagnostics() {
+        var layout = EffectiveLayout;
+        Console.Out.WriteLine($"framework annotations: {layout.FrameworkTypesReport()}");
+        Console.Out.WriteLine($"building block markers: {layout.MarkersReport()}");
+    }
+
     [Fact]
     public void CatalogKindsAndRetiredIdentities() {
         var selected = Rules.ToList();

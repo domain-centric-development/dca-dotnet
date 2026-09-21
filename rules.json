@@ -408,7 +408,7 @@
       "title": "Store interfaces must not declare Save or Delete methods",
       "rationale": "Save/Delete are Repository semantics; a Store that has them is a Repository wearing the wrong name, and the stored object should then be an Aggregate Root",
       "selects": "Interfaces below the root namespace assignable to IStore; an interface named exactly Store excluded.",
-      "checks": "No method declared on the interface itself is named SaveAsync, DeleteByIdAsync or DeleteAsync, nor their synchronous forms Save, DeleteById and Delete, nor the camel-cased save, deleteById and delete - matched by name alone, parameters and return type disregarded. Inherited methods are not inspected, and no particular vocabulary (Record, Count, Exists) is required. The three names are fixed and are not part of the marker roles: a vocabulary that writes under another name is selected and then found to declare no write.",
+      "checks": "No method declared on the interface itself is named Save, DeleteById, Delete or one of their asynchronous forms SaveAsync, DeleteByIdAsync, DeleteAsync - matched by name alone, parameters and return type disregarded and case ignored, so both languages match the same six names. Inherited methods are not inspected, and no particular vocabulary (Record, Count, Exists) is required. The six names are fixed and are not part of the marker roles: a vocabulary that writes under another name is selected and then found to declare no write.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -486,7 +486,7 @@
       "set": "strategic",
       "id": "DCA-STR-008",
       "title": "Integration Events should have immutable shape",
-      "rationale": "Integration Events must be immutable to ensure event integrity across contexts (Event Sourcing best practice)",
+      "rationale": "An integration event is a published contract: once another context has read it, its shape may only grow, never change under an existing reader. A mutable event cannot make that promise - any holder can rewrite what a second consumer will read",
       "selects": "Non-interface types below the root namespace whose implemented interfaces include IIntegrationEvent - directly or through a derived interface; classes, records and structs alike, compiler-generated types excluded.",
       "checks": "Classes are sealed or records; structs are allowed. Every inherited instance field is readonly, every property is get-only or init-only and no instance Set*(x): void method exists. Referenced objects and collection contents are not inspected.",
       "implementation": "dotnet",
@@ -694,7 +694,7 @@
       "title": "Integration events carry the schema version in their type metadata, not in the payload",
       "rationale": "The schema version is a class property ([IntegrationEventType]), never per-instance payload data — an explicit schema-version data field duplicates the attribute and can drift from it",
       "selects": "Non-interface types anywhere under scan that are assignable to IIntegrationEvent.",
-      "checks": "Name heuristic: schemaVersion, eventVersion and contractVersion fields (case-insensitive), declared or inherited, including auto-property backing fields and record parameters, are reported. A business revision named version is allowed, whatever its type. The heuristic cannot infer business meaning; an empty selection passes.",
+      "checks": "Name heuristic: schemaVersion, eventVersion and contractVersion fields (case-insensitive), declared or inherited, including auto-property backing fields and record parameters, are reported. A business revision named version is allowed, whatever its type. A type the loader cannot resolve is read through the ArchUnitNET member model instead, which does not carry the backing fields of auto-properties. The heuristic cannot infer business meaning; an empty selection passes.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -704,7 +704,7 @@
       "title": "Domain events that are not integration events carry no schema version",
       "rationale": "Versioning is a contract concern of integration events — a purely internal domain event has no wire contract to version",
       "selects": "Non-interface types anywhere under scan that are assignable to IDomainEvent but not to IIntegrationEvent. A type assignable to both is not selected.",
-      "checks": "Name heuristic: schemaVersion, eventVersion and contractVersion fields (case-insensitive), declared or inherited, including auto-property backing fields and record parameters, are reported. A business revision named version is allowed, whatever its type. The heuristic cannot infer business meaning; an empty selection passes.",
+      "checks": "Name heuristic: schemaVersion, eventVersion and contractVersion fields (case-insensitive), declared or inherited, including auto-property backing fields and record parameters, are reported. A business revision named version is allowed, whatever its type. A type the loader cannot resolve is read through the ArchUnitNET member model instead, which does not carry the backing fields of auto-properties. The heuristic cannot infer business meaning; an empty selection passes.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -714,7 +714,7 @@
       "title": "Domain Events must have a timestamp field",
       "rationale": "An event records something that happened — without a timestamp the fact cannot be ordered, replayed or audited",
       "selects": "Non-interface types anywhere under scan that are assignable to IDomainEvent. IIntegrationEvent does not extend IDomainEvent, so an integration event is selected only when it also implements IDomainEvent.",
-      "checks": "At least one field - declared by the type or inherited from a base type, static or not, of any name - has the type System.DateTimeOffset or System.DateTime; an auto-property or positional record parameter of one of these types counts through its backing field. DateOnly, TimeSpan, long or string fields do not satisfy it, and a computed property without a backing field does not either. Every offender is reported in one violation; an empty selection passes.",
+      "checks": "At least one field - declared by the type or inherited from a base type, static or not, of any name - has the type System.DateTimeOffset or System.DateTime; an auto-property or positional record parameter of one of these types counts through its backing field. DateOnly, TimeSpan, long or string fields do not satisfy it, and a computed property without a backing field does not either. A type the loader cannot resolve is read through the ArchUnitNET member model instead, which does not carry the backing fields of auto-properties. Every offender is reported in one violation; an empty selection passes.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -754,7 +754,7 @@
       "title": "Domain Services should be stateless (only readonly fields for dependencies)",
       "rationale": "Domain services should be stateless (only readonly fields for dependencies)",
       "selects": "Non-interface types in <module>.Domain of every module root that are assignable to IDomainService.",
-      "checks": "Every field - declared by the type or inherited from a base type, static fields included - is readonly or const. A settable auto-property is reported through its backing field; a get-only one passes. Field types are not inspected, so a readonly field holding mutable state passes. An empty selection passes.",
+      "checks": "Every field - declared by the type or inherited from a base type, static fields included - is readonly or const. A settable auto-property is reported through its backing field; a get-only one passes. Field types are not inspected, so a readonly field holding mutable state passes. A type the loader cannot resolve is read through the ArchUnitNET member model instead, and a field whose writability neither model states is not reported. An empty selection passes.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -794,7 +794,7 @@
       "title": "Factories should be stateless (only readonly fields for dependencies)",
       "rationale": "Factories should be stateless (only readonly fields for dependencies)",
       "selects": "Non-interface types in <module>.Domain of every module root that are assignable to IFactory.",
-      "checks": "Every field - declared by the type or inherited from a base type, static fields included - is readonly or const. A settable auto-property is reported through its backing field. Field types are not inspected. An empty selection passes.",
+      "checks": "Every field - declared by the type or inherited from a base type, static fields included - is readonly or const. A settable auto-property is reported through its backing field. Field types are not inspected. A type the loader cannot resolve is read through the ArchUnitNET member model instead, and a field whose writability neither model states is not reported. An empty selection passes.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -831,7 +831,7 @@
     {
       "set": "usecase",
       "id": "DCA-USE-002",
-      "title": "Use Case Commands must end with 'Command' and reside in application namespace",
+      "title": "Types named *Command reside in the application layer",
       "rationale": "Use case commands should be in application layer (CQRS pattern)",
       "selects": "Types under the root namespace whose name ends with Command.",
       "checks": "Each resides in an application namespace of some module root (<module>.Application). A Command in a domain, adapter or infrastructure namespace is reported.",
@@ -841,7 +841,7 @@
     {
       "set": "usecase",
       "id": "DCA-USE-003",
-      "title": "Use Case Queries must end with 'Query' and reside in application namespace",
+      "title": "Types named *Query reside in the application layer",
       "rationale": "Use case queries should be in application layer (CQRS pattern)",
       "selects": "Types under the root namespace whose name ends with Query.",
       "checks": "Each resides in an application namespace of some module root (<module>.Application).",
@@ -871,7 +871,7 @@
     {
       "set": "usecase",
       "id": "DCA-USE-006",
-      "title": "Use Case Result Models must end with 'Result' and reside in application namespace",
+      "title": "Types named *Result reside in the application layer",
       "rationale": "Use case result models should be in application layer. Domain Value Objects with 'Result' in name are allowed in domain layer.",
       "selects": "Types under the root namespace whose name ends with Result and that do not implement IValue.",
       "checks": "Each resides in an application namespace of some module root (<module>.Application). A domain value object named *Result is exempt because it implements IValue.",
@@ -891,7 +891,7 @@
     {
       "set": "usecase",
       "id": "DCA-USE-008",
-      "title": "HTTP Response Models must end with 'Response' and reside in adapter namespace",
+      "title": "Types named *Response reside in an adapter",
       "rationale": "HTTP response models should be in adapter layer",
       "selects": "Types under the root namespace whose name ends with Response.",
       "checks": "Each resides in an adapter namespace (incoming or outgoing) of some module root (<module>.Adapter or below), the shared kernel's included.",
@@ -934,7 +934,7 @@
       "title": "Use cases that save an aggregate or publish domain events must have a transaction boundary",
       "rationale": "The use case owns the unit of work. Saving an aggregate is one business fact, yet the repository may write it as several statements - an aggregate of entities and value objects often spans several tables - and a repository adapter draws no boundary of its own; without one, a failure between the statements leaves half an aggregate behind. Publishing adds a second effect that must fall with the save: integration-event capture joins the modeled transaction, and publication outside a transaction cannot rely on commit semantics. The boundary is either the configured transactional attribute (on the class or the executing method) or an explicit ITransactionBoundary.InTransactionAsync(...) around load, mutate, save and publish. Checked per entry path, following calls within the class: from every entry point - a method callable from outside the class, or one nothing in the class calls - no route down to the saving, deleting or publishing method may be free of an attribute or a boundary; a covered caller does not cover another route to the same helper, and a boundary on one route does not cover a second route",
       "selects": "Concrete application operations selected by IInputPort marker or suffix with loadable runtime types, including closure and async units.",
-      "checks": "Every entry path to a unit calling IRepository.SaveAsync, IRepository.DeleteByIdAsync or an IDomainEventPublisher crosses a unit calling ITransactionBoundary.InTransactionAsync (including its extension overloads) or carrying the configured TransactionalAttribute; a type-level attribute covers all paths. A use case that neither saves, deletes nor publishes (a query, a Store write) is selected but has nothing to check and passes. Static limit: a boundary call in the same unit passes even when the save or publication follows an empty boundary block. Runtime rollback containment must be tested separately. The method names are fixed and are not part of the marker roles: a vocabulary whose repository writes under another name is selected and then found to save nothing, so this rule passes over it.",
+      "checks": "Every entry path to a unit calling IRepository.SaveAsync, IRepository.DeleteByIdAsync or an IDomainEventPublisher crosses a unit calling ITransactionBoundary.InTransactionAsync (including its extension overloads) or carrying the configured TransactionalAttribute; a type-level attribute covers all paths. The declarative path is empty by default in .NET - AspNetCore() and None() both leave TransactionalAttribute unset, because ASP.NET Core has no ambient transaction attribute - so out of the box only the explicit boundary satisfies the rule, while the Java twin also accepts the framework's transactional annotation. A use case that neither saves, deletes nor publishes (a query, a Store write) is selected but has nothing to check and passes. Static limit: a boundary call in the same unit passes even when the save or publication follows an empty boundary block. Runtime rollback containment must be tested separately. The method names are fixed and are not part of the marker roles: a vocabulary whose repository writes under another name is selected and then found to save nothing, so this rule passes over it.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -960,7 +960,7 @@
       "title": "Use Case Result Models must not expose aggregate roots or entities",
       "rationale": "A result is the use case's answer, not a handle on the model: identity and behaviour stay behind the port; values, enriched models and read models may cross. Checked transitively through nested records, part records anywhere in the application layer (Application.Shared included), arrays and generic type arguments (IReadOnlyList<T>, T?, IReadOnlyDictionary<K,V>)",
       "selects": "Top-level classes and structs in each module application namespace ending in Result, excluding IValue types.",
-      "checks": "No public instance result member transitively through application part records and generic wrappers exposes IAggregateRoot or IEntity; classes and structs are checked. Domain values and read models are not traversed.",
+      "checks": "No instance result member of any visibility - the walk binds public and non-public members - transitively through application part records and generic wrappers exposes IAggregateRoot or IEntity; classes and structs are checked. Domain values and read models are not traversed. A type the loader cannot resolve is not walked.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -1083,10 +1083,10 @@
     {
       "set": "naming",
       "id": "DCA-NAM-011",
-      "title": "ViewModels must reside in Adapter.Incoming.Web namespaces",
-      "rationale": "ViewModels are presentation concerns and must reside in incoming web adapter namespaces",
+      "title": "ViewModels must reside in the configured web adapter namespace",
+      "rationale": "A ViewModel is shaped for the protocol of one incoming adapter and belongs in it. It has no reading in the domain or the application layer, and none in a second adapter",
       "selects": "Types under the root namespace whose name ends with ViewModel.",
-      "checks": "Each resides in <module>.Adapter.Incoming.Web of some module root - the adapter and incoming segments are the configured ones, the Web segment is fixed. A ViewModel in a domain or application namespace, or in a non-web incoming adapter such as Adapter.Incoming.Mcp, is reported. An empty selection passes.",
+      "checks": "Each resides in <module>.Adapter.Incoming.<Web> of some module root - all three segments are the configured ones (WithWebSegment changes the last). A ViewModel in a domain or application namespace, or in an incoming adapter other than the configured web one, such as Adapter.Incoming.Mcp, is reported. An empty selection passes.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -1174,7 +1174,7 @@
       "set": "dotnet",
       "id": "DCA-NET-004",
       "title": "Struct value objects must be readonly",
-      "rationale": "Records give attribute-based equality, immutability by default and with-expressions — the C# way to write a Value Object",
+      "rationale": "A struct is copied by value but its fields stay assignable unless the struct is declared readonly, so a mutating method silently changes a copy and leaves the original behind. readonly makes the compiler enforce what a Value Object promises. Whether a value object is a record, a class or a struct is not prescribed here - DCA-TAC-012 accepts any immutable type with value equality",
       "selects": "Non-interface, non-abstract types in <module>.Domain of every module root that are assignable to IValue and whose runtime type is in the loaded assemblies.",
       "checks": "Struct values must carry the readonly modifier. Classes are governed by TAC-009/010/012; equality is checked by TAC-012. An IValue outside a domain namespace is not selected.",
       "implementation": "dotnet",
@@ -1246,7 +1246,7 @@
       "title": "Domain and use-case exception names must stay in the language of their layer",
       "rationale": "A failure named after a transport concept is a decision about the answer, taken in a layer that does not know the protocol; the name should say what went wrong, not what the caller should be told",
       "selects": "Types anywhere under the root namespace that are assignable to the domain-exception or the use-case-exception role, the vocabulary's own code excluded: the namespaces the configured role types live in are not selected, so a project's own base type is not reported as residing outside a layer it never claimed.",
-      "checks": "The type name ends with none of Error, Fault, Failure and contains none of Http, Status, Response. Whether the remaining name is a term of the Ubiquitous Language is not decidable here and stays with review. An empty selection passes.",
+      "checks": "The type name ends with none of Error, Fault, Failure and contains none of Http, StatusCode, ResponseStatus, ResponseEntity. The bare words Status and Response are not matched: they are transport words and domain words, and the name alone does not tell them apart, so OrderStatusInvalidException passes. Whether the remaining name is a term of the Ubiquitous Language is not decidable here and stays with review. An empty selection passes.",
       "implementation": "dotnet",
       "status": "enforced"
     },

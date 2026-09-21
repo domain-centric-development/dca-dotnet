@@ -170,7 +170,7 @@ public sealed class CycleRules : IDcaRuleSet
         var segments = ns.Substring(application.Length + 1).Split('.');
         var index = 0;
         while (index < segments.Length && layout.OperationContainers.Contains(segments[index])) index++;
-        if (index == segments.Length || segments[index] == "Shared") return null;
+        if (index == segments.Length || segments[index] == layout.SharedSegment) return null;
         var operationRoot = arch.Types.Where(t => OperationPolicy.Operation(t, arch)).Select(t => t.Namespace.FullName)
             .Where(p => p.StartsWith(application + ".", StringComparison.Ordinal) && DcaLayout.IsBelow(ns, p))
             .OrderByDescending(p => p.Length).FirstOrDefault();

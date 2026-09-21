@@ -171,7 +171,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                         + " [IntegrationEventType] instead")))
             .Selecting(
                 "Non-interface types anywhere under scan that are assignable to IIntegrationEvent.")
-            .Checking("Name heuristic: schemaVersion, eventVersion and contractVersion fields (case-insensitive), declared or inherited, including auto-property backing fields and record parameters, are reported. A business revision named version is allowed, whatever its type. The heuristic cannot infer business meaning; an empty selection passes.");
+            .Checking("Name heuristic: schemaVersion, eventVersion and contractVersion fields (case-insensitive), declared or inherited, including auto-property backing fields and record parameters, are reported. A business revision named version is allowed, whatever its type. A type the loader cannot resolve is read through the ArchUnitNET member model instead, which does not carry the backing fields of auto-properties. The heuristic cannot infer business meaning; an empty selection passes.");
 
     public IDcaRule DomainOnlyEventsHaveNoVersionField() =>
         DcaRule.Check(
@@ -191,7 +191,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
             .Selecting(
                 "Non-interface types anywhere under scan that are assignable to IDomainEvent but not to "
                 + "IIntegrationEvent. A type assignable to both is not selected.")
-            .Checking("Name heuristic: schemaVersion, eventVersion and contractVersion fields (case-insensitive), declared or inherited, including auto-property backing fields and record parameters, are reported. A business revision named version is allowed, whatever its type. The heuristic cannot infer business meaning; an empty selection passes.");
+            .Checking("Name heuristic: schemaVersion, eventVersion and contractVersion fields (case-insensitive), declared or inherited, including auto-property backing fields and record parameters, are reported. A business revision named version is allowed, whatever its type. A type the loader cannot resolve is read through the ArchUnitNET member model instead, which does not carry the backing fields of auto-properties. The heuristic cannot infer business meaning; an empty selection passes.");
 
     public IDcaRule DomainEventsHaveTimestampField() =>
         DcaRule.Check(
@@ -215,8 +215,10 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 + "of any name - has the type System.DateTimeOffset or System.DateTime; an auto-property or "
                 + "positional record parameter of one of these types counts through its backing field. "
                 + "DateOnly, TimeSpan, long or string fields do not satisfy it, and a computed property "
-                + "without a backing field does not either. Every offender is reported in one violation; an "
-                + "empty selection passes.");
+                + "without a backing field does not either. A type the loader cannot resolve is read "
+                + "through the ArchUnitNET member model instead, which does not carry the backing fields "
+                + "of auto-properties. Every offender is reported in one violation; an empty selection "
+                + "passes.");
 
     // ============================================================================
     // DOMAIN SERVICES PATTERN
@@ -285,7 +287,9 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 "Every field - declared by the type or inherited from a base type, static fields included "
                 + "- is readonly or const. A settable auto-property is reported through its backing field; "
                 + "a get-only one passes. Field types are not inspected, so a readonly field holding "
-                + "mutable state passes. An empty selection passes.");
+                + "mutable state passes. A type the loader cannot resolve is read through the "
+                + "ArchUnitNET member model instead, and a field whose writability neither model states "
+                + "is not reported. An empty selection passes.");
 
     // ============================================================================
     // FACTORIES PATTERN
@@ -350,7 +354,9 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
             .Checking(
                 "Every field - declared by the type or inherited from a base type, static fields included "
                 + "- is readonly or const. A settable auto-property is reported through its backing field. "
-                + "Field types are not inspected. An empty selection passes.");
+                + "Field types are not inspected. A type the loader cannot resolve is read through the "
+                + "ArchUnitNET member model instead, and a field whose writability neither model states is "
+                + "not reported. An empty selection passes.");
 
     // ============================================================================
     // SPECIFICATION PATTERN
@@ -402,24 +408,51 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
     /// <summary>A C# record (<c>record class</c>) or a struct (<c>record struct</c>s are structs to ArchUnitNET).</summary>
     private static bool IsRecordLike(IType type) => type is Struct || (type is Class c && c.IsRecord == true);
 
-    /// <summary>All instance and static fields declared on the type or an ancestor (Java <c>getAllFields</c>).</summary>
-    private static IEnumerable<FieldInfo> AllFields(DcaArchitecture arch, IType type)
+    /// <summary>
+    /// One field, as the rules need it, from whichever model can see it. <see cref="Writable"/> is
+    /// <c>null</c> when neither model says — an unknown is never reported.
+    /// </summary>
+    private readonly record struct FieldFact(string Name, string? TypeFullName, bool? Writable);
+
+    /// <summary>
+    /// All instance and static fields declared on the type or an ancestor (Java <c>getAllFields</c>).
+    /// Read through the CLR when the type loads, because reflection sees the compiler-generated
+    /// backing fields of auto-properties; through the ArchUnitNET member model when it does not, so a
+    /// type the loader cannot resolve still changes the verdict it should change.
+    /// </summary>
+    private static IEnumerable<FieldFact> AllFields(DcaArchitecture arch, IType type)
     {
-        const BindingFlags flags =
-            BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
-        for (var runtime = arch.RuntimeType(type); runtime is not null && runtime != typeof(object); runtime = runtime.BaseType)
+        var runtime = arch.RuntimeType(type);
+        if (runtime is not null)
         {
-            foreach (var field in runtime.GetFields(flags))
+            const BindingFlags flags =
+                BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+            for (var current = runtime; current is not null && current != typeof(object); current = current.BaseType)
             {
-                yield return field;
+                foreach (var field in current.GetFields(flags))
+                {
+                    yield return new FieldFact(LogicalName(field.Name), field.FieldType.FullName, !field.IsInitOnly && !field.IsLiteral);
+                }
+            }
+
+            yield break;
+        }
+
+        for (IType? current = type; current is not null; current = (current as Class)?.BaseClass)
+        {
+            foreach (var field in current.Members.OfType<FieldMember>())
+            {
+                yield return new FieldFact(
+                    LogicalName(field.Name),
+                    field.Type?.FullName,
+                    field.Writability is { } writability ? writability == Writability.Writable : null);
             }
         }
     }
 
     /// <summary>Plain field name — an auto-property backing field <c>&lt;Version&gt;k__BackingField</c> counts as <c>Version</c>.</summary>
-    private static string LogicalName(FieldInfo field)
+    private static string LogicalName(string name)
     {
-        var name = field.Name;
         if (name.StartsWith("<", StringComparison.Ordinal))
         {
             var end = name.IndexOf('>', StringComparison.Ordinal);
@@ -433,19 +466,19 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
     }
 
     private static bool HasVersionField(DcaArchitecture arch, IType type) =>
-        AllFields(arch, type).Any(f => SchemaFields.Contains(LogicalName(f), StringComparer.OrdinalIgnoreCase));
+        AllFields(arch, type).Any(f => SchemaFields.Contains(f.Name, StringComparer.OrdinalIgnoreCase));
 
     private static bool HasTimestampField(DcaArchitecture arch, IType type) =>
-        AllFields(arch, type).Any(f => TimestampTypes.Contains(f.FieldType.FullName));
+        AllFields(arch, type).Any(f => f.TypeFullName is not null && TimestampTypes.Contains(f.TypeFullName));
 
     private static List<string> NonReadonlyFieldViolations(DcaArchitecture arch, Func<IType, bool> candidate)
     {
         var violations = new List<string>();
         foreach (var type in arch.Types.Where(candidate))
         {
-            foreach (var field in AllFields(arch, type).Where(f => !f.IsInitOnly && !f.IsLiteral))
+            foreach (var field in AllFields(arch, type).Where(f => f.Writable == true))
             {
-                violations.Add($"{type.FullName} has non-readonly field '{LogicalName(field)}' — a stateless service/factory"
+                violations.Add($"{type.FullName} has non-readonly field '{field.Name}' — a stateless service/factory"
                     + " holds only readonly dependencies");
             }
         }

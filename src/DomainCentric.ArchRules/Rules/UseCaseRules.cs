@@ -88,7 +88,7 @@ public sealed class UseCaseRules : IDcaRuleSet
     public static IDcaRule CommandsResideInApplication(DcaLayout layout) =>
         DcaRule.Of(
             "DCA-USE-002",
-            "Use Case Commands must end with 'Command' and reside in application namespace",
+            "Types named *Command reside in the application layer",
             "Use case commands should be in application layer (CQRS pattern)",
             arch =>
                 Types()
@@ -108,7 +108,7 @@ public sealed class UseCaseRules : IDcaRuleSet
     public static IDcaRule QueriesResideInApplication(DcaLayout layout) =>
         DcaRule.Of(
             "DCA-USE-003",
-            "Use Case Queries must end with 'Query' and reside in application namespace",
+            "Types named *Query reside in the application layer",
             "Use case queries should be in application layer (CQRS pattern)",
             arch =>
                 Types()
@@ -147,7 +147,7 @@ public sealed class UseCaseRules : IDcaRuleSet
     public static IDcaRule ResultsResideInApplication(DcaLayout layout) =>
         DcaRule.Of(
             "DCA-USE-006",
-            "Use Case Result Models must end with 'Result' and reside in application namespace",
+            "Types named *Result reside in the application layer",
             "Use case result models should be in application layer. Domain Value Objects with 'Result' in name are allowed in domain layer.",
             arch =>
                 Types()
@@ -182,7 +182,7 @@ public sealed class UseCaseRules : IDcaRuleSet
         // kernel's adapter where cross-cutting Response classes typically live.
         DcaRule.Of(
             "DCA-USE-008",
-            "HTTP Response Models must end with 'Response' and reside in adapter namespace",
+            "Types named *Response reside in an adapter",
             "HTTP response models should be in adapter layer",
             arch =>
                 Types()
@@ -296,14 +296,32 @@ public sealed class UseCaseRules : IDcaRuleSet
                         foreach (var entry in graph.EntryPointsOf(unit)) {
                             if (!Transactional(runtime, layout.FrameworkTypes.TransactionalAttribute)
                                 && graph.ReachableThrough(entry, u => !Transactional(u, layout.FrameworkTypes.TransactionalAttribute) && !CallsBoundary(u, arch.Layout.Markers)).Contains(unit))
-                                violations.Add($"{type.FullName}.{IntraClassCalls.PathName(entry, unit)} {effect} without transaction coverage on every entry path");
+                                violations.Add(
+                                    $"{type.FullName}.{IntraClassCalls.PathName(entry, unit)} {effect} without "
+                                    + DescribeTransactionalAttribute(layout.FrameworkTypes.TransactionalAttribute)
+                                    + " on the class or on a method of that path, and without"
+                                    + " ITransactionBoundary.InTransactionAsync(...) on it");
                         }
                     }
                 }
-                DcaRule.Fail("Use cases that save, delete or publish require transaction coverage", violations.Distinct().ToList());
+                DcaRule.Fail(
+                    "Use cases that save an aggregate or publish domain events must have a transaction boundary",
+                    violations.Distinct().ToList(),
+                    "wrap load, mutate, save and publish in ITransactionBoundary.InTransactionAsync(...),"
+                    + " or carry the configured transactional attribute on the class or on every entry path");
             })
         .Selecting("Concrete application operations selected by IInputPort marker or suffix with loadable runtime types, including closure and async units.")
-        .Checking("Every entry path to a unit calling IRepository.SaveAsync, IRepository.DeleteByIdAsync or an IDomainEventPublisher crosses a unit calling ITransactionBoundary.InTransactionAsync (including its extension overloads) or carrying the configured TransactionalAttribute; a type-level attribute covers all paths. A use case that neither saves, deletes nor publishes (a query, a Store write) is selected but has nothing to check and passes. Static limit: a boundary call in the same unit passes even when the save or publication follows an empty boundary block. Runtime rollback containment must be tested separately. The method names are fixed and are not part of the marker roles: a vocabulary whose repository writes under another name is selected and then found to save nothing, so this rule passes over it.");
+        .Checking("Every entry path to a unit calling IRepository.SaveAsync, IRepository.DeleteByIdAsync or an IDomainEventPublisher crosses a unit calling ITransactionBoundary.InTransactionAsync (including its extension overloads) or carrying the configured TransactionalAttribute; a type-level attribute covers all paths. The declarative path is empty by default in .NET - AspNetCore() and None() both leave TransactionalAttribute unset, because ASP.NET Core has no ambient transaction attribute - so out of the box only the explicit boundary satisfies the rule, while the Java twin also accepts the framework's transactional annotation. A use case that neither saves, deletes nor publishes (a query, a Store write) is selected but has nothing to check and passes. Static limit: a boundary call in the same unit passes even when the save or publication follows an empty boundary block. Runtime rollback containment must be tested separately. The method names are fixed and are not part of the marker roles: a vocabulary whose repository writes under another name is selected and then found to save nothing, so this rule passes over it.");
+
+    /// <summary>
+    /// Names the declarative form the violation is missing, the way <c>dca-archunit</c>'s
+    /// <c>FrameworkAnnotations.describe</c> does — and says so when the preset configures none,
+    /// which is the default in .NET.
+    /// </summary>
+    private static string DescribeTransactionalAttribute(string attribute) =>
+        string.IsNullOrWhiteSpace(attribute)
+            ? "declarative transaction metadata (none configured)"
+            : attribute;
 
     /// <summary>
     /// The effect of a code unit that needs a transaction, worded for the violation, or <c>null</c>
@@ -493,7 +511,10 @@ public sealed class UseCaseRules : IDcaRuleSet
             CheckResultsCarryNoIdentities)
         .Selecting("Top-level classes and structs in each module application namespace ending in Result, excluding IValue types.")
         .Checking(
-            "No public instance result member transitively through application part records and generic wrappers exposes IAggregateRoot or IEntity; classes and structs are checked. Domain values and read models are not traversed." );
+            "No instance result member of any visibility - the walk binds public and non-public members - "
+            + "transitively through application part records and generic wrappers exposes IAggregateRoot or "
+            + "IEntity; classes and structs are checked. Domain values and read models are not traversed. A "
+            + "type the loader cannot resolve is not walked.");
 
     private static void CheckResultsCarryNoIdentities(DcaArchitecture arch)
     {

@@ -73,7 +73,7 @@ public sealed class ErrorHandlingRulesTests
     [InlineData("DCA-ERR-003", "ReservationNotFoundException")]
     [InlineData("DCA-ERR-004", "ReservationOverbookedException")]
     [InlineData("DCA-ERR-004", "ReservationWindowClosedException")]
-    [InlineData("DCA-ERR-005", "ReservationResponseException")]
+    [InlineData("DCA-ERR-005", "ReservationHttpResponseException")]
     public void EachRuleNamesItsOffender(string id, string offender)
     {
         var rule = Rules(Bad).Rules.Single(r => r.Id == id);
