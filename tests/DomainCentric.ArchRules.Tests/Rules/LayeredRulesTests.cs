@@ -87,6 +87,30 @@ public sealed class LayeredRulesTests
         Assert.Contains("TransactionalSeeder", message, System.StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// DCA-LAY-004 sees a declarative boundary too, as the Java twin always has: a type carrying the
+    /// configured transactional attribute outside the application layer is reported. No .NET preset
+    /// configures such an attribute, so the branch is inert until a project names its own.
+    /// </summary>
+    [Fact]
+    public void DeclarativeBoundariesOutsideTheApplicationLayerAreReportedOnceConfigured()
+    {
+        var unconfigured = Rules(Bad).Rules.Single(r => r.Id == "DCA-LAY-004");
+        var quiet = Assert.Throws<DcaRuleViolationException>(() => unconfigured.Check(Arch(Bad))).Message;
+        Assert.DoesNotContain("DeclarativelyTransactionalPricing", quiet, System.StringComparison.Ordinal);
+
+        var layout = DcaLayout.ForRootNamespace(Bad).WithFrameworkTypes(
+            FrameworkTypes.AspNetCore() with
+            {
+                TransactionalAttribute = Bad + ".Ordering.Infrastructure.Transactions.UnitOfWorkAttribute",
+            });
+        var message = Assert.Throws<DcaRuleViolationException>(
+            () => new LayeredRules(layout).Rules.Single(r => r.Id == "DCA-LAY-004")
+                .Check(DcaArchitecture.Load(layout, typeof(LayeredRulesTests).Assembly))).Message;
+
+        Assert.Contains("DeclarativelyTransactionalPricing", message, System.StringComparison.Ordinal);
+    }
+
     /// <summary>DCA-LAY-004 accepts ITransactionBoundary in a use case.</summary>
     [Fact]
     public void AUseCaseMayDrawTheBoundaryItself() =>

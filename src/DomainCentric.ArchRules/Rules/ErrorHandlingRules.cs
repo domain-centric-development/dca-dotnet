@@ -161,11 +161,14 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
             {
                 var roles = arch.Layout.FrameworkTypes;
                 var violations = new List<string>();
+                var unreadable = new List<string>();
                 foreach (var type in ExceptionsOfEitherLayer(arch))
                 {
                     var runtime = arch.RuntimeType(type);
                     if (runtime is null)
                     {
+                        // Not a violation, but not a clean pass either: say so rather than skip silently.
+                        unreadable.Add(type.FullName);
                         continue;
                     }
 
@@ -178,6 +181,9 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                                 || roles.ContainerAttributeNamespaces
                                     .Concat(roles.PersistenceAttributeNamespaces)
                                     .Concat(roles.TransactionAttributeNamespaces)
+                                    .Concat(roles.WebControllerAttributeNamespaces)
+                                    .Concat(roles.RestControllerAttributeNamespaces)
+                                    .Concat(roles.EventListenerAttributeNamespaces)
                                     .Any(prefix => DcaLayout.IsBelow(attributeType.Namespace ?? "", prefix));
                             if (!classified)
                             {
@@ -190,6 +196,13 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                     }
                 }
 
+                if (unreadable.Count > 0)
+                {
+                    Console.Out.WriteLine(
+                        $"[DCA-ERR-004] {unreadable.Count} exception type(s) not inspected, runtime type unavailable: "
+                        + string.Join(", ", unreadable));
+                }
+
                 DcaRule.Fail("Prohibited metadata on an inner-layer exception", violations);
             })
             .Selecting(
@@ -199,14 +212,17 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                 + "residing outside a layer it never claimed.")
             .Checking(
                 "The type carries no attribute the layout classifies into the container, persistence, "
-                + "transaction or transport-status role, neither directly nor through a base attribute "
-                + "type. The transport-status role is the one that fixes the protocol answer on the "
-                + "failure itself; it is empty in every preset, because the platform answers through a "
-                + "mapper type instead of an attribute, and a project that has such an attribute of its "
-                + "own configures it. Fields, properties and methods are not inspected, and an attribute "
-                + "the layout classifies into no role is allowed. A type whose runtime reflection is "
-                + "unavailable is skipped. With those roles empty the rule selects no metadata and "
-                + "passes.");
+                + "transaction, transport-status, web-controller, REST-controller or event-listener role, "
+                + "neither directly nor through a base attribute type - the same seven roles the Java twin "
+                + "forbids. Four of them are empty in every preset: the platform has no container "
+                + "stereotype, no controller attribute a failure could carry and no event-listener "
+                + "attribute, and it answers a failure through a mapper type rather than through an "
+                + "attribute on it. They exist so the id has one contract in both languages and a project "
+                + "whose framework does have such an attribute names it. Fields, properties and methods "
+                + "are not inspected, and an attribute the layout classifies into no role is allowed. A "
+                + "type whose runtime reflection is unavailable is not inspected; it is counted and named "
+                + "on standard output rather than passing silently. With the roles empty the rule selects "
+                + "no metadata and passes.");
 
     public IDcaRule ExceptionsNameNoTransportConcept() =>
         DcaRule.Check(

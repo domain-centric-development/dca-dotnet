@@ -4,6 +4,56 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+**`DCA-TAC-007` and `DCA-TAC-008` inspect instance state only, as Java does and as all six `checks`
+texts have always said.** A static field is not aggregate state — the project decided that for
+`DCA-TAC-003`, and these two contradicted the decision in one language. This can turn a red build
+green, never the other way round.
+
+**`DCA-TAC-016` reads the aggregate the repository binds, and the name must name it.** See the Java
+entry; `ICategoryRepository : IRepository<Order, OrderId>` is now reported, a generic intermediate
+port is skipped.
+
+**`Specification` is a role, not only a suffix.** `DcaMarkers` gains `Specification`; `DCA-ADV-017`
+and `DCA-ADV-018` select through the marker or the name, resolved through the runtime type so the
+generic arity of `ISpecification<T>` does not hide it.
+
+**`DCA-NET-003` checks the contract, not a method name.** It required an operation named
+`ExecuteAsync` to implement `IUseCase<TIn,TOut>` — a name reservation no source supports, and a use
+case whose own port named its operation anything else was reported by no rule at all. What remains,
+and what the rule is now titled and argued for, is the shape of the *configured* use-case contract:
+awaitable, and taking a `CancellationToken`. With the library's own vocabulary the compiler already
+enforces that, so the rule speaks where a project points the `useCase` role at a contract of its own.
+Renamed to `UseCaseContractIsAsynchronousAndCancellable()`.
+
+**`DCA-USE-013` and `DCA-MAP-006` are carried here, under the same ids.** Both were listed as not
+applicable. Java carries `MAP-006` and lets it select nothing until a module-declaration annotation is
+configured, so "inert until configured" is a state the library already accepts for a shared id. Both
+now read a role that no .NET preset fills — `TransactionalAttribute` and the new
+`ModuleDeclarationAttributeTypes` — and say so in their `checks` texts. Nothing changes for a project
+that configures neither. `DCA-NAM-002` is the one remaining n/a, and the only one whose reason lies in
+the platform.
+
+**`DCA-LAY-004` sees a declarative boundary.** It read only the transaction API and the manager, so a
+project with its own transaction attribute could put it on a domain type and pass. The third selection
+the Java twin has always had is here now, reading `FrameworkTypes.TransactionalAttribute` — empty in
+both presets, so inert without configuration.
+
+**`DCA-ERR-004` has the same contract as in Java, and stops skipping silently.** Three empty roles —
+web controller, REST controller, event listener — join the four it read, so the id means the same
+thing on both stacks and a project whose framework has such an attribute can name it. A type whose
+runtime reflection is unavailable is counted and named on standard output instead of passing unseen.
+
+**Dead public API is gone while the version is unpublished.** Three unused namespace constants and the
+two public factory methods for the retired `DCA-ADV-003` and `DCA-TAC-022` are removed; a new test
+asserts that no rule set offers a retired id.
+
+**`DCA-NAM-003`, `DCA-ONI-003` and `DCA-HEX-009` say what they presume** — the `I` prefix as a platform
+convention, the container role as empty in both presets (which is why the half of `ONI-003` that does
+the most work in Java selects nothing here), and the common port root `DCA-HEX-009` needs.
+
+**One more hard-wired segment.** `DCA-USE-014`'s depth check still read a literal `Shared`; it reads
+the configured segment now.
+
 **A run says which preset and which vocabulary it resolved.** `DcaArchitectureTest` gained a
 `LayoutDiagnostics` fact that prints `framework annotations: aspnetcore (default)` and
 `building block markers: dca (library default)` — the same two lines, in the same wording, the Java

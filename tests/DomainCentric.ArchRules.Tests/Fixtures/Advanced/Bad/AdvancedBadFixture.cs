@@ -119,6 +119,14 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Advanced.Bad.Order.Domain.Model
         public bool IsSatisfiedBy(Order candidate) => true;
     }
 
+    // DCA-ADV-018: the marker without the name suffix, carrying a container stereotype. The
+    // specification role decides the owner, so this is reported here and not by DCA-ONI-003.
+    [Component]
+    public sealed class ActiveOrder : ISpecification<Order>
+    {
+        public bool IsSatisfiedBy(Order candidate) => true;
+    }
+
     public sealed class OrderFactory : IFactory
     {
         public Order Create(Money total) => new Order(new OrderId(Guid.NewGuid()), total);
@@ -175,6 +183,13 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Advanced.Bad.Order.Application.
 
     // DCA-ADV-017: specification in the application layer.
     public sealed class OpenOrderSpecification : ISpecification<Order>
+    {
+        public bool IsSatisfiedBy(Order candidate) => true;
+    }
+
+    // DCA-ADV-017: the marker without the name suffix — the shape both reference samples use.
+    // Selected through the specification role, not the name.
+    public sealed class HasMinTotal : ISpecification<Order>
     {
         public bool IsSatisfiedBy(Order candidate) => true;
     }

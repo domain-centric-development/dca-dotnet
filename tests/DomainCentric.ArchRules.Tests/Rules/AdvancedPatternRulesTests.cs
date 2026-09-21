@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using DomainCentric.ArchRules.Rules;
@@ -55,5 +56,33 @@ public sealed class AdvancedPatternRulesTests
         var rule = RuleSet(Bad).Rules.Single(r => r.Id == id);
         var ex = Assert.Throws<DcaRuleViolationException>(() => rule.Check(Arch(Bad)));
         Assert.False(string.IsNullOrWhiteSpace(ex.Message));
+    }
+
+    /// <summary>
+    /// The specification role selects, not only the name. Both reference samples name their
+    /// specifications after the predicate they express (HasMinTotal, ActiveCart) and carry the marker
+    /// through an intermediate interface; under name-only selection neither rule saw them.
+    /// </summary>
+    [Fact]
+    public void SpecificationsWithoutTheSuffixAreSelectedByTheirRole()
+    {
+        var placement = Assert.Throws<DcaRuleViolationException>(
+            () => RuleSet(Bad).Rules.Single(r => r.Id == "DCA-ADV-017").Check(Arch(Bad))).Message;
+        Assert.Contains("HasMinTotal", placement, StringComparison.Ordinal);
+
+        var metadata = Assert.Throws<DcaRuleViolationException>(
+            () => RuleSet(Bad).Rules.Single(r => r.Id == "DCA-ADV-018").Check(Arch(Bad))).Message;
+        Assert.Contains("ActiveOrder", metadata, StringComparison.Ordinal);
+
+        // Ownership is exclusive, so the container stereotype reaches DCA-ONI-003 nowhere.
+        var onion = new OnionRules(DcaLayout.ForRootNamespace(Bad)).Rules.Single(r => r.Id == "DCA-ONI-003");
+        try
+        {
+            onion.Check(Arch(Bad));
+        }
+        catch (DcaRuleViolationException e)
+        {
+            Assert.DoesNotContain("ActiveOrder", e.Message, StringComparison.Ordinal);
+        }
     }
 }

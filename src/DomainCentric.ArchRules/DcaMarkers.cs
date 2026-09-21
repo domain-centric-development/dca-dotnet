@@ -20,6 +20,11 @@ namespace DomainCentric.ArchRules;
 /// implements or derives from, directly or through an intermediate type. Two vocabularies at once — this
 /// library's marker on one aggregate and another's on the next — are outside this: a role names one type,
 /// so a migration points the role at one of them and the rules select what carries it.</para>
+/// <para><b>The port roles need a common root.</b> <c>OutputPort</c> must be set whenever any other port
+/// role is: <c>DCA-HEX-009</c> measures every output port of the project against it, so leaving it at the
+/// library's own type while <c>Repository</c> points elsewhere reports every port of the project's
+/// vocabulary. A vocabulary that has no common port supertype cannot express that here — switch
+/// <c>DCA-HEX-009</c> off rather than pointing the role at an unrelated type.</para>
 /// <para>What the roles do <em>not</em> cover are the strategic attributes (<c>[BoundedContext]</c>,
 /// <c>[Upstream]</c>, <c>[Partnership]</c> and their siblings). The rules do not only select on them, they
 /// read their members — the context a relationship names, the dependencies a module allows — and a name
@@ -64,6 +69,13 @@ public sealed record DcaMarkers(string Name)
 
     /// <summary>The marker of a factory.</summary>
     public string Factory { get; init; } = DcaBuildingBlocks + ".Ddd.Tactical.IFactory";
+
+    /// <summary>
+    /// The marker of a specification — a predicate over a domain object. <c>DCA-ADV-017</c> and
+    /// <c>DCA-ADV-018</c> select through it alongside the name suffix, because a project may carry the
+    /// marker without naming the type <c>*Specification</c>.
+    /// </summary>
+    public string Specification { get; init; } = DcaBuildingBlocks + ".Ddd.Tactical.ISpecification";
 
     /// <summary>The base type of a domain failure.</summary>
     public string DomainException { get; init; } = DcaBuildingBlocks + ".Ddd.Tactical.DomainException";
@@ -136,6 +148,7 @@ public sealed record DcaMarkers(string Name)
             new KeyValuePair<string, string>(nameof(IntegrationEvent), IntegrationEvent),
             new KeyValuePair<string, string>(nameof(DomainService), DomainService),
             new KeyValuePair<string, string>(nameof(Factory), Factory),
+            new KeyValuePair<string, string>(nameof(Specification), Specification),
             new KeyValuePair<string, string>(nameof(DomainException), DomainException),
             new KeyValuePair<string, string>(nameof(UseCaseException), UseCaseException),
             new KeyValuePair<string, string>(nameof(TransactionBoundary), TransactionBoundary),
@@ -206,6 +219,7 @@ public sealed record DcaMarkers(string Name)
         nameof(IntegrationEvent),
         nameof(DomainService),
         nameof(Factory),
+        nameof(Specification),
         nameof(DomainException),
         nameof(OutputPort),
         nameof(Repository),

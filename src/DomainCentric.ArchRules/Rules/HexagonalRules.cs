@@ -255,7 +255,11 @@ public sealed class HexagonalRules : IDcaRuleSet
             "The interface is assignable to IOutputPort, directly or through IRepository,"
                 + " IStore, IDomainEventPublisher, IIntegrationEventPublisher or another IOutputPort"
                 + " sub-interface. Classes, records and enums in Application.Shared are not checked."
-                + " An empty selection passes.");
+                + " An empty selection passes. The rule presumes the vocabulary has a common port"
+                + " root: OutputPort must be set whenever any port role is, because every port of"
+                + " the project is measured against it. A vocabulary that has no such root has"
+                + " nothing this rule can assert - switch the id off rather than pointing the role"
+                + " at an unrelated type.");
 
     public IDcaRule OutputPortsMustNotResideInDomain() =>
         DcaRule.Of(

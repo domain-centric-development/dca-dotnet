@@ -40,9 +40,6 @@ public sealed class DcaLayout
     /// <summary>Root namespace of the DomainCentric.BuildingBlocks package.</summary>
     public const string BuildingBlocksNamespace = "DomainCentric.BuildingBlocks";
 
-    public const string BuildingBlocksTacticalNamespace = "DomainCentric.BuildingBlocks.Ddd.Tactical";
-    public const string BuildingBlocksStrategicNamespace = "DomainCentric.BuildingBlocks.Ddd.Strategic";
-    public const string BuildingBlocksPortsNamespace = "DomainCentric.BuildingBlocks.Hexagonal.Ports";
     public const string BuildingBlocksPortsInNamespace = "DomainCentric.BuildingBlocks.Hexagonal.Ports.In";
     public const string BuildingBlocksPortsOutNamespace = "DomainCentric.BuildingBlocks.Hexagonal.Ports.Out";
 

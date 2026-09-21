@@ -100,9 +100,11 @@ public sealed class NamingRules : IDcaRuleSet
             "Interfaces in <module>.Application of every module root that are assignable to"
                 + " IInputPort, except those named exactly InputPort, IInputPort, UseCase or IUseCase.")
         .Checking(
-            "The name starts with I and ends with InputPort (IPlaceOrderInputPort). Classes and"
-                + " records are not selected, and an interface extending IInputPort outside an"
-                + " application namespace is not checked. An empty selection passes.");
+            "The name starts with I and ends with InputPort (IPlaceOrderInputPort). The I prefix is the"
+                + " platform convention and is checked here only: the Java twin requires the suffix and"
+                + " nothing else, because Java interfaces carry no prefix. Classes and records are not"
+                + " selected, and an interface extending IInputPort outside an application namespace is"
+                + " not checked. An empty selection passes.");
 
     public static IDcaRule RepositoryInterfacesEndWithRepository(DcaLayout layout) =>
         DcaRule.Check(

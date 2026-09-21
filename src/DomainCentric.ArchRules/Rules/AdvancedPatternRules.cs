@@ -106,25 +106,6 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 + "event in an application, adapter or infrastructure namespace is reported. An empty "
                 + "selection passes.");
 
-    public IDcaRule DomainEventsAreImmutable() =>
-        DcaRule.Check(
-            "DCA-ADV-003",
-            "Domain Events should be immutable (sealed or records)",
-            "Domain events should be immutable (sealed classes or records)",
-            arch => DcaRule.Fail(
-                "Domain Events that are not records must be sealed:",
-                Violations(
-                    arch,
-                    t => t is Class c && c.IsRecord != true && InDomain(arch, t) && IsDomainEvent(t, arch.Layout.Markers),
-                    t => ((Class)t).IsSealed != true,
-                    t => $"{t.FullName} is neither a record nor sealed")))
-            .Selecting(
-                "Non-record classes in <module>.Domain of every module root that are assignable to "
-                + "IDomainEvent. Records, structs and interfaces are not selected.")
-            .Checking(
-                "The class is sealed. A record event is not selected, so it always passes here. An empty "
-                + "selection passes.");
-
     public IDcaRule DomainEventsHaveNoFrameworkAttributes() =>
         DcaRule.Check("DCA-ADV-004", "Domain events must not carry prohibited framework metadata",
             "Domain objects carry no metadata for container management, persistence or transaction coordination",
@@ -369,17 +350,20 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
             "Specification implementations are part of the domain layer",
             arch => Types()
                 .That()
-                .HaveNameEndingWith("Specification")
-                .And()
-                .FollowCustomPredicate(t => t is not Interface, "are not interfaces")
-                .And()
-                .DoNotHaveName("Specification")
+                .FollowCustomPredicate(
+                    t => t is not Interface
+                        && t.Name != "Specification"
+                        && t.FullName != arch.Layout.Markers.Specification
+                        && (IsSpecificationRole(arch, t)
+                            || t.Name.EndsWith("Specification", StringComparison.Ordinal)),
+                    "are specifications")
                 .Should()
                 .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns())))
             .Selecting(
-                "Non-interface types anywhere under scan whose simple name ends with Specification, "
-                + "excluding a type named exactly Specification. No marker is involved - only the name "
-                + "selects.")
+                "Non-interface types anywhere under scan that are assignable to the configured "
+                + "specification role or whose simple name ends with Specification, the role's own type "
+                + "and a type named exactly Specification excluded. The marker and the name both select, "
+                + "so a specification named after the predicate it expresses is governed too.")
             .Checking(
                 "Each resides in a domain namespace of some module root (<module>.Domain or below). An "
                 + "empty selection passes.");
@@ -388,12 +372,31 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
         DcaRule.Check("DCA-ADV-018", "Specifications must not carry prohibited framework metadata",
             "Domain objects carry no metadata for container management, persistence or transaction coordination",
             arch => DomainMetadata.Check(arch, "DCA-ADV-018"))
-        .Selecting("Non-interface specifications in domain namespaces. Exclusive ownership: events, services, factories, specifications, then domain-model types.")
+        .Selecting("Non-interface types in domain namespaces that are assignable to the configured specification role or whose simple name ends with Specification. Exclusive ownership: events, services, factories, specifications, then domain-model types.")
         .Checking("Configured attribute namespaces classify the attribute type or any base type: types prohibit container, persistence and transaction roles; fields and properties prohibit injection and persistence; methods prohibit transaction and, except on events, injection; constructors prohibit injection. There is no default event-listener attribute role. Unclassified attributes are allowed; runtime types that cannot load are skipped.");
 
     // ============================================================================
     // HELPERS
     // ============================================================================
+
+    /// <summary>
+    /// Whether the type carries the configured specification role. Read through the runtime type when
+    /// it loads, because the role names the marker without its arity (<c>ISpecification</c>) while a
+    /// reflected generic interface carries it (<c>ISpecification`1</c>).
+    /// </summary>
+    internal static bool IsSpecificationRole(DcaArchitecture arch, IType type)
+    {
+        if (type.IsGenericParameter)
+        {
+            return false;
+        }
+
+        var runtime = arch.RuntimeType(type);
+        return runtime is not null
+            ? DcaMarkers.CarriesRole(runtime, arch.Layout.Markers.Specification)
+            : type.IsAssignableTo(arch.Layout.Markers.Specification)
+                || type.ImplementsInterface(arch.Layout.Markers.Specification);
+    }
 
     private string DomainServicePattern() =>
         $"^.*\\.{Regex.Escape(Layout.DomainSegment)}\\.Service(\\..*)?$";

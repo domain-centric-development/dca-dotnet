@@ -20,10 +20,7 @@ namespace DomainCentric.ArchRules.Rules;
 public sealed class UseCaseRules : IDcaRuleSet
 {
     /// <summary>Java rules of this set that have no .NET counterpart (id → reason).</summary>
-    public static readonly IReadOnlyDictionary<string, string> NotApplicable = new Dictionary<string, string>
-    {
-        ["DCA-USE-013"] = "Remote-call containment in explicit delegate boundaries cannot be established by this declaration-anchored rule. USE-012 checks publication entry-path coverage, not runtime block containment; review remote effects manually",
-    };
+    public static readonly IReadOnlyDictionary<string, string> NotApplicable = new Dictionary<string, string>();
 
     public UseCaseRules(DcaLayout layout)
     {
@@ -42,6 +39,7 @@ public sealed class UseCaseRules : IDcaRuleSet
             NoDtosInDomain(layout),
             NoDtosInApplication(layout),
             MutatingUseCasesAreTransactional(layout),
+            TransactionalUseCasesDoNotCallRemotePorts(layout),
             UseCasePackagesUseOneDepth(layout),
             ResultsMustNotExposeAggregatesOrEntities(layout),
             UseCasesMustNotInvokeOtherUseCases(layout),
@@ -318,6 +316,26 @@ public sealed class UseCaseRules : IDcaRuleSet
     /// <c>FrameworkAnnotations.describe</c> does — and says so when the preset configures none,
     /// which is the default in .NET.
     /// </summary>
+    /// <summary>
+    /// The output ports a unit calls that are not transactional resources — the ones whose call may
+    /// leave the process. Sorted and de-duplicated for a stable message.
+    /// </summary>
+    private static IEnumerable<string> RemotePortsCalledBy(MethodBase unit, DcaArchitecture arch)
+    {
+        var markers = arch.Layout.Markers;
+        var transactional = new[]
+        {
+            markers.Repository, markers.Store, markers.DomainEventPublisher, markers.IntegrationEventPublisher,
+        };
+        return IntraClassCalls.IlCalls(unit)
+            .Select(m => m.DeclaringType)
+            .Where(t => t is not null && DcaMarkers.IsAssignableToByName(t, markers.OutputPort))
+            .Where(t => !transactional.Any(role => DcaMarkers.IsAssignableToByName(t, role)))
+            .Select(t => t!.Name)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(n => n, StringComparer.Ordinal);
+    }
+
     private static string DescribeTransactionalAttribute(string attribute) =>
         string.IsNullOrWhiteSpace(attribute)
             ? "declarative transaction metadata (none configured)"
@@ -403,6 +421,49 @@ public sealed class UseCaseRules : IDcaRuleSet
     /// classes (a shared base class is not a use case) and nested types, and reports every offending module and namespace in one violation: a use case directly in the
     /// application namespace, one nested deeper than a feature, or a module that mixes both forms.
     /// </summary>
+    public static IDcaRule TransactionalUseCasesDoNotCallRemotePorts(DcaLayout layout) =>
+        DcaRule.Check("DCA-USE-013", "Declaratively transactional use cases must not call remote-capable output ports",
+            "A declaratively transactional use case holds a database connection for its whole run. Calling an output port"
+            + " that may leave the process (another context's API, a payment provider, a mail gateway) inside it blocks"
+            + " that connection for the remote round trip; under load the pool runs dry, and a rollback cannot undo the"
+            + " remote effect. Awaiting the call does not help: the thread is released, the transaction and its connection"
+            + " are not. Only transactional resources belong inside the boundary: IRepository, IStore,"
+            + " IDomainEventPublisher, IIntegrationEventPublisher. Everything else is called before the transaction - draw"
+            + " the boundary by hand with ITransactionBoundary.InTransactionAsync(...) - or after it, as a reaction to an"
+            + " integration event",
+            arch => {
+                var attribute = layout.FrameworkTypes.TransactionalAttribute;
+                var violations = new List<string>();
+                if (FrameworkTypes.IsSet(attribute)) {
+                    foreach (var type in arch.Types.Where(t => OperationPolicy.Operation(t, arch))) {
+                        var runtime = arch.RuntimeType(type)!;
+                        var graph = new IntraClassCalls(runtime);
+                        foreach (var unit in graph.Units) {
+                            if (!Transactional(runtime, attribute)
+                                && !graph.EntryPointsOf(unit).Any(entry =>
+                                    Transactional(entry, attribute)
+                                    || !graph.ReachableThrough(entry, u => !Transactional(u, attribute)).Contains(unit)))
+                                continue;
+                            var remotePorts = RemotePortsCalledBy(unit, arch).ToList();
+                            if (remotePorts.Count == 0) continue;
+                            violations.Add(
+                                $"{type.FullName}.{IntraClassCalls.DisplayName(unit)} runs under {attribute} and calls "
+                                + string.Join(", ", remotePorts)
+                                + " inside the transaction - call it before, or draw the boundary with"
+                                + " ITransactionBoundary.InTransactionAsync(...)");
+                        }
+                    }
+                }
+
+                DcaRule.Fail(
+                    "Declaratively transactional use cases must not call remote-capable output ports",
+                    violations.Distinct().ToList(),
+                    "call the remote port before the transaction, or draw the boundary explicitly with"
+                    + " ITransactionBoundary.InTransactionAsync(...) around the transactional part only");
+            })
+        .Selecting("Concrete application operations selected by IInputPort marker or configured use-case suffix, with loadable runtime types. Nothing at all while no transactional attribute is configured, which is the default: neither .NET preset names one, because ASP.NET Core has no ambient transaction attribute.")
+        .Checking("Every code unit that runs under the configured transactional attribute - on the class, on itself, or on an entry point that reaches it within the class - calls no output port other than IRepository, IStore, IDomainEventPublisher or IIntegrationEventPublisher. A use case without such an attribute (an explicit ITransactionBoundary, or none) is selected but never reported, and with no attribute configured nothing is ever reported - the rule then carries the id without checking anything, as the Java twin does where no framework annotation is on the class path. What happens inside an InTransactionAsync block is not inspected; the explicit boundary is the developer's own and its extent is visible at the call site.");
+
     public static IDcaRule UseCasePackagesUseOneDepth(DcaLayout layout) =>
         DcaRule.Check(
             "DCA-USE-014",
@@ -432,7 +493,7 @@ public sealed class UseCaseRules : IDcaRuleSet
         foreach (var root in arch.ModuleRoots())
         {
             var application = root + "." + layout.ApplicationSegment;
-            var shared = application + ".Shared";
+            var shared = application + "." + layout.SharedSegment;
             var byDepth = new SortedDictionary<int, SortedSet<string>>();
             foreach (var candidate in arch.Classes)
             {

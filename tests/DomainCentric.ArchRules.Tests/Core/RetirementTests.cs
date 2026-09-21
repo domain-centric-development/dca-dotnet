@@ -42,4 +42,10 @@ public class RetirementTests {
   var arch=DcaArchitecture.Load(DcaLayout.ForRootNamespace("DomainCentric.ArchRules.Tests.Fixtures.ContextMap.Bad"),typeof(RetirementTests).Assembly);
   var md=ContextMapRenderer.Of(arch).Render(); Assert.Contains("_2[[",md);
  }
+ [Fact] public void NoRuleSetOffersARetiredIdentity() {
+  var layout=DcaLayout.ForRootNamespace("Example");
+  var offered=new HashSet<string>(DcaRules.RuleSets(layout).SelectMany(s=>s.Rules).Select(r=>r.Id),StringComparer.Ordinal);
+  foreach (var retired in DcaRules.Retired().Keys)
+   Assert.DoesNotContain(retired,offered);
+ }
 }

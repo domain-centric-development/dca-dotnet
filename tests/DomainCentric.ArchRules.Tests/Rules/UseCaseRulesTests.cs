@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using DomainCentric.ArchRules.Rules;
@@ -25,6 +26,7 @@ public sealed class UseCaseRulesTests
         "DCA-USE-010",
         "DCA-USE-011",
         "DCA-USE-012",
+        "DCA-USE-013",
         "DCA-USE-014",
         "DCA-USE-015",
         "DCA-USE-016",
@@ -32,7 +34,13 @@ public sealed class UseCaseRulesTests
     };
 
     /// <summary>Rules without a negative fixture (id → reason).</summary>
-    private static readonly IReadOnlyDictionary<string, string> NoNegativeFixture = new Dictionary<string, string>();
+    private static readonly IReadOnlyDictionary<string, string> NoNegativeFixture = new Dictionary<string, string>
+    {
+        // Inert until a project configures a transactional attribute — neither .NET preset names one.
+        // Its negative fixture therefore needs a configured layout: see
+        // ARemoteCallInsideADeclarativeTransactionIsReportedOnceConfigured.
+        ["DCA-USE-013"] = "no .NET preset configures a transactional attribute; the RemoteInside fixture does",
+    };
 
     public static IEnumerable<object[]> RuleIds() => ExpectedIds.Select(id => new object[] { id });
 
@@ -159,4 +167,29 @@ public sealed class UseCaseRulesTests
     [Fact]
     public void SaveRuleIgnoresAPublicationInAnUnreachableMethod() =>
         Assert.Contains("SaveWithoutPublishUseCase.ExecuteAsync", SaveRuleMessage());
+
+    /// <summary>
+    /// DCA-USE-013 means the same on both stacks and is carried under the same id; it selects nothing
+    /// until a project names its transactional attribute, exactly as the Java twin selects nothing
+    /// where no framework annotation is on the class path. Awaiting the remote call does not save it:
+    /// the thread is released, the transaction and its connection are not.
+    /// </summary>
+    [Fact]
+    public void ARemoteCallInsideADeclarativeTransactionIsReportedOnceConfigured()
+    {
+        Rule(Transactions, "DCA-USE-013").Check(Arch(Transactions));
+
+        const string attribute = Transactions + ".Ordering.Application.RemoteInside.UnitOfWorkAttribute";
+        var layout = DcaLayout.ForRootNamespace(Transactions).WithFrameworkTypes(
+            FrameworkTypes.AspNetCore() with { TransactionalAttribute = attribute });
+        var rule = new UseCaseRules(layout).Rules.Single(r => r.Id == "DCA-USE-013");
+
+        var message = Assert.Throws<DcaRuleViolationException>(
+            () => rule.Check(DcaArchitecture.Load(layout, typeof(UseCaseRulesTests).Assembly))).Message;
+
+        Assert.Contains("RemoteInsideUseCase", message, StringComparison.Ordinal);
+        Assert.Contains("ICarrierPort", message, StringComparison.Ordinal);
+        // A repository is a transactional resource and belongs inside the boundary.
+        Assert.DoesNotContain("IOrderRepository", message, StringComparison.Ordinal);
+    }
 }

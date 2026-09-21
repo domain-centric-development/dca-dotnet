@@ -187,7 +187,7 @@ blind spot.
 
 ## Rule catalog
 
-**127 rule ids in 12 sets: 119 enforced, 5 informational, 3 not applicable in .NET.** Three further ids are retired and keep their meaning in the retirement list. The
+**127 rule ids in 12 sets: 121 enforced, 5 informational, 1 not applicable in .NET.** Three further ids are retired and keep their meaning in the retirement list. The
 exact, current list is [RULES.md](RULES.md) and [rules.json](rules.json), both generated from the code
 by `dotnet run --project tools/RulesCatalog -- .` and verified in CI; every number in this README is
 taken from there. `rules.json` names the package version its texts belong to.
@@ -208,11 +208,15 @@ one rule across both languages):
 | `naming` | `DCA-NAM` | naming conventions, forbidden technical suffixes and bucket namespaces |
 | `cycles` | `DCA-CYC` | no cycles between contexts, layers, use-case namespaces |
 | `errors` | `DCA-ERR` | domain and use-case exceptions: base types, their layer, no framework or transport vocabulary |
-| `dotnet` | `DCA-NET` | .NET only: synchronous domain, `Async` suffix on port methods, one `ExecuteAsync`, records for values and ids |
+| `dotnet` | `DCA-NET` | .NET only: synchronous domain, `Async` suffix on port methods, an awaitable and cancellable use-case contract, readonly structs for struct values and ids |
 
 The full list with rationale is in [RULES.md](RULES.md) (generated — `dotnet run --project tools/RulesCatalog -- .`).
-Java rules that have no .NET counterpart (they only check a Spring annotation) are listed there as
-*not applicable*; see [PORTING-LOG.md](PORTING-LOG.md) for the reasoning per rule.
+One Java rule has no .NET counterpart and is listed there as *not applicable*: `DCA-NAM-002`, a
+diagnostic over the container stereotype, which .NET has no attribute for. Two ids that used to be
+listed that way — `DCA-USE-013` and `DCA-MAP-006` — are carried here under the same id and select
+nothing until the project configures the role they read, exactly as their Java twins select nothing
+where the framework annotation is absent. See [PORTING-LOG.md](PORTING-LOG.md) for the reasoning per
+rule.
 
 ## Beyond rules: executable context map
 

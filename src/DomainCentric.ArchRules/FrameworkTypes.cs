@@ -52,6 +52,39 @@ public sealed record FrameworkTypes(
     /// <summary>Attribute namespaces classified as container stereotypes.</summary>
     public IReadOnlyList<string> ContainerAttributeNamespaces { get; init; } = Array.Empty<string>();
 
+    /// <summary>
+    /// Attribute namespaces classified as a web-controller stereotype — the counterpart of the Java
+    /// library's <c>webController</c> role. Empty in every preset: ASP.NET Core has no attribute that
+    /// makes a class a controller, and none that could sit on an exception. The role exists so that
+    /// <c>DCA-ERR-004</c> has the same contract in both languages and a project whose framework does
+    /// have such an attribute can name it.
+    /// </summary>
+    public IReadOnlyList<string> WebControllerAttributeNamespaces { get; init; } = Array.Empty<string>();
+
+    /// <summary>
+    /// Attribute namespaces classified as a REST-controller stereotype — the counterpart of the Java
+    /// library's <c>restController</c> role. <c>[ApiController]</c> is not classified here: it marks a
+    /// controller, not a failure, and no exception can carry it. Empty in every preset, for the same
+    /// reason as <see cref="WebControllerAttributeNamespaces"/>.
+    /// </summary>
+    public IReadOnlyList<string> RestControllerAttributeNamespaces { get; init; } = Array.Empty<string>();
+
+    /// <summary>
+    /// Full type names of a module system's per-package module declaration — the counterpart of the
+    /// Java library's <c>moduleDeclaration</c> role, where Spring Modulith's <c>@ApplicationModule</c>
+    /// fills it. <c>DCA-MAP-006</c> reads the declaration's <c>AllowedDependencies</c> and compares it
+    /// with the <c>[Upstream]</c> declarations. Empty in every preset: .NET draws module boundaries
+    /// with projects rather than with an attribute, so a project that has such an attribute names it.
+    /// </summary>
+    public IReadOnlyList<string> ModuleDeclarationAttributeTypes { get; init; } = Array.Empty<string>();
+
+    /// <summary>
+    /// Attribute namespaces classified as an event-listener stereotype — the counterpart of the Java
+    /// library's <c>eventListener</c> role. Empty in every preset: .NET subscribes in code, not through
+    /// an attribute.
+    /// </summary>
+    public IReadOnlyList<string> EventListenerAttributeNamespaces { get; init; } = Array.Empty<string>();
+
     /// <summary>Full attribute type names that fix the protocol answer of the type they sit on — the role <c>DCA-ERR-004</c> forbids on the exceptions of the domain and application layers, because which status a failure earns is the incoming adapter's decision and a second adapter on another protocol has no use for it. Empty in every preset: the platform answers through a mapper type rather than through an attribute on the failure. A project that defines such an attribute itself adds it via a with-expression, and the Java library's <c>transportStatus</c> role is the same setting under the same rule.</summary>
     public IReadOnlyList<string> TransportStatusAttributeTypes { get; init; } = Array.Empty<string>();
 
