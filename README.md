@@ -143,7 +143,10 @@ a `dca-archunit.properties` added later would be ignored without a word.
 **Three differences from the Java library.** There is no baseline dial yet (`frozen` /
 `dca.rules.freeze`). ArchUnitNET does ship a `FreezingArchRule`, but the rules of this library do not
 expose the ArchUnitNET rule behind them, so there is nothing to build a baseline from; the properties
-key is rejected with a message saying so — lower those rules to a warning instead. Because xUnit v2
+key is rejected with a message saying so. **On an existing code base, use `dca.rule.<id>.ignore`
+instead**: one regular expression over what is already broken, so the rule reports only what you break
+from now on. It works for every rule, not only the ones a baseline could bind to, and it means the
+same thing in both libraries. Because xUnit v2
 cannot skip a test dynamically, a rule at `WARN` or `OFF` is reported green rather than skipped. And
 only the **file** shapes the report: theory cases are built statically, before an instance exists, so a
 rule the file scopes out produces no case at all and one it lowers is named
