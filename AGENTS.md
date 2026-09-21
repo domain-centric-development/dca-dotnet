@@ -69,6 +69,10 @@ base type, layer, metadata and naming; `DCA-ERR-006` is informational because th
 carries neither `throw` nor `catch`. The base types carry no code or status field — that is the
 adapter's decision.
 
+Rule sets (2026-09-21): **every set stands on its own.** A consumer may run one set alone (`OnlySets`) or
+switch a whole set off, so a rule is not redundant because a rule in *another* set reports the same code.
+Only redundancy *within* a set is grounds for retiring an id.
+
 Marker roles (TODO #50, 2026-09-21): the rules select building blocks through `DcaMarkers` roles resolved by
 name, never as type literals; `DcaLayout` defaults to the library's own vocabulary, a project points the roles
 at its own markers instead of excluding rule ids. A role must name a type — blank is refused. The strategic
