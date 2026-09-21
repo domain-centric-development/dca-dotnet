@@ -4,6 +4,10 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+**`DCA-ERR-002` and `DCA-ERR-003` no longer both report the same exception.** A subtype of
+`DomainException` declared in an application namespace was reported twice, with contradictory
+remedies. `DCA-ERR-002` owns the case; `DCA-ERR-003` no longer selects domain-exception subtypes.
+
 **Retired: `DCA-CYC-001`, `DCA-CYC-002`, `DCA-CYC-003`, `DCA-CYC-004`**, for the reason `dca-archunit`
 gives: they sliced per module root, so the only cycle they could report ran between two modules, whose
 first direction `DCA-STR-004`, `DCA-STR-003`, `DCA-STR-006` and `DCA-HEX-007` already forbid.

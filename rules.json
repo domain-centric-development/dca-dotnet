@@ -1185,8 +1185,8 @@
       "id": "DCA-ERR-003",
       "title": "Exceptions declared in the application layer must extend UseCaseException",
       "rationale": "A use case that cannot serve a request reports why through its type, so that one incoming adapter can map each outcome onto its protocol and another adapter can map the same outcome onto a different one",
-      "selects": "Types under <Module>.Application of every module root that are assignable to Exception - the exception types the application layer declares itself. The base type UseCaseException lives in the building blocks and is not selected.",
-      "checks": "Each derives from UseCaseException, directly or through an intermediate base class. A subtype of DomainException declared in an application namespace is reported here as well: a failure of the model belongs to the model. An empty selection passes.",
+      "selects": "Types under <Module>.Application of every module root that are assignable to Exception and not to DomainException - the exception types the application layer declares itself. The base type UseCaseException lives in the building blocks and is not selected. A subtype of DomainException declared in an application namespace is not selected either: it is misplaced rather than mis-based, and DCA-ERR-002 owns that case with the remedy that fits it - move the failure to the domain, do not change its base type.",
+      "checks": "Each derives from UseCaseException, directly or through an intermediate base class. An empty selection passes.",
       "implementation": "dotnet",
       "status": "enforced"
     },

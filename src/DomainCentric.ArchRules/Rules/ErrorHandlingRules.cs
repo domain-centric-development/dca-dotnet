@@ -129,19 +129,25 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                 var application = new Regex(DcaLayout.AnyOf(arch.AllApplicationPatterns()));
                 var violations = ProjectExceptions(arch)
                     .Where(t => application.IsMatch(t.Namespace?.FullName ?? ""))
+                    // A subtype of DomainException here is misplaced, not mis-based: DCA-ERR-002 owns it
+                    // and says to move it to the domain. This rule's remedy would turn a broken rule of
+                    // the model into a use-case failure.
+                    .Where(t => !IsAssignableTo(t, arch.Layout.Markers.DomainException))
                     .Where(t => !IsAssignableTo(t, arch.Layout.Markers.UseCaseException))
                     .Select(t => $"{t.FullName} does not extend UseCaseException")
                     .ToList();
                 DcaRule.Fail("A use-case failure without the application base type", violations);
             })
             .Selecting(
-                "Types under <Module>.Application of every module root that are assignable to Exception - "
-                + "the exception types the application layer declares itself. The base type UseCaseException "
-                + "lives in the building blocks and is not selected.")
+                "Types under <Module>.Application of every module root that are assignable to Exception and "
+                + "not to DomainException - the exception types the application layer declares itself. The "
+                + "base type UseCaseException lives in the building blocks and is not selected. A subtype of "
+                + "DomainException declared in an application namespace is not selected either: it is "
+                + "misplaced rather than mis-based, and DCA-ERR-002 owns that case with the remedy that fits "
+                + "it - move the failure to the domain, do not change its base type.")
             .Checking(
-                "Each derives from UseCaseException, directly or through an intermediate base class. A "
-                + "subtype of DomainException declared in an application namespace is reported here as "
-                + "well: a failure of the model belongs to the model. An empty selection passes.");
+                "Each derives from UseCaseException, directly or through an intermediate base class. An "
+                + "empty selection passes.");
 
     public IDcaRule ExceptionsCarryNoFrameworkMetadata() =>
         DcaRule.Check(
