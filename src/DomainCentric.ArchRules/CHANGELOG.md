@@ -21,6 +21,17 @@ public, and a fixture proves it.
 **`DCA-ADV-009` is retired; `DCA-ADV-010` keeps the layer** — see the Java entry.
 `WithDomainServiceSegment` goes with it.
 
+**`DCA-STR-009` is retired** — see the Java entry. No replacement id.
+
+**The retirement reason of `DCA-TAC-022` is corrected** — see the Java entry.
+
+**`DCA-NET-001` and `DCA-NET-006` say so when Java has no twin.** Both make a statement about
+architecture rather than about C#: the domain layer stays synchronous, and the application layer
+names no persistence or transaction API. Java checks neither — `DCA-LAY-003` forbids the
+infrastructure packages, not the persistence API itself. The ids stay where they are for this
+release; both `checks` texts now state the gap in one sentence, so a reader does not infer a
+constraint that holds on one stack only.
+
 **`DCA-ADV-013` and `DCA-ADV-017` are titled after what they check** — see the Java entry.
 
 **`DCA-TAC-015` names its overlap with `DCA-HEX-008`.**

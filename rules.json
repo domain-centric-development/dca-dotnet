@@ -494,16 +494,6 @@
     },
     {
       "set": "strategic",
-      "id": "DCA-STR-009",
-      "title": "Anti-Corruption Layer components must be in Acl namespaces",
-      "rationale": "Anti-Corruption Layer components must be in 'Acl' namespaces for clear architectural intent (DDD Strategic Pattern)",
-      "selects": "Types anywhere below the root namespace whose name ends with EventTranslator, ACL or AntiCorruptionLayer - selected by name alone, no marker or attribute is read.",
-      "checks": "Each resides in a namespace whose path contains an Acl segment, at any depth. A translation class named otherwise is neither selected nor checked.",
-      "implementation": "dotnet",
-      "status": "enforced"
-    },
-    {
-      "set": "strategic",
       "id": "DCA-STR-010",
       "title": "Event Listeners consuming integration events should use Anti-Corruption Layer",
       "rationale": "Consumed integration events are translated into the consuming context's own language before they reach its domain — verified by code review, not statically",
@@ -1144,7 +1134,7 @@
       "title": "Domain layer must stay synchronous",
       "rationale": "Async is an I/O concern of ports and adapters; a synchronous domain model stays testable, deterministic and free of sync-over-async hazards",
       "selects": "Types in <module>.Domain of every module root.",
-      "checks": "No dependency on Task, Task<T>, ValueTask, ValueTask<T> or CancellationToken - in a signature, a field or a method body. Other awaitables and IAsyncEnumerable<T> are not checked. An empty selection passes.",
+      "checks": "No dependency on Task, Task<T>, ValueTask, ValueTask<T> or CancellationToken - in a signature, a field or a method body. Other awaitables and IAsyncEnumerable<T> are not checked. An empty selection passes. The statement is language-neutral, but it is carried under a dotnet id: Java has no twin, and CompletableFuture or Flow.Publisher in a domain model is reported by no rule there.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -1194,7 +1184,7 @@
       "title": "Application layer must not use persistence or transaction frameworks",
       "rationale": "The transaction boundary of a use case is drawn by a decorator around IUseCase or by ITransactionBoundary (an application-layer execution abstraction implemented in infrastructure), never by DbContext, SaveChanges, TransactionScope or IDbTransaction in the use case itself. Framework types in the application layer bind use cases to one persistence technology and hide where the boundary is; the ITransactionBoundary implementation is the single place that knows how to open and commit a transaction",
       "selects": "Types in <module>.Application of every module root.",
-      "checks": "No dependency on a type whose full name starts with Microsoft.EntityFrameworkCore, System.Transactions, System.Data, Dapper, NHibernate or MongoDB.Driver. Only these six namespace prefixes are checked - another persistence library is not reported, and the domain and adapter layers are not selected. An empty selection passes.",
+      "checks": "No dependency on a type whose full name starts with Microsoft.EntityFrameworkCore, System.Transactions, System.Data, Dapper, NHibernate or MongoDB.Driver. Only these six namespace prefixes are checked - another persistence library is not reported, and the domain and adapter layers are not selected. An empty selection passes. The statement is language-neutral, but it is carried under a dotnet id: Java has no twin, where DCA-LAY-003 forbids the infrastructure packages and not the persistence API itself.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -1279,8 +1269,14 @@
       "since": "0.4.0"
     },
     {
+      "id": "DCA-STR-009",
+      "reason": "An Acl segment is a filing decision, and the selection named three suffixes a project cannot change; the anti-corruption layer stays guide and catalog guidance",
+      "replacement": "none",
+      "since": "0.5.0"
+    },
+    {
       "id": "DCA-TAC-022",
-      "reason": "Value model already covered; enrichment remains guide and catalog guidance",
+      "reason": "Selected on the sample's own pattern name (Enriched*), which a general rule may not carry; value models are covered by DCA-TAC-008..012 and naming one enriched remains guide and catalog guidance",
       "replacement": "DCA-TAC-008..012",
       "since": "0.4.0"
     }

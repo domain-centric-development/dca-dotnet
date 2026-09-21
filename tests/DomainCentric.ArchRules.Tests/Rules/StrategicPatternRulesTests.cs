@@ -17,7 +17,7 @@ public sealed class StrategicPatternRulesTests
     private static readonly string[] ExpectedIds =
     {
         "DCA-STR-001", "DCA-STR-002", "DCA-STR-003", "DCA-STR-004", "DCA-STR-005",
-        "DCA-STR-006", "DCA-STR-007", "DCA-STR-008", "DCA-STR-009", "DCA-STR-010",
+        "DCA-STR-006", "DCA-STR-007", "DCA-STR-008", "DCA-STR-010",
         "DCA-STR-011", "DCA-STR-012",
     };
 

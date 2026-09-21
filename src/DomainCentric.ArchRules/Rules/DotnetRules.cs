@@ -86,7 +86,9 @@ public sealed class DotnetRules : IDcaRuleSet
                 + " System.Transactions, System.Data, Dapper, NHibernate or MongoDB.Driver. Only"
                 + " these six namespace prefixes are checked - another persistence library is not"
                 + " reported, and the domain and adapter layers are not selected. An empty selection"
-                + " passes.");
+                + " passes. The statement is language-neutral, but it is carried under a dotnet id:"
+                + " Java has no twin, where DCA-LAY-003 forbids the infrastructure packages and not"
+                + " the persistence API itself.");
 
     private static readonly string[] PersistenceFrameworkNamespaces =
     {
@@ -135,7 +137,9 @@ public sealed class DotnetRules : IDcaRuleSet
         .Checking(
             "No dependency on Task, Task<T>, ValueTask, ValueTask<T> or CancellationToken -"
                 + " in a signature, a field or a method body. Other awaitables and IAsyncEnumerable<T>"
-                + " are not checked. An empty selection passes.");
+                + " are not checked. An empty selection passes. The statement is language-neutral, but"
+                + " it is carried under a dotnet id: Java has no twin, and CompletableFuture or"
+                + " Flow.Publisher in a domain model is reported by no rule there.");
 
     /// <summary>DCA-NET-002: awaitable port methods end with <c>Async</c>, and only those.</summary>
     public static IDcaRule PortMethodsReturningTaskMustEndWithAsync() =>

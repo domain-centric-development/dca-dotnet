@@ -34,7 +34,6 @@ public sealed class StrategicPatternRules : IDcaRuleSet
             OutgoingAdaptersOnlyUseOpenHostServices(),
             IntegrationEventsResideInEventsNamespaces(),
             IntegrationEventsAreRecords(),
-            AntiCorruptionLayerComponentsResideInAclNamespaces(),
             EventListenersUseAntiCorruptionLayer(),
             AtLeastOneBoundedContextIsDeclared(),
             AtLeastOneModuleOwnsALayer(),
@@ -329,23 +328,6 @@ public sealed class StrategicPatternRules : IDcaRuleSet
                 + " alike, compiler-generated types excluded.")
         .Checking(
             "Classes are sealed or records; structs are allowed. Every inherited instance field is readonly, every property is get-only or init-only and no instance Set*(x): void method exists. Referenced objects and collection contents are not inspected." );
-
-    /// <summary>DCA-STR-009.</summary>
-    public static IDcaRule AntiCorruptionLayerComponentsResideInAclNamespaces() =>
-        DcaRule.Of(
-            "DCA-STR-009",
-            "Anti-Corruption Layer components must be in Acl namespaces",
-            "Anti-Corruption Layer components must be in 'Acl' namespaces for clear architectural intent (DDD Strategic Pattern)",
-            arch =>
-                Types().That().HaveNameMatching("(EventTranslator|ACL|AntiCorruptionLayer)$")
-                    .Should().ResideInNamespaceMatching(AnySegment("Acl")))
-        .Selecting(
-            "Types anywhere below the root namespace whose name ends with"
-                + " EventTranslator, ACL or AntiCorruptionLayer - selected by name alone, no marker"
-                + " or attribute is read.")
-        .Checking(
-            "Each resides in a namespace whose path contains an Acl segment, at any depth."
-                + " A translation class named otherwise is neither selected nor checked.");
 
     /// <summary>DCA-STR-010 — documentation only, never fails.</summary>
     public static IDcaRule EventListenersUseAntiCorruptionLayer() =>
