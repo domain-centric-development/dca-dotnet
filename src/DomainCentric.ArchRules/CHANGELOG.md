@@ -4,6 +4,11 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+**Every violation now names its rule.** A report line used to carry the offending element and, for the five
+`DCA-ERR` rules, the id written into the header by hand; the other rules named it nowhere. `DcaRuleExecution`
+now prefixes every line of every report with `[DCA-XXX-nnn]`, matching `dca-archunit`. Nothing about a rule's
+selection, check or severity changes. A consumer that parses report text sees the new prefix.
+
 **What can turn a green build red:**
 
 - `DCA-ERR-004` also forbids the new `TransportStatusAttributeTypes` role — full attribute type names that

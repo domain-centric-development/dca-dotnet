@@ -39,7 +39,8 @@ public static class DcaRuleExecution
         }
 
         var reason = selection.ReasonFor(rule.Id);
-        var message = reason is null ? violations : violations + "\n\nRecorded reason: " + reason;
+        var report = WithRuleId(violations, rule.Id);
+        var message = reason is null ? report : report + "\n\nRecorded reason: " + reason;
         return new DcaRuleOutcome(
             rule.Id,
             severity == DcaSeverity.Warn ? DcaRuleStatus.Warned : DcaRuleStatus.Failed,
@@ -64,6 +65,27 @@ public static class DcaRuleExecution
             var remaining = violation.Violations.Where(v => !MatchesAny(v, ignored)).ToList();
             return remaining.Count == 0 ? null : violation.Retaining(remaining).Message;
         }
+    }
+
+    /// <summary>Prefixes every line of a violation report with the rule id.</summary>
+    /// <remarks>
+    /// The id is what a reader switches off through <see cref="DcaRuleSelection"/>, what a review cites
+    /// and what an agent matches a report line on — the rule title is not, because it changes with a
+    /// configured suffix. A line that already carries the id is left alone.
+    /// </remarks>
+    private static string WithRuleId(string report, string id)
+    {
+        var prefix = "[" + id + "] ";
+        var lines = report.Split('\n');
+        for (var i = 0; i < lines.Length; i++)
+        {
+            if (!string.IsNullOrWhiteSpace(lines[i]) && !lines[i].Contains(prefix, StringComparison.Ordinal))
+            {
+                lines[i] = prefix + lines[i];
+            }
+        }
+
+        return string.Join("\n", lines);
     }
 
     private static bool MatchesAny(string text, IReadOnlyList<Regex> patterns) =>

@@ -67,7 +67,7 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                     .Where(t => !IsAssignableTo(t, arch.Layout.Markers.DomainException))
                     .Select(t => $"{t.FullName} does not extend DomainException")
                     .ToList();
-                DcaRule.Fail("DCA-ERR-001: a domain failure without the domain base type", violations);
+                DcaRule.Fail("A domain failure without the domain base type", violations);
             })
             .Selecting(
                 "Types under <Module>.Domain of every module root that are assignable to Exception - the "
@@ -105,7 +105,7 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                     }
                 }
 
-                DcaRule.Fail("DCA-ERR-002: an exception resides outside the layer its base type names", violations);
+                DcaRule.Fail("An exception resides outside the layer its base type names", violations);
             })
             .Selecting(
                 "Types anywhere under the root namespace that are assignable to DomainException or to "
@@ -132,7 +132,7 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                     .Where(t => !IsAssignableTo(t, arch.Layout.Markers.UseCaseException))
                     .Select(t => $"{t.FullName} does not extend UseCaseException")
                     .ToList();
-                DcaRule.Fail("DCA-ERR-003: a use-case failure without the application base type", violations);
+                DcaRule.Fail("A use-case failure without the application base type", violations);
             })
             .Selecting(
                 "Types under <Module>.Application of every module root that are assignable to Exception - "
@@ -184,7 +184,7 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                     }
                 }
 
-                DcaRule.Fail("DCA-ERR-004: prohibited metadata on an inner-layer exception", violations);
+                DcaRule.Fail("Prohibited metadata on an inner-layer exception", violations);
             })
             .Selecting(
                 "Types anywhere under the root namespace that are assignable to the domain-exception or the "
@@ -225,7 +225,7 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                     }
                 }
 
-                DcaRule.Fail("DCA-ERR-005: a technical or transport word in an exception name", violations);
+                DcaRule.Fail("A technical or transport word in an exception name", violations);
             })
             .Selecting(
                 "Types anywhere under the root namespace that are assignable to the domain-exception or the "
