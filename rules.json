@@ -1092,6 +1092,46 @@
     },
     {
       "set": "cycles",
+      "id": "DCA-CYC-001",
+      "title": "Domain Namespaces must not have cyclic dependencies (package-based slice discovery)",
+      "rationale": "Domain model namespaces should have clear boundaries and no cycles (Acyclic Dependencies Principle)",
+      "selects": "One slice per module root, holding the types in <module>.Domain.Model of that module and below (segment names from the layout). A module root is the shortest namespace prefix whose next segment is a layer segment, so modules are found at any depth; types outside every module or outside the domain-model namespace are ignored.",
+      "checks": "The slices form no dependency cycle - no two modules' domain models depend on each other, directly or via further modules' domain models. Slices are per module root, so a cycle between types inside one module's domain model is not detected here, and dependencies into other layers do not count. DCA-CYC-005 covers the application layer per operation; no rule slices the domain model within a module. Fewer than two slices pass.",
+      "implementation": "dotnet",
+      "status": "enforced"
+    },
+    {
+      "set": "cycles",
+      "id": "DCA-CYC-002",
+      "title": "Application Layer must not have cyclic dependencies (package-based slice discovery)",
+      "rationale": "Application services should have clear boundaries and no cycles",
+      "selects": "One slice per module root, holding the types in <module>.Application of that module and below (Application.Shared included); types outside every module or outside the application layer are ignored.",
+      "checks": "The slices form no dependency cycle between modules' application layers. Slices are per module root, so a cycle between use cases or features inside one module is not detected here - DCA-CYC-005 covers the application layer per operation - and dependencies into domain or adapter types do not count.",
+      "implementation": "dotnet",
+      "status": "enforced"
+    },
+    {
+      "set": "cycles",
+      "id": "DCA-CYC-003",
+      "title": "Outgoing Adapter Namespaces must not have cyclic dependencies",
+      "rationale": "Outgoing adapters should have clear boundaries and no cycles",
+      "selects": "One slice per module root, holding the types in <module>.Adapter.Outgoing of that module and below; everything else is ignored.",
+      "checks": "The slices form no dependency cycle between modules' outgoing adapters. Slices are per module root, so a cycle inside one module's outgoing adapters is not detected here, and dependencies into other layers do not count. DCA-CYC-005 covers the application layer per operation; no rule slices the adapters within a module.",
+      "implementation": "dotnet",
+      "status": "enforced"
+    },
+    {
+      "set": "cycles",
+      "id": "DCA-CYC-004",
+      "title": "Incoming Adapter Namespaces must not have cyclic dependencies",
+      "rationale": "Incoming adapters should have clear boundaries and no cycles",
+      "selects": "One slice per module root, holding the types in <module>.Adapter.Incoming of that module and below; everything else is ignored.",
+      "checks": "The slices form no dependency cycle between modules' incoming adapters. Slices are per module root, so a cycle inside one module's incoming adapters is not detected here, and dependencies into other layers do not count. DCA-CYC-005 covers the application layer per operation; no rule slices the adapters within a module.",
+      "implementation": "dotnet",
+      "status": "enforced"
+    },
+    {
+      "set": "cycles",
       "id": "DCA-CYC-005",
       "title": "Feature and use case namespaces within a module's application layer must not have cyclic dependencies",
       "rationale": "The namespaces directly below a module's application namespace are its features (Application.<Feature>.<UseCase>) or, in a flat layout, its use cases (Application.<UseCase>). A feature is an optional, domain-named group of related use cases; it may depend on another feature in one direction, but a cycle between two of them means the grouping does not carry its weight - the shared concept belongs in Application.Shared, in the domain, or in one of the two. Application.Shared is the context-wide port namespace and is not a slice. The rule does not infer bounded contexts or aggregate ownership from the namespaces it slices",
@@ -1227,30 +1267,6 @@
       "reason": "Immutable event shape is checked by DCA-ADV-001",
       "replacement": "DCA-ADV-001",
       "since": "0.4.0"
-    },
-    {
-      "id": "DCA-CYC-001",
-      "reason": "A cycle between domain namespaces is already reported by DCA-STR-004",
-      "replacement": "DCA-STR-004",
-      "since": "0.5.0"
-    },
-    {
-      "id": "DCA-CYC-002",
-      "reason": "A cycle between application namespaces is already reported by DCA-STR-003; DCA-CYC-005 covers the application layer per operation",
-      "replacement": "DCA-STR-003",
-      "since": "0.5.0"
-    },
-    {
-      "id": "DCA-CYC-003",
-      "reason": "A cycle between outgoing-adapter namespaces is already reported by DCA-STR-006",
-      "replacement": "DCA-STR-006",
-      "since": "0.5.0"
-    },
-    {
-      "id": "DCA-CYC-004",
-      "reason": "A cycle between incoming-adapter namespaces is already reported by DCA-HEX-007",
-      "replacement": "DCA-HEX-007",
-      "since": "0.5.0"
     },
     {
       "id": "DCA-MAP-003",

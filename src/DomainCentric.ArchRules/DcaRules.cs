@@ -28,10 +28,6 @@ public static class DcaRules
     public static IReadOnlyDictionary<string, RetiredRule> Retired() => RetiredRegistry;
     private static readonly IReadOnlyDictionary<string, RetiredRule> RetiredRegistry =
         new System.Collections.ObjectModel.ReadOnlyDictionary<string, RetiredRule>(new Dictionary<string, RetiredRule> {
-            ["DCA-CYC-001"] = new("A cycle between domain namespaces is already reported by DCA-STR-004", "DCA-STR-004", "0.5.0"),
-            ["DCA-CYC-002"] = new("A cycle between application namespaces is already reported by DCA-STR-003; DCA-CYC-005 covers the application layer per operation", "DCA-STR-003", "0.5.0"),
-            ["DCA-CYC-003"] = new("A cycle between outgoing-adapter namespaces is already reported by DCA-STR-006", "DCA-STR-006", "0.5.0"),
-            ["DCA-CYC-004"] = new("A cycle between incoming-adapter namespaces is already reported by DCA-HEX-007", "DCA-HEX-007", "0.5.0"),
             ["DCA-MAP-003"] = new("Renderer disambiguates normalized external-system identifiers", "ContextMapRenderer", "0.4.0"),
             ["DCA-ADV-003"] = new("Immutable event shape is checked by DCA-ADV-001", "DCA-ADV-001", "0.4.0"),
             ["DCA-TAC-022"] = new("Value model already covered; enrichment remains guide and catalog guidance", "DCA-TAC-008..012", "0.4.0")

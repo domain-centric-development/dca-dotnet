@@ -8,11 +8,6 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 `DomainException` declared in an application namespace was reported twice, with contradictory
 remedies. `DCA-ERR-002` owns the case; `DCA-ERR-003` no longer selects domain-exception subtypes.
 
-**Retired: `DCA-CYC-001`, `DCA-CYC-002`, `DCA-CYC-003`, `DCA-CYC-004`**, for the reason `dca-archunit`
-gives: they sliced per module root, so the only cycle they could report ran between two modules, whose
-first direction `DCA-STR-004`, `DCA-STR-003`, `DCA-STR-006` and `DCA-HEX-007` already forbid.
-`DCA-CYC-005` stays. The four ids keep their meaning in the retirement list.
-
 **No logging library in the domain by default.** `Microsoft.Extensions.Logging.Abstractions` leaves the
 `DCA-ONI-002` allow-list; the Java twin never had a logging facade in it, and one rule id cannot mean two
 policies. **This can turn a green build red** — a domain model that logs adds the namespace back with
