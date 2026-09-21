@@ -48,26 +48,23 @@ public class LayoutSegmentTests
         Assert.Equal("Store", Defaults.StoreSuffix);
         Assert.Equal("Factory", Defaults.FactorySuffix);
         Assert.Equal("Specification", Defaults.SpecificationSuffix);
-        Assert.Equal("Service", Defaults.DomainServiceSegment);
 
         var own = Defaults
             .WithAggregateRootSuffix("Root")
             .WithRepositorySuffix("Gateway")
             .WithStoreSuffix("Table")
             .WithFactorySuffix("Builder")
-            .WithSpecificationSuffix("Rule")
-            .WithDomainServiceSegment("Policy");
+            .WithSpecificationSuffix("Rule");
 
         Assert.Equal("Root", own.AggregateRootSuffix);
         Assert.Equal("Gateway", own.RepositorySuffix);
         Assert.Equal("Table", own.StoreSuffix);
         Assert.Equal("Builder", own.FactorySuffix);
         Assert.Equal("Rule", own.SpecificationSuffix);
-        Assert.Equal("Policy", own.DomainServiceSegment);
         Assert.Equal("Acme.Shop", own.RootNamespace);
 
         Assert.Throws<ArgumentException>(() => Defaults.WithRepositorySuffix(string.Empty));
-        Assert.Throws<ArgumentException>(() => Defaults.WithDomainServiceSegment("  "));
+        Assert.Throws<ArgumentException>(() => Defaults.WithStoreSuffix("  "));
     }
 
     /// <summary>

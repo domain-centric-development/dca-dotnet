@@ -76,7 +76,6 @@ public sealed class DcaLayout
         string storeSuffix = "Store",
         string factorySuffix = "Factory",
         string specificationSuffix = "Specification",
-        string domainServiceSegment = "Service",
         DcaMarkers? markers = null)
     {
         RootNamespace = RequireSegment(rootNamespace, nameof(rootNamespace));
@@ -112,7 +111,6 @@ public sealed class DcaLayout
         StoreSuffix = RequireSegment(storeSuffix, nameof(storeSuffix));
         FactorySuffix = RequireSegment(factorySuffix, nameof(factorySuffix));
         SpecificationSuffix = RequireSegment(specificationSuffix, nameof(specificationSuffix));
-        DomainServiceSegment = RequireSegment(domainServiceSegment, nameof(domainServiceSegment));
         ThirdPartyNamespacesAllowedInDomain = thirdPartyNamespacesAllowedInDomain.ToArray();
         FrameworkTypes = frameworkTypes ?? throw new ArgumentNullException(nameof(frameworkTypes));
         Markers = (markers ?? DcaMarkers.Dca()).Validate();
@@ -216,9 +214,6 @@ public sealed class DcaLayout
 
     /// <summary>Name suffix of a specification without a marker, read by DCA-ADV-017 and DCA-ADV-018 (<c>Specification</c> by default).</summary>
     public string SpecificationSuffix { get; }
-
-    /// <summary>Segment of the domain layer that holds the domain services (<c>Service</c> by default); read by <c>DCA-ADV-009</c>.</summary>
-    public string DomainServiceSegment { get; }
 
     /// <summary>
     /// Namespace prefixes the domain layer may depend on besides its own code (exact namespace or any
@@ -335,9 +330,6 @@ public sealed class DcaLayout
     /// <summary>Suffix by which a specification is found when it carries no marker, read alongside the specification role.</summary>
     public DcaLayout WithSpecificationSuffix(string value) => Copy(specificationSuffix: value);
 
-    /// <summary>Segment of the domain layer that holds the domain services, e.g. <c>Service</c> (default) or <c>Policy</c>; read by <c>DCA-ADV-009</c>.</summary>
-    public DcaLayout WithDomainServiceSegment(string value) => Copy(domainService: value);
-
 
     /// <summary>Replaces the list of third-party namespace prefixes the domain layer may depend on.</summary>
     public DcaLayout WithThirdPartyNamespacesAllowedInDomain(IEnumerable<string> prefixes) =>
@@ -411,7 +403,6 @@ public sealed class DcaLayout
         string? storeSuffix = null,
         string? factorySuffix = null,
         string? specificationSuffix = null,
-        string? domainService = null,
         DcaMarkers? markers = null,
         FrameworkTypesOrigin? frameworkTypesSource = null) =>
         new(
@@ -440,7 +431,6 @@ public sealed class DcaLayout
             storeSuffix ?? StoreSuffix,
             factorySuffix ?? FactorySuffix,
             specificationSuffix ?? SpecificationSuffix,
-            domainService ?? DomainServiceSegment,
             markers ?? Markers)
         {
             FrameworkTypesSource = frameworkTypesSource ?? FrameworkTypesSource,

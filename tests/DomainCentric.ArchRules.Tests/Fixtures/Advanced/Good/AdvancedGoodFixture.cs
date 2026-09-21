@@ -54,6 +54,11 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Advanced.Good.Order.Domain.Mode
         public Order Create(Money total) => new Order(new OrderId(Guid.NewGuid()), total);
     }
 
+    // DCA-ADV-010: a domain service is part of the model, so Domain.Model is a legal home.
+    public sealed class DiscountPolicy : IDomainService
+    {
+    }
+
     public sealed class HighValueOrderSpecification : ISpecification<Order>
     {
         private readonly decimal _threshold;

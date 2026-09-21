@@ -5,9 +5,9 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 ## [Unreleased]
 
 **Every name a rule matches on is configurable.** `WithAggregateRootSuffix`,
-`WithRepositorySuffix`, `WithStoreSuffix`, `WithFactorySuffix`, `WithSpecificationSuffix` and
-`WithDomainServiceSegment` join the use-case and controller suffixes; the same seven rules as in Java
-follow the project's names. Defaults unchanged.
+`WithRepositorySuffix`, `WithStoreSuffix`, `WithFactorySuffix` and `WithSpecificationSuffix` join
+the use-case and controller suffixes; the same six rules as in Java follow the project's names.
+Defaults unchanged.
 
 **`DCA-USE-009` exempts no more than the Java twin does.** Two gaps: the walk's stop condition was
 hard-wired to `System.` and `DomainCentric.BuildingBlocks.`, so with a project's own vocabulary it
@@ -17,6 +17,9 @@ the external scan is here. One .NET difference is written into the `checks` text
 `RegisterEvent` is protected, so only a nested type can reach it — and a nested type already belongs
 to the enclosing type's call graph. The scan therefore matters for a vocabulary whose registration is
 public, and a fixture proves it.
+
+**`DCA-ADV-009` is retired; `DCA-ADV-010` keeps the layer** — see the Java entry.
+`WithDomainServiceSegment` goes with it.
 
 **`DCA-ADV-013` and `DCA-ADV-017` are titled after what they check** — see the Java entry.
 

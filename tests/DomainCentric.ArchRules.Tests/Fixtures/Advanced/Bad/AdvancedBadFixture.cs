@@ -88,11 +88,6 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Advanced.Bad.Order.Domain.Model
         public DateTimeOffset OccurredOn => DateTimeOffset.MinValue;
     }
 
-    // DCA-ADV-009: domain service outside Domain.Service.
-    public sealed class DiscountPolicy : IDomainService
-    {
-    }
-
     // DCA-ADV-013: IFactory implementer without 'Factory' suffix.
     public sealed class OrderBuilder : IFactory
     {

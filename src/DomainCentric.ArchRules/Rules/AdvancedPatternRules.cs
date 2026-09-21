@@ -44,7 +44,6 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
             IntegrationEventsHaveNoVersionField(),
             DomainOnlyEventsHaveNoVersionField(),
             DomainEventsHaveTimestampField(),
-            DomainServicesResideInDomainService(),
             DomainServicesResideInDomain(),
             DomainServicesHaveNoFrameworkAttributes(),
             DomainServicesAreStateless(),
@@ -204,27 +203,6 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
     // ============================================================================
     // DOMAIN SERVICES PATTERN
     // ============================================================================
-
-    public IDcaRule DomainServicesResideInDomainService() =>
-        DcaRule.Of(
-            "DCA-ADV-009",
-            "Marked domain services reside in the configured domain service segment",
-            "Domain services implement IDomainService marker and reside in Domain.Service namespaces"
-                + " (named descriptively, e.g., PricingService, CartTotalCalculator)",
-            arch => Types()
-                .That()
-                .FollowCustomPredicate(t => t.IsAssignableTo(arch.Layout.Markers.DomainService), "are domain services")
-                .And()
-                .FollowCustomPredicate(t => t is not Interface, "are not interfaces")
-                .Should()
-                .ResideInNamespaceMatching(DomainServicePattern()))
-            .Selecting(
-                "Non-interface types anywhere under scan that are assignable to IDomainService.")
-            .Checking(
-                "Each resides in a namespace matching .<domain segment>.Service or below - the configured "
-                + "domain segment followed by Service, anywhere in the namespace path, not tied to a module "
-                + "root. A domain service directly in Domain or in Domain.Model is reported. An empty "
-                + "selection passes.");
 
     public IDcaRule DomainServicesResideInDomain() =>
         DcaRule.Of(
@@ -399,9 +377,6 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
             : type.IsAssignableTo(arch.Layout.Markers.Specification)
                 || type.ImplementsInterface(arch.Layout.Markers.Specification);
     }
-
-    private string DomainServicePattern() =>
-        $"^.*\\.{Regex.Escape(Layout.DomainSegment)}\\.{Regex.Escape(Layout.DomainServiceSegment)}(\\..*)?$";
 
     private static bool InDomain(DcaArchitecture arch, IType type) =>
         type.Namespace is not null && Regex.IsMatch(type.Namespace.FullName, DcaLayout.AnyOf(arch.AllDomainPatterns()));

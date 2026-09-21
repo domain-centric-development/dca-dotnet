@@ -724,16 +724,6 @@
     },
     {
       "set": "advanced",
-      "id": "DCA-ADV-009",
-      "title": "Marked domain services reside in the configured domain service segment",
-      "rationale": "Domain services implement IDomainService marker and reside in Domain.Service namespaces (named descriptively, e.g., PricingService, CartTotalCalculator)",
-      "selects": "Non-interface types anywhere under scan that are assignable to IDomainService.",
-      "checks": "Each resides in a namespace matching .<domain segment>.Service or below - the configured domain segment followed by Service, anywhere in the namespace path, not tied to a module root. A domain service directly in Domain or in Domain.Model is reported. An empty selection passes.",
-      "implementation": "dotnet",
-      "status": "enforced"
-    },
-    {
-      "set": "advanced",
       "id": "DCA-ADV-010",
       "title": "Marked domain services reside in a module domain",
       "rationale": "Domain services are part of the domain layer, not application layer",
@@ -1275,6 +1265,12 @@
       "reason": "Immutable event shape is checked by DCA-ADV-001",
       "replacement": "DCA-ADV-001",
       "since": "0.4.0"
+    },
+    {
+      "id": "DCA-ADV-009",
+      "reason": "Where a domain service sits inside the domain layer is the team's decision; DCA-ADV-010 keeps the layer itself",
+      "replacement": "DCA-ADV-010",
+      "since": "0.5.0"
     },
     {
       "id": "DCA-MAP-003",
