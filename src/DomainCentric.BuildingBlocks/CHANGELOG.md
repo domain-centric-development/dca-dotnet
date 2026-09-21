@@ -4,6 +4,8 @@ All notable changes to this package. Format: [Keep a Changelog](https://keepacha
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-21
+
 ### Added
 
 - `Ddd.Tactical.DomainException` and `Application.UseCaseException` — abstract, unchecked base classes for the two

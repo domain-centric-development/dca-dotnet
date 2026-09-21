@@ -4,6 +4,8 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-21
+
 **Every name a rule matches on is configurable.** `WithAggregateRootSuffix`,
 `WithRepositorySuffix`, `WithStoreSuffix`, `WithFactorySuffix` and `WithSpecificationSuffix` join
 the use-case and controller suffixes; the same six rules as in Java follow the project's names.
