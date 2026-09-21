@@ -151,7 +151,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
         DcaRule.Check(
             "DCA-TAC-003",
             "Aggregate Roots must not have fields with other Aggregate Root types",
-            "Vernon's Aggregate Design Rule #2: reference other Aggregates by identity to keep"
+            "Vernon's Aggregate Design Rule #3: reference other Aggregates by identity to keep"
             + " aggregate boundaries and transactional consistency intact",
             arch =>
             {
@@ -175,7 +175,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                     }
                 }
 
-                DcaRule.Fail("Aggregates must reference other aggregates by ID only (Vernon's Rule #2).", violations);
+                DcaRule.Fail("Aggregates must reference other aggregates by ID only (Vernon's Rule #3).", violations);
             })
             .Selecting(
                 "Non-interface types below the root namespace assignable to IAggregateRoot, "

@@ -224,7 +224,7 @@
       "set": "tactical",
       "id": "DCA-TAC-003",
       "title": "Aggregate Roots must not have fields with other Aggregate Root types",
-      "rationale": "Vernon's Aggregate Design Rule #2: reference other Aggregates by identity to keep aggregate boundaries and transactional consistency intact",
+      "rationale": "Vernon's Aggregate Design Rule #3: reference other Aggregates by identity to keep aggregate boundaries and transactional consistency intact",
       "selects": "Non-interface types below the root namespace assignable to IAggregateRoot, abstract ones included.",
       "checks": "No instance field or property - inherited ones included, static ones excluded - involves IAggregateRoot through its type, arrays or nested generic arguments. Same-type references and interfaces extending the marker are included. Interfaces that do not extend the marker are invisible; references by id are valid.",
       "implementation": "dotnet",
