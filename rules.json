@@ -1033,8 +1033,8 @@
     {
       "set": "naming",
       "id": "DCA-NAM-006",
-      "title": "REST Controllers must end with 'Controller' (REST best practice)",
-      "rationale": "[ApiController] classes should end with 'Controller' following RESTful naming conventions",
+      "title": "REST Controllers must end with 'Resource' (REST best practice)",
+      "rationale": "[ApiController] classes should end with 'Resource' following RESTful naming conventions",
       "selects": "Classes in <module>.Adapter.Incoming of every module root that carry the configured API-controller attribute ([ApiController] by default).",
       "checks": "The name ends with the configured REST-controller suffix. Controllers without the attribute are not selected, and an API controller outside an incoming-adapter namespace is not checked. An empty selection passes.",
       "implementation": "dotnet",

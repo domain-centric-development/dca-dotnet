@@ -112,7 +112,10 @@ public sealed class DcaLayout
             "Events",
             "UseCase",
             "Controller",
-            "Controller",
+            // The REST endpoint class is *Resource, as in dca-archunit and in the conventions the guide
+            // states. ASP.NET Core's own convention is *Controller; WithRestControllerSuffix("Controller")
+            // restores it for a code base that prefers the platform's word.
+            "Resource",
             DefaultThirdPartyAllowedInDomain,
             FrameworkTypes.AspNetCore());
 

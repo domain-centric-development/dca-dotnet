@@ -4,6 +4,15 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+**`DCA-NAM-006` now expects `*Resource`, as `dca-archunit` always did.** The same rule id demanded
+opposite class names in the two libraries: `Resource` in Java and the conventions the guide states,
+`Controller` here — so the same story produced differently named classes in the two reference samples,
+and the .NET sample only passed because its architecture test overrode the default back to `Resource`.
+The .NET default is now `Resource` too. **This can turn a green build red**: an ASP.NET Core code base
+that follows the platform's own convention restores it with
+`WithRestControllerSuffix("Controller")`, one line in the layout. `ControllerSuffix`, which governs MVC
+and Razor page models, is unchanged at `Controller`.
+
 **The packages carry the version they will ship as, and `rules.json` says which release its texts
 belong to.** `DomainCentric.ArchRules` and `.Xunit` are `0.5.0`, `DomainCentric.BuildingBlocks` `0.2.0`
 for the two new exception base types. `rules.json` gained `library` and `version` at the top, read from
