@@ -10,14 +10,13 @@ public sealed class CycleRulesTests
     private const string Good = "DomainCentric.ArchRules.Tests.Fixtures.Cycles.Good";
     private const string Bad = "DomainCentric.ArchRules.Tests.Fixtures.Cycles.Bad";
 
-    private static readonly string[] ExpectedIds =
-    {
-        "DCA-CYC-001",
-        "DCA-CYC-002",
-        "DCA-CYC-003",
-        "DCA-CYC-004",
-        "DCA-CYC-005",
-    };
+    /// <summary>
+    /// One rule since 0.5.0. DCA-CYC-001 to DCA-CYC-004 sliced per module root, so the only cycle they
+    /// could report ran between two modules — and its first direction is already forbidden outright by
+    /// DCA-STR-004, DCA-STR-003, DCA-STR-006 and DCA-HEX-007. DCA-CYC-005 slices within a module and is
+    /// the one that reports something no sibling does.
+    /// </summary>
+    private static readonly string[] ExpectedIds = { "DCA-CYC-005" };
 
     /// <summary>Rules without a negative fixture (id → reason).</summary>
     private static readonly IReadOnlyDictionary<string, string> NoNegativeFixture = new Dictionary<string, string>();
@@ -47,18 +46,6 @@ public sealed class CycleRulesTests
     [Theory]
     [MemberData(nameof(RuleIds))]
     public void GoodFixturePasses(string id) => Rule(Good, id).Check(Arch(Good));
-
-    /// <summary>
-    /// The domain-model segment is read from the layout: with it renamed, the bad fixture's Domain.Model
-    /// namespaces are no longer sliced and the cycle between them is not seen.
-    /// </summary>
-    [Fact]
-    public void TheDomainModelSegmentComesFromTheLayout()
-    {
-        Assert.Throws<DcaRuleViolationException>(() => Rule(Bad, "DCA-CYC-001").Check(Arch(Bad)));
-        var renamed = DcaLayout.ForRootNamespace(Bad).WithModelSegment("Entities");
-        CycleRules.DomainPackagesFreeOfCycles(renamed).Check(DcaArchitecture.Load(renamed, typeof(CycleRulesTests).Assembly));
-    }
 
     [Theory]
     [MemberData(nameof(NegativeRuleIds))]

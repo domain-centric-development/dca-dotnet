@@ -214,15 +214,20 @@ public sealed class ContextDiscoveryTests
                 Arch(Root).BoundedContextNamespaces.OrderBy(n => n, System.StringComparer.Ordinal));
 
         /// <summary>
-        /// The cycle rules used to slice with a one-segment capture group, so two contexts grouped below an
-        /// intermediate namespace produced no slices at all and their mutual dependency went unreported.
-        /// They now slice by module root, so the cycle is found.
+        /// Module roots used to be matched with a one-segment capture group, so two contexts grouped below
+        /// an intermediate namespace were found by nothing and their mutual dependency went unreported.
+        /// Both are discovered at depth two now, and the dependency is reported.
         /// </summary>
+        /// <remarks>
+        /// Checked through <c>DCA-STR-003</c>: the per-module cycle rules were retired in 0.5.0 because a
+        /// cycle they could see always runs between two modules, and the first direction of it is what the
+        /// cross-module rules forbid outright. This fixture is the demonstration — <c>DCA-CYC-002</c> and
+        /// <c>DCA-STR-003</c> both reported it, and the surviving one is enough.
+        /// </remarks>
         [Fact]
         public void IsReported()
         {
-            var ex = Assert.Throws<DcaRuleViolationException>(() => Rule("DCA-CYC-002", Root).Check(Arch(Root)));
-            Assert.Contains("Cycle", ex.Message, System.StringComparison.Ordinal);
+            var ex = Assert.Throws<DcaRuleViolationException>(() => Rule("DCA-STR-003", Root).Check(Arch(Root)));
             Assert.Contains("Alpha", ex.Message, System.StringComparison.Ordinal);
             Assert.Contains("Beta", ex.Message, System.StringComparison.Ordinal);
         }
