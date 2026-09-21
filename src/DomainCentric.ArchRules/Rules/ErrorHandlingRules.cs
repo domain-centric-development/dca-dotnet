@@ -230,39 +230,63 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
     public IDcaRule AdaptersWithoutTranslation() =>
         DcaRule.Informational(
             "DCA-ERR-006",
-            "Diagnostic: incoming adapters that drive a use case without translating its failures",
-            "An adapter that knows neither failure type either lets everything escape to a generic handler"
-                + " or catches a generic type and answers every outcome the same way; whether it does is not"
-                + " visible in the type model",
+            "Diagnostic: incoming adapter namespaces that drive a use case without translating its failures",
+            "A namespace that drives the application and knows neither failure type either lets everything"
+                + " escape to a generic handler or catches a generic type and answers every outcome the same"
+                + " way; whether it does is not visible in the type model",
             arch =>
             {
                 var incoming = new Regex(DcaLayout.AnyOf(arch.AllIncomingAdapterPatterns()));
-                foreach (var type in arch.Types.Where(t => t is not Interface))
+                var driving = new SortedDictionary<string, List<string>>(StringComparer.Ordinal);
+                var namespacesThatName = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var type in arch.Types)
                 {
-                    if (!incoming.IsMatch(type.Namespace?.FullName ?? ""))
+                    var ns = type.Namespace?.FullName ?? "";
+                    if (!incoming.IsMatch(ns))
                     {
                         continue;
                     }
 
                     var targets = type.Dependencies.Select(d => d.Target).ToList();
-                    if (!targets.Any(t => IsAssignableTo(t, typeof(IInputPort)))
-                        || targets.Any(t => IsAssignableTo(t, typeof(DomainException)) || IsAssignableTo(t, typeof(UseCaseException))))
+                    if (targets.Any(t => IsAssignableTo(t, typeof(DomainException)) || IsAssignableTo(t, typeof(UseCaseException))))
+                    {
+                        namespacesThatName.Add(ns);
+                    }
+
+                    if (type is not Interface && targets.Any(t => IsAssignableTo(t, typeof(IInputPort))))
+                    {
+                        if (!driving.TryGetValue(ns, out var names))
+                        {
+                            names = new List<string>();
+                            driving[ns] = names;
+                        }
+
+                        names.Add(type.Name);
+                    }
+                }
+
+                foreach (var (ns, names) in driving)
+                {
+                    if (namespacesThatName.Contains(ns))
                     {
                         continue;
                     }
 
+                    names.Sort(StringComparer.Ordinal);
                     Console.WriteLine(
-                        $"[DCA-ERR-006] {type.FullName}: drives an input port and names no failure type of the inner layers");
+                        $"[DCA-ERR-006] {ns}: drives an input port and names no failure type of the inner layers ({string.Join(", ", names)})");
                 }
             })
             .Selecting(
-                "Non-interface types under <Module>.Adapter.Incoming of every module root that depend on a "
-                + "type assignable to IInputPort - the adapters that drive the application.")
+                "Incoming adapter namespaces of every module root (<Module>.Adapter.Incoming) that hold at "
+                + "least one non-interface type depending on a type assignable to IInputPort - the "
+                + "namespaces that drive the application.")
             .Checking(
-                "Informational diagnostic only: lists those that depend on no type assignable to "
-                + "DomainException or UseCaseException and never fails. A central handler elsewhere in the "
-                + "adapter layer is a valid answer, and a caught type is not visible to the type model - "
-                + "this does not establish that an adapter translates nothing.");
+                "Informational diagnostic only: lists a namespace when no type in it - a central exception "
+                + "handler beside the adapters included - depends on a type assignable to DomainException or "
+                + "UseCaseException, and never fails. A handler in a different namespace of the same module is "
+                + "not seen, and a caught type is not visible to the type model, so this does not establish "
+                + "that a namespace translates nothing.");
 
     /// <summary>The project's own exception types: assignable to Exception, outside the building blocks.</summary>
     private static IEnumerable<IType> ProjectExceptions(DcaArchitecture arch) =>

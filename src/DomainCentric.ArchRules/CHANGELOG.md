@@ -14,7 +14,9 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
   suffixes `Error`, `Fault`, `Failure` and the words `Http`, `Status`, `Response` in their names. Argument guards
   are outside all of this: the platform's own argument exceptions are never selected. `DCA-ERR-006` is
   informational - the type model carries neither a `throw` nor a `catch`, so an adapter that catches a generic
-  exception can only be listed, never failed.
+  exception can only be listed, never failed. It reports an incoming adapter *namespace*, not a single type: a
+  central exception handler beside the adapters is what the doctrine asks for, and a per-type diagnostic would
+  list exactly the adapters that use one.
 
 - `DCA-STR-011` is new: at least one namespace below the root namespace declares `[BoundedContext]`. Without a
   declaration the context-map and isolation rules select nothing and report success over an empty model. A code base
