@@ -362,6 +362,25 @@ Fixtures: Java `transactions/savenoboundary`, `eventpolicy/free/BoundedSaveUseCa
 (+`.Xunit`) 0.4.0. Nothing is pushed, tagged or published; the markers must be released before the rules that depend on
 their exact version. `dca-spring` and `dca-archunit-spring-modulith` stay at 0.2.0-SNAPSHOT and follow afterwards.
 
+## 2026-09-21 — the third empty-selection guard: DCA-STR-012
+
+`DCA-STR-012` is added to the strategic set in both libraries with the same id, title and texts: at least one
+module owns a DCA layer. Found by the pre-publication review (F72). A code base whose layers are named
+`core/` and `usecases/` instead of the configured segments yields no module root, so `allApplicationPatterns()`
+is empty and the whole use-case set, the structural rules among them, match nothing and pass. The full catalog
+reported exactly one violation on such a tree, and its message was `does not reside in any package []`.
+
+This is the same defect class as an empty import (the loaders refuse it) and an undeclared bounded context
+(`DCA-STR-011`), and it is the most likely first run of a brownfield code base that has not configured the
+layout. The violation names the configured segments, the namespaces it did see, and the three ways out:
+configure the segments, check the root namespace and the assemblies passed to `Load`, or switch the rule off
+with a recorded reason. Negative fixture: Java `fixtures/nomoduleroot`, .NET `Fixtures/NoModuleRoot` — a
+declared context whose layers carry names the layout does not know. Both are read by a separate test; the
+shared bad fixtures own layers and are therefore excluded from the rule's negative sweep.
+
+Inventory after this change: Java 121 ids (115 enforced, 6 informational, 3 retired), .NET 127 ids
+(119 enforced, 5 informational, 3 retired, 3 n/a).
+
 ## 2026-09-20 — empty selections stop being green (TODO #28/#54)
 
 `DCA-STR-011` is added to the strategic set in both libraries with the same id, title and texts: at least one package

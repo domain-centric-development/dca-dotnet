@@ -4,6 +4,14 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+**New rule `DCA-STR-012` — at least one module owns a DCA layer.** The third guard of the same kind as
+an empty import and an undeclared bounded context. A code base whose layers are named `core` and `usecases`
+instead of the configured segments yields no module root, so every rule that selects over the layers — the
+whole use-case set among them — matched nothing and the suite was green. The violation names the configured
+segments, the namespaces it did see, and the way out. This is the most likely first run of a code base that has
+not configured the layout, so **it can turn a green build red**; switch it off with a recorded reason if the
+code base deliberately has no layered module.
+
 **`DCA-ONI-002` no longer reports a project's own marker vocabulary.** The rule named the two
 building-blocks namespaces directly, so a project that pointed the roles at its own markers was told
 its aggregate root was a forbidden third-party dependency inside its own domain. The allowed

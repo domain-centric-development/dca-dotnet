@@ -521,6 +521,16 @@
       "status": "enforced"
     },
     {
+      "set": "strategic",
+      "id": "DCA-STR-012",
+      "title": "At least one module owns a DCA layer",
+      "rationale": "Without a discovered module root every rule that selects over the layers matches nothing and reports success over an empty model",
+      "selects": "The namespaces of the imported types, as a whole - no individual type is reported. A module root is any namespace that has a child namespace named after one of the configured layer segments, at any depth below the root namespace.",
+      "checks": "At least one module root was discovered. The rule says nothing about how many modules there should be or how they are cut; it only establishes that the layer-selecting rules have something to look at. It is the third guard of the same kind as an empty import and an undeclared bounded context.",
+      "implementation": "dotnet",
+      "status": "enforced"
+    },
+    {
       "set": "contextmap",
       "id": "DCA-MAP-001",
       "title": "Upstream, ExternalUpstream, and Partnership may only be declared on bounded context namespaces",

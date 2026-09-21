@@ -1,6 +1,6 @@
 # DCA rule catalog (.NET)
 
-Generated from `DomainCentric.ArchRules` — do not edit. 118 enforced, 5 informational, 3 retired in 12 sets; 3 Java rules not applicable in .NET.
+Generated from `DomainCentric.ArchRules` — do not edit. 119 enforced, 5 informational, 3 retired in 12 sets; 3 Java rules not applicable in .NET.
 
 ## `layered`
 
@@ -78,6 +78,7 @@ Generated from `DomainCentric.ArchRules` — do not edit. 118 enforced, 5 inform
 | `DCA-STR-009` | Anti-Corruption Layer components must be in Acl namespaces (enforced) | Anti-Corruption Layer components must be in 'Acl' namespaces for clear architectural intent (DDD Strategic Pattern) | Types anywhere below the root namespace whose name ends with EventTranslator, ACL or AntiCorruptionLayer - selected by name alone, no marker or attribute is read. | Each resides in a namespace whose path contains an Acl segment, at any depth. A translation class named otherwise is neither selected nor checked. |
 | `DCA-STR-010` | Event Listeners consuming integration events should use Anti-Corruption Layer (informational) | Consumed integration events are translated into the consuming context's own language before they reach its domain — verified by code review, not statically | Informational - selects nothing and never fails; it carries doctrine only. | Nothing is asserted. Whether a consumed integration event is translated into the consuming context's own language before it reaches the domain is a code-review check. |
 | `DCA-STR-011` | At least one bounded context is declared (enforced) | Without a declared context the context-map and isolation rules select nothing and report success over an empty model | The declared bounded contexts of the imported types — every namespace carrying a [BoundedContext] marker class, at any depth below the root namespace. No individual type is reported. | At least one such namespace exists. The rule says nothing about how many contexts there should be, about their boundaries, or about modules that own a layer without declaring a context — those are governed structurally and are not a substitute for the declaration. |
+| `DCA-STR-012` | At least one module owns a DCA layer (enforced) | Without a discovered module root every rule that selects over the layers matches nothing and reports success over an empty model | The namespaces of the imported types, as a whole - no individual type is reported. A module root is any namespace that has a child namespace named after one of the configured layer segments, at any depth below the root namespace. | At least one module root was discovered. The rule says nothing about how many modules there should be or how they are cut; it only establishes that the layer-selecting rules have something to look at. It is the third guard of the same kind as an empty import and an undeclared bounded context. |
 
 ## `contextmap`
 
