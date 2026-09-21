@@ -1270,7 +1270,7 @@
     },
     {
       "id": "DCA-STR-009",
-      "reason": "An Acl segment is a filing decision, and the selection named three suffixes a project cannot change; the anti-corruption layer stays guide and catalog guidance",
+      "reason": "A separate segment for the anti-corruption layer is a filing decision, and the selection named three suffixes a project cannot change; the pattern stays guide and catalog guidance",
       "replacement": "none",
       "since": "0.5.0"
     },
