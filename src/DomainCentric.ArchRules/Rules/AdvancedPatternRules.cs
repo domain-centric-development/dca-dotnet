@@ -78,7 +78,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 "Domain Events must have immutable instance state:",
                 Violations(
                     arch,
-                    t => t is not Interface && IsDomainEvent(t),
+                    t => t is not Interface && IsDomainEvent(t, arch.Layout.Markers),
                     t => !TacticalPatternRules.IsImmutableShape(t),
                     t => $"{t.FullName} implements IDomainEvent but has mutable shape")))
             .Selecting(
@@ -94,7 +94,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
             "Domain events are part of the domain layer (named in past tense)",
             arch => Types()
                 .That()
-                .AreAssignableTo(typeof(IDomainEvent))
+                .FollowCustomPredicate(t => t.IsAssignableTo(arch.Layout.Markers.DomainEvent), "are domain events")
                 .And()
                 .FollowCustomPredicate(t => t is not Interface, "are not interfaces")
                 .Should()
@@ -115,7 +115,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 "Domain Events that are not records must be sealed:",
                 Violations(
                     arch,
-                    t => t is Class c && c.IsRecord != true && InDomain(arch, t) && IsDomainEvent(t),
+                    t => t is Class c && c.IsRecord != true && InDomain(arch, t) && IsDomainEvent(t, arch.Layout.Markers),
                     t => ((Class)t).IsSealed != true,
                     t => $"{t.FullName} is neither a record nor sealed")))
             .Selecting(
@@ -143,7 +143,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 "Integration Events must be annotated with [IntegrationEventType]:",
                 Violations(
                     arch,
-                    t => t is not Interface && IsIntegrationEvent(t),
+                    t => t is not Interface && IsIntegrationEvent(t, arch.Layout.Markers),
                     t => !t.HasAttribute(typeof(IntegrationEventTypeAttribute).FullName!),
                     t => $"{t.FullName} is not annotated with [IntegrationEventType]")))
             .Selecting(
@@ -165,7 +165,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                     + " single source of truth:",
                 Violations(
                     arch,
-                    t => t is not Interface && IsIntegrationEvent(t),
+                    t => t is not Interface && IsIntegrationEvent(t, arch.Layout.Markers),
                     t => HasVersionField(arch, t),
                     t => $"{t.FullName} carries an explicit schema-version field — declare the version in"
                         + " [IntegrationEventType] instead")))
@@ -184,7 +184,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                     + " only for IIntegrationEvents:",
                 Violations(
                     arch,
-                    t => t is not Interface && IsDomainEvent(t) && !IsIntegrationEvent(t),
+                    t => t is not Interface && IsDomainEvent(t, arch.Layout.Markers) && !IsIntegrationEvent(t, arch.Layout.Markers),
                     t => HasVersionField(arch, t),
                     t => $"{t.FullName} has an explicit schema-version field but is not an IIntegrationEvent — only"
                         + " IIntegrationEvents need schema versioning")))
@@ -203,7 +203,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 "Domain Events must have a timestamp field (when did the event occur?):",
                 Violations(
                     arch,
-                    t => t is not Interface && IsDomainEvent(t),
+                    t => t is not Interface && IsDomainEvent(t, arch.Layout.Markers),
                     t => !HasTimestampField(arch, t),
                     t => $"{t.FullName} does not have a timestamp field")))
             .Selecting(
@@ -230,7 +230,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 + " (named descriptively, e.g., PricingService, CartTotalCalculator)",
             arch => Types()
                 .That()
-                .AreAssignableTo(typeof(IDomainService))
+                .FollowCustomPredicate(t => t.IsAssignableTo(arch.Layout.Markers.DomainService), "are domain services")
                 .And()
                 .FollowCustomPredicate(t => t is not Interface, "are not interfaces")
                 .Should()
@@ -250,7 +250,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
             "Domain services are part of the domain layer, not application layer",
             arch => Types()
                 .That()
-                .AreAssignableTo(typeof(IDomainService))
+                .FollowCustomPredicate(t => t.IsAssignableTo(arch.Layout.Markers.DomainService), "are domain services")
                 .And()
                 .FollowCustomPredicate(t => t is not Interface, "are not interfaces")
                 .Should()
@@ -277,7 +277,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 "Domain Services must have only readonly fields:",
                 NonReadonlyFieldViolations(
                     arch,
-                    t => t is not Interface && InDomain(arch, t) && t.IsAssignableTo(typeof(IDomainService).FullName!))))
+                    t => t is not Interface && InDomain(arch, t) && t.IsAssignableTo(arch.Layout.Markers.DomainService))))
             .Selecting(
                 "Non-interface types in <module>.Domain of every module root that are assignable to "
                 + "IDomainService.")
@@ -298,7 +298,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
             "Classes implementing IFactory marker should have 'Factory' in their name",
             arch => Types()
                 .That()
-                .AreAssignableTo(typeof(IFactory))
+                .FollowCustomPredicate(t => t.IsAssignableTo(arch.Layout.Markers.Factory), "are factories")
                 .And()
                 .FollowCustomPredicate(t => t is not Interface, "are not interfaces")
                 .Should()
@@ -316,7 +316,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
             "Factories are part of the domain layer (complex aggregate creation logic)",
             arch => Types()
                 .That()
-                .AreAssignableTo(typeof(IFactory))
+                .FollowCustomPredicate(t => t.IsAssignableTo(arch.Layout.Markers.Factory), "are factories")
                 .And()
                 .FollowCustomPredicate(t => t is not Interface, "are not interfaces")
                 .Should()
@@ -343,7 +343,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 "Factories must have only readonly fields:",
                 NonReadonlyFieldViolations(
                     arch,
-                    t => t is not Interface && InDomain(arch, t) && t.IsAssignableTo(typeof(IFactory).FullName!))))
+                    t => t is not Interface && InDomain(arch, t) && t.IsAssignableTo(arch.Layout.Markers.Factory))))
             .Selecting(
                 "Non-interface types in <module>.Domain of every module root that are assignable to "
                 + "IFactory.")
@@ -395,9 +395,9 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
     private static bool InDomain(DcaArchitecture arch, IType type) =>
         type.Namespace is not null && Regex.IsMatch(type.Namespace.FullName, DcaLayout.AnyOf(arch.AllDomainPatterns()));
 
-    private static bool IsDomainEvent(IType type) => type.IsAssignableTo(typeof(IDomainEvent).FullName!);
+    private static bool IsDomainEvent(IType type, DcaMarkers markers) => type.IsAssignableTo(markers.DomainEvent);
 
-    private static bool IsIntegrationEvent(IType type) => type.IsAssignableTo(typeof(IIntegrationEvent).FullName!);
+    private static bool IsIntegrationEvent(IType type, DcaMarkers markers) => type.IsAssignableTo(markers.IntegrationEvent);
 
     /// <summary>A C# record (<c>record class</c>) or a struct (<c>record struct</c>s are structs to ArchUnitNET).</summary>
     private static bool IsRecordLike(IType type) => type is Struct || (type is Class c && c.IsRecord == true);

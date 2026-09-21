@@ -148,7 +148,7 @@ public sealed class DotnetRules : IDcaRuleSet
                 foreach (var port in arch.Interfaces)
                 {
                     var runtime = arch.RuntimeType(port);
-                    if (runtime is null || !(IsPort(runtime, typeof(IInputPort)) || IsPort(runtime, typeof(IOutputPort))))
+                    if (runtime is null || !(IsPort(runtime, arch.Layout.Markers.InputPort) || IsPort(runtime, arch.Layout.Markers.OutputPort)))
                     {
                         continue;
                     }
@@ -192,7 +192,7 @@ public sealed class DotnetRules : IDcaRuleSet
                 foreach (var type in arch.Classes) {
                     var runtime = arch.RuntimeType(type);
                     if (runtime is null || runtime.IsAbstract) continue;
-                    var contracts = runtime.GetInterfaces().Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IUseCase<,>)).ToArray();
+                    var contracts = runtime.GetInterfaces().Where(i => DcaMarkers.CarriesRole(i, arch.Layout.Markers.UseCase)).ToArray();
                     if (contracts.Length == 0)
                     {
                         // A marker-only IInputPort sub-interface without an operation is not a NET-003 case (USE-017 governs
@@ -229,7 +229,7 @@ public sealed class DotnetRules : IDcaRuleSet
                 foreach (var type in arch.Types.Where(t => domain.Any(r => r.IsMatch(t.Namespace.FullName))))
                 {
                     var runtime = arch.RuntimeType(type);
-                    if (runtime is null || runtime.IsInterface || runtime.IsAbstract || !typeof(IValue).IsAssignableFrom(runtime))
+                    if (runtime is null || runtime.IsInterface || runtime.IsAbstract || !DcaMarkers.IsAssignableToByName(runtime, arch.Layout.Markers.Value))
                     {
                         continue;
                     }
@@ -263,7 +263,7 @@ public sealed class DotnetRules : IDcaRuleSet
                 foreach (var type in arch.Types)
                 {
                     var runtime = arch.RuntimeType(type);
-                    if (runtime is null || runtime.IsInterface || runtime.IsAbstract || !typeof(IId).IsAssignableFrom(runtime))
+                    if (runtime is null || runtime.IsInterface || runtime.IsAbstract || !DcaMarkers.IsAssignableToByName(runtime, arch.Layout.Markers.Id))
                     {
                         continue;
                     }
@@ -304,10 +304,10 @@ public sealed class DotnetRules : IDcaRuleSet
         type == typeof(Task) || type == typeof(ValueTask) ||
         (type.IsGenericType && (type.GetGenericTypeDefinition() == typeof(Task<>) || type.GetGenericTypeDefinition() == typeof(ValueTask<>)));
 
-    private static bool IsPort(Type type, Type marker) => type.IsInterface && marker.IsAssignableFrom(type);
+    private static bool IsPort(Type type, string marker) => type.IsInterface && DcaMarkers.IsAssignableToByName(type, marker);
 
-    private static bool ImplementsUseCase(Type type) =>
-        type.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IUseCase<,>));
+    private static bool ImplementsUseCase(Type type, DcaMarkers markers) =>
+        type.GetInterfaces().Any(i => DcaMarkers.CarriesRole(i, markers.UseCase));
 
     /// <summary>Public instance methods declared on the type itself, accessors and operators excluded.</summary>
     private static IEnumerable<MethodInfo> DeclaredMethods(Type type) =>

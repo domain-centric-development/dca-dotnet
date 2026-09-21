@@ -1222,9 +1222,9 @@
       "set": "errors",
       "id": "DCA-ERR-004",
       "title": "Domain and use-case exceptions must not carry prohibited framework metadata",
-      "rationale": "An exception of an inner layer that carries container, persistence or protocol metadata has decided how the outside answers it, which is the incoming adapter's decision and only its",
-      "selects": "Types anywhere under the root namespace that are assignable to DomainException or to UseCaseException, the building-blocks namespace excluded.",
-      "checks": "The type carries no attribute the layout classifies into the container, persistence or transaction role, neither directly nor through a base attribute type. Fields, properties and methods are not inspected, and an attribute the layout classifies into no role is allowed. A type whose runtime reflection is unavailable is skipped. With those roles empty the rule selects no metadata and passes.",
+      "rationale": "An exception of an inner layer that carries container, persistence or protocol metadata has decided how the outside answers it, which is the incoming adapter's decision and only its; an attribute that fixes the answer's status decides it for every protocol at once, including the ones the exception knows nothing about",
+      "selects": "Types anywhere under the root namespace that are assignable to the domain-exception or the use-case-exception role, the vocabulary's own code excluded: the namespaces the configured role types live in are not selected, so a project's own base type is not reported as residing outside a layer it never claimed.",
+      "checks": "The type carries no attribute the layout classifies into the container, persistence, transaction or transport-status role, neither directly nor through a base attribute type. The transport-status role is the one that fixes the protocol answer on the failure itself; it is empty in every preset, because the platform answers through a mapper type instead of an attribute, and a project that has such an attribute of its own configures it. Fields, properties and methods are not inspected, and an attribute the layout classifies into no role is allowed. A type whose runtime reflection is unavailable is skipped. With those roles empty the rule selects no metadata and passes.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -1233,7 +1233,7 @@
       "id": "DCA-ERR-005",
       "title": "Domain and use-case exception names must stay in the language of their layer",
       "rationale": "A failure named after a transport concept is a decision about the answer, taken in a layer that does not know the protocol; the name should say what went wrong, not what the caller should be told",
-      "selects": "Types anywhere under the root namespace that are assignable to DomainException or to UseCaseException, the building-blocks namespace excluded.",
+      "selects": "Types anywhere under the root namespace that are assignable to the domain-exception or the use-case-exception role, the vocabulary's own code excluded: the namespaces the configured role types live in are not selected, so a project's own base type is not reported as residing outside a layer it never claimed.",
       "checks": "The type name ends with none of Error, Fault, Failure and contains none of Http, Status, Response. Whether the remaining name is a term of the Ubiquitous Language is not decidable here and stays with review. An empty selection passes.",
       "implementation": "dotnet",
       "status": "enforced"

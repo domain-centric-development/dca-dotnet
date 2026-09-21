@@ -64,7 +64,7 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                 var domain = new Regex(DcaLayout.AnyOf(arch.AllDomainPatterns()));
                 var violations = ProjectExceptions(arch)
                     .Where(t => domain.IsMatch(t.Namespace?.FullName ?? ""))
-                    .Where(t => !IsAssignableTo(t, typeof(DomainException)))
+                    .Where(t => !IsAssignableTo(t, arch.Layout.Markers.DomainException))
                     .Select(t => $"{t.FullName} does not extend DomainException")
                     .ToList();
                 DcaRule.Fail("DCA-ERR-001: a domain failure without the domain base type", violations);
@@ -94,12 +94,12 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                 foreach (var type in ProjectExceptions(arch))
                 {
                     var ns = type.Namespace?.FullName ?? "";
-                    if (IsAssignableTo(type, typeof(DomainException)) && !domain.IsMatch(ns))
+                    if (IsAssignableTo(type, arch.Layout.Markers.DomainException) && !domain.IsMatch(ns))
                     {
                         violations.Add($"{type.FullName} is a domain exception outside the domain layer");
                     }
 
-                    if (IsAssignableTo(type, typeof(UseCaseException)) && !application.IsMatch(ns))
+                    if (IsAssignableTo(type, arch.Layout.Markers.UseCaseException) && !application.IsMatch(ns))
                     {
                         violations.Add($"{type.FullName} is a use-case exception outside the application layer");
                     }
@@ -129,7 +129,7 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                 var application = new Regex(DcaLayout.AnyOf(arch.AllApplicationPatterns()));
                 var violations = ProjectExceptions(arch)
                     .Where(t => application.IsMatch(t.Namespace?.FullName ?? ""))
-                    .Where(t => !IsAssignableTo(t, typeof(UseCaseException)))
+                    .Where(t => !IsAssignableTo(t, arch.Layout.Markers.UseCaseException))
                     .Select(t => $"{t.FullName} does not extend UseCaseException")
                     .ToList();
                 DcaRule.Fail("DCA-ERR-003: a use-case failure without the application base type", violations);
@@ -149,7 +149,8 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
             "Domain and use-case exceptions must not carry prohibited framework metadata",
             "An exception of an inner layer that carries container, persistence or protocol metadata has"
                 + " decided how the outside answers it, which is the incoming adapter's decision and only"
-                + " its",
+                + " its; an attribute that fixes the answer's status decides it for every protocol at once,"
+                + " including the ones the exception knows nothing about",
             arch =>
             {
                 var roles = arch.Layout.FrameworkTypes;
@@ -167,6 +168,7 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                         for (var attributeType = attribute.AttributeType; attributeType is not null; attributeType = attributeType.BaseType)
                         {
                             var classified = roles.PersistenceAttributeTypes.Contains(attributeType.FullName ?? "")
+                                || roles.TransportStatusAttributeTypes.Contains(attributeType.FullName ?? "")
                                 || roles.ContainerAttributeNamespaces
                                     .Concat(roles.PersistenceAttributeNamespaces)
                                     .Concat(roles.TransactionAttributeNamespaces)
@@ -185,14 +187,20 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                 DcaRule.Fail("DCA-ERR-004: prohibited metadata on an inner-layer exception", violations);
             })
             .Selecting(
-                "Types anywhere under the root namespace that are assignable to DomainException or to "
-                + "UseCaseException, the building-blocks namespace excluded.")
+                "Types anywhere under the root namespace that are assignable to the domain-exception or the "
+                + "use-case-exception role, the vocabulary's own code excluded: the namespaces the configured "
+                + "role types live in are not selected, so a project's own base type is not reported as "
+                + "residing outside a layer it never claimed.")
             .Checking(
-                "The type carries no attribute the layout classifies into the container, persistence or "
-                + "transaction role, neither directly nor through a base attribute type. Fields, properties "
-                + "and methods are not inspected, and an attribute the layout classifies into no role is "
-                + "allowed. A type whose runtime reflection is unavailable is skipped. With those roles "
-                + "empty the rule selects no metadata and passes.");
+                "The type carries no attribute the layout classifies into the container, persistence, "
+                + "transaction or transport-status role, neither directly nor through a base attribute "
+                + "type. The transport-status role is the one that fixes the protocol answer on the "
+                + "failure itself; it is empty in every preset, because the platform answers through a "
+                + "mapper type instead of an attribute, and a project that has such an attribute of its "
+                + "own configures it. Fields, properties and methods are not inspected, and an attribute "
+                + "the layout classifies into no role is allowed. A type whose runtime reflection is "
+                + "unavailable is skipped. With those roles empty the rule selects no metadata and "
+                + "passes.");
 
     public IDcaRule ExceptionsNameNoTransportConcept() =>
         DcaRule.Check(
@@ -220,8 +228,10 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                 DcaRule.Fail("DCA-ERR-005: a technical or transport word in an exception name", violations);
             })
             .Selecting(
-                "Types anywhere under the root namespace that are assignable to DomainException or to "
-                + "UseCaseException, the building-blocks namespace excluded.")
+                "Types anywhere under the root namespace that are assignable to the domain-exception or the "
+                + "use-case-exception role, the vocabulary's own code excluded: the namespaces the configured "
+                + "role types live in are not selected, so a project's own base type is not reported as "
+                + "residing outside a layer it never claimed.")
             .Checking(
                 "The type name ends with none of Error, Fault, Failure and contains none of Http, Status, "
                 + "Response. Whether the remaining name is a term of the Ubiquitous Language is not "
@@ -248,12 +258,12 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                     }
 
                     var targets = type.Dependencies.Select(d => d.Target).ToList();
-                    if (targets.Any(t => IsAssignableTo(t, typeof(DomainException)) || IsAssignableTo(t, typeof(UseCaseException))))
+                    if (targets.Any(t => IsAssignableTo(t, arch.Layout.Markers.DomainException) || IsAssignableTo(t, arch.Layout.Markers.UseCaseException)))
                     {
                         namespacesThatName.Add(ns);
                     }
 
-                    if (type is not Interface && targets.Any(t => IsAssignableTo(t, typeof(IInputPort))))
+                    if (type is not Interface && targets.Any(t => IsAssignableTo(t, arch.Layout.Markers.InputPort)))
                     {
                         if (!driving.TryGetValue(ns, out var names))
                         {
@@ -292,13 +302,13 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
     private static IEnumerable<IType> ProjectExceptions(DcaArchitecture arch) =>
         arch.Types
             .Where(t => t is not Interface)
-            .Where(t => !DcaLayout.IsBelow(t.Namespace?.FullName ?? "", DcaLayout.BuildingBlocksNamespace))
-            .Where(t => IsAssignableTo(t, typeof(Exception)));
+            .Where(t => !arch.Layout.Markers.DeclaresTypesIn(t.Namespace?.FullName ?? ""))
+            .Where(t => IsAssignableTo(t, typeof(Exception).FullName!));
 
     /// <summary>The project's own types below one of the two exception base types.</summary>
     private static IEnumerable<IType> ExceptionsOfEitherLayer(DcaArchitecture arch) =>
         ProjectExceptions(arch)
-            .Where(t => IsAssignableTo(t, typeof(DomainException)) || IsAssignableTo(t, typeof(UseCaseException)));
+            .Where(t => IsAssignableTo(t, arch.Layout.Markers.DomainException) || IsAssignableTo(t, arch.Layout.Markers.UseCaseException));
 
-    private static bool IsAssignableTo(IType type, Type target) => type.IsAssignableTo(target.FullName!);
+    private static bool IsAssignableTo(IType type, string target) => type.IsAssignableTo(target);
 }

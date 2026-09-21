@@ -156,7 +156,7 @@ public sealed class UseCaseRules : IDcaRuleSet
                     .And()
                     .ResideInNamespaceMatching(DcaLayout.Below(layout.RootNamespace))
                     .And()
-                    .DoNotImplementInterface(typeof(IValue))
+                    .FollowCustomPredicate(t => !t.IsAssignableTo(arch.Layout.Markers.Value), "are not value objects")
                     .Should()
                     .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllApplicationPatterns())))
         .Selecting(
@@ -226,7 +226,7 @@ public sealed class UseCaseRules : IDcaRuleSet
                 var useCases = arch.Classes
                     .Where(c => c.Namespace is not null
                         && Matches(c.Namespace.FullName, DcaLayout.AnyOf(arch.AllApplicationPatterns()))
-                        && (IsAssignableTo(arch, c, typeof(IInputPort)) || c.Name.Split('`')[0].EndsWith(arch.Layout.UseCaseSuffix, StringComparison.Ordinal)))
+                        && (IsAssignableTo(arch, c, arch.Layout.Markers.InputPort) || c.Name.Split('`')[0].EndsWith(arch.Layout.UseCaseSuffix, StringComparison.Ordinal)))
                     .OrderBy(c => c.FullName, StringComparer.Ordinal);
                 foreach (var useCase in useCases)
                 {
@@ -237,14 +237,14 @@ public sealed class UseCaseRules : IDcaRuleSet
                     }
 
                     var calls = new IntraClassCalls(runtime);
-                    foreach (var unit in calls.Units.Where(u => IntraClassCalls.Calls(u, "SaveAsync", typeof(IRepository))))
+                    foreach (var unit in calls.Units.Where(u => IntraClassCalls.Calls(u, "SaveAsync", arch.Layout.Markers.Repository)))
                     {
-                        if (IntraClassCalls.IlCalls(unit).Where(m => m.Name == "SaveAsync" && m.DeclaringType is not null && typeof(IRepository).IsAssignableFrom(m.DeclaringType))
+                        if (IntraClassCalls.IlCalls(unit).Where(m => m.Name == "SaveAsync" && m.DeclaringType is not null && DcaMarkers.IsAssignableToByName(m.DeclaringType, arch.Layout.Markers.Repository))
                             .All(m => EventFreeAggregate.Repository(m, arch))) continue;
                         foreach (var entry in calls.EntryPointsOf(unit))
                         {
                             var publishes = calls.ReachableFrom(entry)
-                                .Any(u => IntraClassCalls.Calls(u, "PublishAndClearEventsAsync", typeof(IDomainEventPublisher)));
+                                .Any(u => IntraClassCalls.Calls(u, "PublishAndClearEventsAsync", arch.Layout.Markers.DomainEventPublisher));
                             if (!publishes)
                             {
                                 violations.Add($"{useCase.FullName}.{IntraClassCalls.PathName(entry, unit)} saves an aggregate without"
@@ -291,11 +291,11 @@ public sealed class UseCaseRules : IDcaRuleSet
                     var runtime = arch.RuntimeType(type)!;
                     var graph = new IntraClassCalls(runtime);
                     foreach (var unit in graph.Units) {
-                        var effect = TransactionalEffectOf(unit);
+                        var effect = TransactionalEffectOf(unit, arch.Layout.Markers);
                         if (effect is null) continue;
                         foreach (var entry in graph.EntryPointsOf(unit)) {
                             if (!Transactional(runtime, layout.FrameworkTypes.TransactionalAttribute)
-                                && graph.ReachableThrough(entry, u => !Transactional(u, layout.FrameworkTypes.TransactionalAttribute) && !CallsBoundary(u)).Contains(unit))
+                                && graph.ReachableThrough(entry, u => !Transactional(u, layout.FrameworkTypes.TransactionalAttribute) && !CallsBoundary(u, arch.Layout.Markers)).Contains(unit))
                                 violations.Add($"{type.FullName}.{IntraClassCalls.PathName(entry, unit)} {effect} without transaction coverage on every entry path");
                         }
                     }
@@ -309,11 +309,11 @@ public sealed class UseCaseRules : IDcaRuleSet
     /// The effect of a code unit that needs a transaction, worded for the violation, or <c>null</c>
     /// when the unit neither writes through an IRepository nor publishes domain events.
     /// </summary>
-    private static string? TransactionalEffectOf(MethodBase unit)
+    private static string? TransactionalEffectOf(MethodBase unit, DcaMarkers markers)
     {
-        var saves = IntraClassCalls.Calls(unit, "SaveAsync", typeof(IRepository));
-        var deletes = IntraClassCalls.Calls(unit, "DeleteByIdAsync", typeof(IRepository));
-        var publishes = IntraClassCalls.IlCalls(unit).Any(m => m.DeclaringType is not null && typeof(IDomainEventPublisher).IsAssignableFrom(m.DeclaringType));
+        var saves = IntraClassCalls.Calls(unit, "SaveAsync", markers.Repository);
+        var deletes = IntraClassCalls.Calls(unit, "DeleteByIdAsync", markers.Repository);
+        var publishes = IntraClassCalls.IlCalls(unit).Any(m => m.DeclaringType is not null && DcaMarkers.IsAssignableToByName(m.DeclaringType, markers.DomainEventPublisher));
         if (!saves && !deletes && !publishes) return null;
         var effects = new List<string>();
         if (saves) effects.Add("saves an aggregate");
@@ -322,9 +322,9 @@ public sealed class UseCaseRules : IDcaRuleSet
         return string.Join(" and ", effects);
     }
 
-    private static bool CallsBoundary(MethodBase unit) => IntraClassCalls.IlCalls(unit).Any(m => m.Name == "InTransactionAsync"
-        && ((m.DeclaringType is not null && typeof(DomainCentric.BuildingBlocks.Application.Transactions.ITransactionBoundary).IsAssignableFrom(m.DeclaringType))
-            || (m.IsStatic && m.GetParameters().FirstOrDefault()?.ParameterType == typeof(DomainCentric.BuildingBlocks.Application.Transactions.ITransactionBoundary))));
+    private static bool CallsBoundary(MethodBase unit, DcaMarkers markers) => IntraClassCalls.IlCalls(unit).Any(m => m.Name == "InTransactionAsync"
+        && (DcaMarkers.IsAssignableToByName(m.DeclaringType, markers.TransactionBoundary)
+            || (m.IsStatic && DcaMarkers.IsRole(m.GetParameters().FirstOrDefault()?.ParameterType, markers.TransactionBoundary))));
 
     private static bool Transactional(MemberInfo target, string attributeName)
     {
@@ -425,7 +425,7 @@ public sealed class UseCaseRules : IDcaRuleSet
                     || ns.StartsWith(shared + ".", StringComparison.Ordinal)
                     || candidate.IsNested
                     || candidate.IsAbstract == true
-                    || !(IsAssignableTo(arch, candidate, typeof(IInputPort)) || candidate.Name.EndsWith(layout.UseCaseSuffix, StringComparison.Ordinal)))
+                    || !(IsAssignableTo(arch, candidate, arch.Layout.Markers.InputPort) || candidate.Name.EndsWith(layout.UseCaseSuffix, StringComparison.Ordinal)))
                 {
                     continue;
                 }
@@ -504,7 +504,7 @@ public sealed class UseCaseRules : IDcaRuleSet
                 && Matches(c.Namespace.FullName, application)
                 && !c.IsNested
                 && c.Name.EndsWith("Result", StringComparison.Ordinal)
-                && !IsAssignableTo(arch, c, typeof(IValue)))
+                && !IsAssignableTo(arch, c, arch.Layout.Markers.Value))
             .OrderBy(c => c.FullName, StringComparer.Ordinal))
         {
             var runtime = arch.RuntimeType(result);
@@ -513,7 +513,7 @@ public sealed class UseCaseRules : IDcaRuleSet
                 continue;
             }
 
-            WalkResultMembers(application, runtime, runtime.Name, new HashSet<Type>(), violations);
+            WalkResultMembers(application, runtime, runtime.Name, new HashSet<Type>(), violations, arch.Layout.Markers);
         }
 
         DcaRule.Fail(
@@ -528,7 +528,7 @@ public sealed class UseCaseRules : IDcaRuleSet
     /// guards against a self-referencing part record; it is not a global visited set, so the same part
     /// record reached through two members is reported on both paths.
     /// </summary>
-    private static void WalkResultMembers(string application, Type type, string path, ISet<Type> onPath, ICollection<string> violations)
+    private static void WalkResultMembers(string application, Type type, string path, ISet<Type> onPath, ICollection<string> violations, DcaMarkers markers)
     {
         if (!onPath.Add(type))
         {
@@ -546,7 +546,7 @@ public sealed class UseCaseRules : IDcaRuleSet
                 continue;
             }
 
-            CheckResultMemberType(application, memberType, $"{path}.{name}", onPath, violations);
+            CheckResultMemberType(application, memberType, $"{path}.{name}", onPath, violations, markers);
         }
 
         onPath.Remove(type);
@@ -557,9 +557,9 @@ public sealed class UseCaseRules : IDcaRuleSet
     /// instantiation through every type argument <em>and</em> its own members (a generic part record may hide an
     /// identity next to its type parameter); a part record through its members.
     /// </summary>
-    private static void CheckResultMemberType(string application, Type type, string path, ISet<Type> onPath, ICollection<string> violations)
+    private static void CheckResultMemberType(string application, Type type, string path, ISet<Type> onPath, ICollection<string> violations, DcaMarkers markers)
     {
-        var identity = IdentityMarkerOf(type);
+        var identity = IdentityMarkerOf(type, markers);
         if (identity is not null)
         {
             violations.Add($"{path} : {type.Name} ({identity})");
@@ -568,7 +568,7 @@ public sealed class UseCaseRules : IDcaRuleSet
 
         if (type.IsArray)
         {
-            CheckResultMemberType(application, type.GetElementType()!, path, onPath, violations);
+            CheckResultMemberType(application, type.GetElementType()!, path, onPath, violations, markers);
             return;
         }
 
@@ -576,13 +576,13 @@ public sealed class UseCaseRules : IDcaRuleSet
         {
             foreach (var argument in type.GetGenericArguments())
             {
-                CheckResultMemberType(application, argument, path, onPath, violations);
+                CheckResultMemberType(application, argument, path, onPath, violations, markers);
             }
         }
 
         if (IsPartRecord(application, type))
         {
-            WalkResultMembers(application, type, $"{path} -> {PlainName(type)}", onPath, violations);
+            WalkResultMembers(application, type, $"{path} -> {PlainName(type)}", onPath, violations, markers);
         }
     }
 
@@ -610,10 +610,13 @@ public sealed class UseCaseRules : IDcaRuleSet
         return tick >= 0 ? type.Name.Substring(0, tick) : type.Name;
     }
 
-    private static string? IdentityMarkerOf(Type type) =>
-        typeof(IAggregateRoot).IsAssignableFrom(type) ? nameof(IAggregateRoot)
-        : typeof(IEntity).IsAssignableFrom(type) ? nameof(IEntity)
+    private static string? IdentityMarkerOf(Type type, DcaMarkers markers) =>
+        DcaMarkers.IsAssignableToByName(type, markers.AggregateRoot) ? SimpleName(markers.AggregateRoot)
+        : DcaMarkers.IsAssignableToByName(type, markers.Entity) ? SimpleName(markers.Entity)
         : null;
+
+    /// <summary>The simple name of a configured marker, for a message a reader has to recognise.</summary>
+    private static string SimpleName(string fullName) => fullName[(fullName.LastIndexOf('.') + 1)..];
 
     private static void ImmutableApplicationModels(DcaArchitecture arch, string suffix)
     {
@@ -637,15 +640,15 @@ public sealed class UseCaseRules : IDcaRuleSet
     /// Assignability via the ArchUnitNET model (implemented interfaces, base classes) with a reflection
     /// fallback for types whose interface closure the loader did not resolve.
     /// </summary>
-    private static bool IsAssignableTo(DcaArchitecture arch, IType type, Type marker)
+    private static bool IsAssignableTo(DcaArchitecture arch, IType type, string marker)
     {
-        var markerName = marker.FullName!;
+        var markerName = marker;
         if (type.FullName == markerName || type.ImplementsInterface(markerName) || type.IsAssignableTo(markerName))
         {
             return true;
         }
 
         var runtime = arch.RuntimeType(type);
-        return runtime is not null && marker.IsAssignableFrom(runtime);
+        return runtime is not null && DcaMarkers.IsAssignableToByName(runtime, marker);
     }
 }

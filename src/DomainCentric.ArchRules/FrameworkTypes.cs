@@ -52,6 +52,9 @@ public sealed record FrameworkTypes(
     /// <summary>Attribute namespaces classified as container stereotypes.</summary>
     public IReadOnlyList<string> ContainerAttributeNamespaces { get; init; } = Array.Empty<string>();
 
+    /// <summary>Full attribute type names that fix the protocol answer of the type they sit on — the role <c>DCA-ERR-004</c> forbids on the exceptions of the domain and application layers, because which status a failure earns is the incoming adapter's decision and a second adapter on another protocol has no use for it. Empty in every preset: the platform answers through a mapper type rather than through an attribute on the failure. A project that defines such an attribute itself adds it via a with-expression, and the Java library's <c>transportStatus</c> role is the same setting under the same rule.</summary>
+    public IReadOnlyList<string> TransportStatusAttributeTypes { get; init; } = Array.Empty<string>();
+
     /// <summary>ASP.NET Core MVC / Razor Pages and <c>System.Transactions</c>.</summary>
     public static FrameworkTypes AspNetCore() =>
         new(

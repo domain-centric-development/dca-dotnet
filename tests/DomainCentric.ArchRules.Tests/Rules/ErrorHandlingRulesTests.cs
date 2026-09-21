@@ -28,6 +28,7 @@ public sealed class ErrorHandlingRulesTests
             DcaLayout.ForRootNamespace(ns).WithFrameworkTypes(FrameworkTypes.None() with
             {
                 ContainerAttributeNamespaces = new[] { Root + ".Roles.Container" },
+                TransportStatusAttributeTypes = new[] { Root + ".Roles.Transport.FixesAnswerAttribute" },
             }),
             typeof(ErrorHandlingRulesTests).Assembly);
 
@@ -71,6 +72,7 @@ public sealed class ErrorHandlingRulesTests
     [InlineData("DCA-ERR-002", "ReservationUnavailableException")]
     [InlineData("DCA-ERR-003", "ReservationNotFoundException")]
     [InlineData("DCA-ERR-004", "ReservationOverbookedException")]
+    [InlineData("DCA-ERR-004", "ReservationWindowClosedException")]
     [InlineData("DCA-ERR-005", "ReservationResponseException")]
     public void EachRuleNamesItsOffender(string id, string offender)
     {

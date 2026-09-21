@@ -68,7 +68,8 @@ public sealed class DcaLayout
         FrameworkTypes frameworkTypes,
         IReadOnlyList<string>? operationContainers = null,
         string modelSegment = "Model",
-        string incomingEventSegment = "Event")
+        string incomingEventSegment = "Event",
+        DcaMarkers? markers = null)
     {
         RootNamespace = RequireSegment(rootNamespace, nameof(rootNamespace));
         SharedKernelSegment = RequireSegment(sharedKernelSegment, nameof(sharedKernelSegment));
@@ -93,6 +94,7 @@ public sealed class DcaLayout
         RestControllerSuffix = RequireSegment(restControllerSuffix, nameof(restControllerSuffix));
         ThirdPartyNamespacesAllowedInDomain = thirdPartyNamespacesAllowedInDomain.ToArray();
         FrameworkTypes = frameworkTypes ?? throw new ArgumentNullException(nameof(frameworkTypes));
+        Markers = (markers ?? DcaMarkers.Dca()).Validate();
     }
 
     /// <summary>The DCA default layout for the given root namespace.</summary>
@@ -183,6 +185,14 @@ public sealed class DcaLayout
     /// </summary>
     public FrameworkTypes FrameworkTypes { get; }
 
+    /// <summary>
+    /// The building-block types the rules select on, by role — <see cref="DcaMarkers.Dca"/> by default,
+    /// or a vocabulary pointed at the project's own markers. The rules then select what carries those
+    /// types instead of the library's, so a code base with an established vocabulary needs no rule
+    /// exclusions.
+    /// </summary>
+    public DcaMarkers Markers { get; }
+
     // ---------------------------------------------------------------------------------------------
     // Fluent overrides
     // ---------------------------------------------------------------------------------------------
@@ -246,6 +256,9 @@ public sealed class DcaLayout
 
     public DcaLayout WithFrameworkTypes(FrameworkTypes value) => Copy(frameworkTypes: value);
 
+    /// <summary>The building-block types the rules select on, by role.</summary>
+    public DcaLayout WithMarkers(DcaMarkers value) => Copy(markers: value);
+
     private DcaLayout Copy(
         string? sharedKernel = null,
         string? domain = null,
@@ -263,7 +276,8 @@ public sealed class DcaLayout
         FrameworkTypes? frameworkTypes = null,
         IReadOnlyList<string>? operationContainers = null,
         string? model = null,
-        string? incomingEvent = null) =>
+        string? incomingEvent = null,
+        DcaMarkers? markers = null) =>
         new(
             RootNamespace,
             sharedKernel ?? SharedKernelSegment,
@@ -282,7 +296,8 @@ public sealed class DcaLayout
             frameworkTypes ?? FrameworkTypes,
             operationContainers ?? OperationContainers,
             model ?? ModelSegment,
-            incomingEvent ?? IncomingEventSegment);
+            incomingEvent ?? IncomingEventSegment,
+            markers ?? Markers);
 
     // ---------------------------------------------------------------------------------------------
     // Derived namespace names and patterns
@@ -386,5 +401,26 @@ public sealed class DcaLayout
     private static string EscapeKeepingSegments(string ns) =>
         string.Join(Segment, ns.Split(new[] { Segment }, StringSplitOptions.None).Select(Regex.Escape));
 
-    public override string ToString() => $"DcaLayout[{RootNamespace}, frameworkTypes={FrameworkTypes}]";
+    /// <summary>
+    /// One line for a report: <c>dca (library default)</c> while every role names the building blocks' own
+    /// marker, or the vocabulary's name and the roles that differ, so a reader sees which types the rules
+    /// actually selected on.
+    /// </summary>
+    public string MarkersReport()
+    {
+        if (Markers.IsDefault)
+        {
+            return $"{Markers.Name} (library default)";
+        }
+
+        var defaults = DcaMarkers.Dca().Roles().ToDictionary(r => r.Key, r => r.Value);
+        var changed = Markers.Roles()
+            .Where(r => !string.Equals(r.Value, defaults[r.Key], StringComparison.Ordinal))
+            .Select(r => $"{r.Key}={r.Value}")
+            .ToArray();
+        return changed.Length == 0 ? Markers.Name : $"{Markers.Name} ({string.Join(", ", changed)})";
+    }
+
+    public override string ToString() =>
+        $"DcaLayout[{RootNamespace}, frameworkTypes={FrameworkTypes}, markers={MarkersReport()}]";
 }

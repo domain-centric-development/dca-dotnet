@@ -6,6 +6,38 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 **What can turn a green build red:**
 
+- `DCA-ERR-004` also forbids the new `TransportStatusAttributeTypes` role — full attribute type names that
+  fix the protocol answer of the type they sit on. Empty in every preset, because the platform answers
+  through a mapper type rather than through an attribute on the failure; a project that has such an
+  attribute of its own configures it and a domain or use-case exception carrying it turns red. The twin
+  setting in `dca-archunit` is the `transportStatus` role.
+
+- **The rules no longer reference the building-block markers as types.** Every selection that used to name
+  `IAggregateRoot`, `IEntity`, `IValue`, `IId`, `IDomainEvent`, `IIntegrationEvent`, `IDomainService`,
+  `IFactory`, `DomainException`, `UseCaseException`, `ITransactionBoundary`, `IInputPort`, `IUseCase`,
+  `IOutputPort`, `IRepository`, `IStore`, `IDomainEventPublisher` or `IIntegrationEventPublisher` now asks
+  the layout for that *role*, resolved by full type name through the new `DcaMarkers`. `DcaLayout` defaults
+  to `DcaMarkers.Dca()`, so nothing changes for a project on the building blocks; a project with its own
+  markers points the roles at its own types (`WithMarkers(DcaMarkers.Dca() with { AggregateRoot =
+  "Acme.Platform.IContractRoot" })`) and is governed by the whole catalog instead of excluding the affected
+  rule ids. A role must name a type — an empty one is refused rather than silently selecting nothing. What
+  the roles do not cover are the strategic attributes: the rules read their members, and a name does not
+  carry members.
+- Correcting the first cut of this change, found in review: the `UseCase` and `TransactionBoundary` roles had no
+  reader at all — `DCA-NET-003`, `DCA-NET-006`, `DCA-NAM-002` and the transaction-coverage check still matched
+  `IUseCase<,>` and `ITransactionBoundary` as types, so configuring either role changed nothing. Both now
+  resolve through the role, generic arity included (`DcaMarkers.IsRole` / `CarriesRole`). The exclusion of the
+  vocabulary's own code in the error rules was hard-wired to this library's namespace and is now derived from
+  the namespaces the configured role types live in, so a project's own exception base type is no longer
+  reported as residing outside its layer.
+- `DcaMarkers.Validate()` states what the layout does with a vocabulary when it is built, instead of calling
+  `Roles()` for its side effect, and it also refuses a blank `Name` — which only the Java library did.
+- `DcaLayout.MarkersReport()` names the vocabulary and the roles that differ; `ToString()` carries it. The
+  xUnit base class has no diagnostic case of its own, unlike the Java library's, and the documentation says so
+  rather than promising a report.
+- `DCA-USE-015` names the configured aggregate-root and entity roles in its violation instead of the
+  literal `IAggregateRoot` / `IEntity`, so the message stays true under a project's own vocabulary.
+
 - The `errors` rule set is new, `DCA-ERR-001` … `DCA-ERR-006`, and pins the two new building blocks
   `DomainException` and `UseCaseException`. A project that declares its own exception types in the domain or
   application layer will see `DCA-ERR-001` / `DCA-ERR-003` until those types derive from the base type of their

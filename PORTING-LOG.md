@@ -400,3 +400,58 @@ titles, same rationales; the mechanics texts speak namespaces instead of package
   either; the diagnostic lists incoming adapters that drive an input port and depend on neither failure type.
 - **The base types are excluded by namespace** (`DomainCentric.BuildingBlocks`): they are library code, and
   ERR-002 would otherwise report them as residing outside the project's layers.
+
+## Configurable marker roles (TODO #50)
+
+`DcaMarkers` in both libraries: the eighteen building-block types the rules select on, each named by its fully
+qualified name and resolved through the layout (`DcaLayout.withMarkers` / `WithMarkers`, default
+`DcaMarkers.dca()` / `DcaMarkers.Dca()`). Same role names in both, same default vocabulary per language
+(`I`-prefixed here).
+
+- **Java is a record with `with*` methods, .NET a record with `init` properties** used through a `with`
+  expression — each language's idiom for the same thing, as with `FrameworkAnnotations` / `FrameworkTypes`.
+- **A role names one type and must not be blank.** An empty role would select nothing and report success, which
+  is the defect `DCA-STR-011` exists against; both libraries refuse it (Java in the constructor, .NET in
+  `Roles()`, which the layout calls when it is built).
+- **The strategic annotations are deliberately not roles.** The context-map and isolation rules read their
+  members — the context a relationship names, the dependencies a module allows — and a type name carries no
+  members. Stated in both libraries' documentation.
+- **Two reflective spots resolve by name instead of by `Class`/`Type`.** The event-free proof walks a
+  repository's generic binding, and the use-case surface rule walks an input port's declared methods; both
+  compared a `typeof` before. Java compares the erased name, .NET the generic definition's name with and
+  without the arity suffix (`IRepository` vs. `IRepository\`2`).
+- **ArchUnitNET has no string overload** for `AreAssignableTo` / `ImplementInterface` / `BeAssignableTo` in
+  0.13.4, so nine fluent selections became `FollowCustomPredicate` / `FollowCustomCondition` over
+  `IType.IsAssignableTo(string)`. Behaviour is unchanged; `DoNotImplementInterface` became "not assignable
+  to", which also excludes a type that inherits the marker through a base class.
+- **`DCA-USE-015` (both) and `DCA-TAC-004` (Java) print the configured role's simple name** instead of the
+  literal marker name. Unchanged output under the default roles.
+- **Selection is by assignability in both**, never "implements this interface". Java's first cut kept ArchUnit's
+  `implement(...)` in sixteen places, which matches an implemented interface only; a vocabulary whose marker is
+  an abstract base class — jMolecules allows it — selected nothing and reported success. The `selects` texts had
+  said "assignable to" all along, so the code now matches them.
+- **The vocabulary's own code is excluded by derivation, not by a fixed package.** `declaringPackagePatterns()`
+  / `DeclaringNamespaces()` yield the packages the role types live in; with the default roles that is the
+  building blocks, with a project's own markers their own packages. Without this, `DCA-ERR-002` reported a
+  project's own exception base class as "a domain exception outside the domain layer", and `USE-009`'s
+  event-free proof would have walked into the vocabulary's own types.
+- **`integrationEventPublisher` has a reader in Java only.** `DCA-USE-013` separates the output ports inside the
+  transaction from those that may leave the process; it is `NotApplicable` in .NET, so the role sits there
+  without a caller — deliberately, so that one configuration surface covers both languages.
+- **The vocabulary in the report:** Java prints it as a passing diagnostic case of `DcaArchitectureTest`
+  (`building block markers: dca (library default)`); .NET has no diagnostic case in its xUnit base class, so the
+  line lives in `DcaLayout.MarkersReport()` and `ToString()`. Asymmetry of the test drivers, not of the rules.
+
+## Transport-status role (`DCA-ERR-004`)
+
+Both libraries gained the role that names the annotation fixing a type's protocol answer: `transportStatus`
+in `FrameworkAnnotations`, `TransportStatusAttributeTypes` in `FrameworkTypes`. `DCA-ERR-004` forbids it on
+the exceptions of the domain and application layers.
+
+- **Java's presets fill it, .NET's do not.** Spring has `@ResponseStatus` and Micronaut `@Status`; Jakarta and
+  Quarkus answer through an exception mapper, and ASP.NET Core through an exception handler, so those roles are
+  empty and the rule selects nothing for them. The configuration surface is the same in both libraries either
+  way, which is the point: a project with its own status attribute configures one role, not two mechanisms.
+- **Type level only**, like the rest of ERR-004; a status annotation on a mapper method is the adapter's
+  business and is not selected.
+

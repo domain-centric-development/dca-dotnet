@@ -6,6 +6,7 @@ using DomainCentric.BuildingBlocks.Ddd.Tactical;
 using static ArchUnitNET.Fluent.ArchRuleDefinition;
 
 using ArchUnitNET.Domain;
+using ArchUnitNET.Domain.Extensions;
 using ArchUnitNET.Fluent;
 
 namespace DomainCentric.ArchRules.Rules;
@@ -294,7 +295,7 @@ public sealed class StrategicPatternRules : IDcaRuleSet
             "Integration event contracts reside in the configured Events segment",
             "Integration contracts are published separately from translators and transport adapters",
             arch =>
-                Types().That().ImplementInterface(typeof(IIntegrationEvent)).And().AreNot(Interfaces())
+                Types().That().FollowCustomPredicate(t => t.IsAssignableTo(arch.Layout.Markers.IntegrationEvent), "are integration events").And().AreNot(Interfaces())
                     .Should().ResideInNamespaceMatching(AnySegment(Layout.EventsSegment)))
         .Selecting(
             "Non-interface types below the root namespace whose implemented interfaces include"
@@ -312,7 +313,7 @@ public sealed class StrategicPatternRules : IDcaRuleSet
             {
                 var violations = arch.Types
                     .Where(t => t is not Interface && !t.IsCompilerGenerated)
-                    .Where(t => t.ImplementedInterfaces.Any(i => i.FullName == typeof(IIntegrationEvent).FullName))
+                    .Where(t => t.ImplementedInterfaces.Any(i => i.FullName == arch.Layout.Markers.IntegrationEvent))
                     .Where(t => !TacticalPatternRules.IsImmutableShape(t))
                     .Select(t => "Integration event " + t.FullName + " has mutable shape")
                     .ToList();

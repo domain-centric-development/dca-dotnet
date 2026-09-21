@@ -91,7 +91,7 @@ public sealed class DcaArchitecture
             }
         }
 
-        // The building blocks are always part of the model: ArchUnitNET resolves `typeof(IAggregateRoot)`
+        // The building blocks are always part of the model: ArchUnitNET resolves `arch.Layout.Markers.AggregateRoot`
         // and friends against the loaded architecture and throws when a marker is not referenced anywhere
         // (a project without domain services would fail every rule that mentions IDomainService).
         var loader = new ArchLoader().LoadAssembly(typeof(BoundedContextAttribute).Assembly);
