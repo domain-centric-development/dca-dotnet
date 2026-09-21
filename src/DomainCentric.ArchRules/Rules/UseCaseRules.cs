@@ -261,7 +261,7 @@ public sealed class UseCaseRules : IDcaRuleSet
             "Classes in <module>.Application of every module root selected by IInputPort assignability or the"
                 + " configured use-case suffix, whose runtime type is in the loaded assemblies.")
         .Checking(
-            "Only a resolved IRepository<T,ID> aggregate with its complete non-building-block hierarchy under scan and no registration call, including helpers, is exempt. Unresolved arguments, partial scans and undecidable external helpers are not exempt. For every non-exempt method calling IRepository.SaveAsync, every entry point"
+            "Only a resolved IRepository<T,ID> aggregate is exempt, and only when its complete hierarchy is under scan and nothing registers an event on it: neither the hierarchy itself nor a type outside it. The walk stops at the platform and at the namespaces the configured marker roles live in, so a project's own vocabulary stops it where the library's does. Unresolved arguments and partial scans are not exempt. For every non-exempt method calling IRepository.SaveAsync, every entry point"
                 + " reaching it (a method callable from outside the class, or one nothing in the"
                 + " class calls) also reaches, through calls within the class, a call of"
                 + " IDomainEventPublisher.PublishAndClearEventsAsync. Calls are read from the IL of"

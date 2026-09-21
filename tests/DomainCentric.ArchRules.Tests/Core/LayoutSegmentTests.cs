@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Xunit;
 
 namespace DomainCentric.ArchRules.Tests.Core;
@@ -32,5 +33,64 @@ public class LayoutSegmentTests
         Assert.Throws<ArgumentException>(() => Defaults.WithSharedSegment("Ports").WithOperationContainers("Ports"));
         Assert.Throws<ArgumentException>(() => Defaults.WithWebSegment(string.Empty));
         Assert.Throws<ArgumentException>(() => Defaults.WithSharedSegment("  "));
+    }
+
+    /// <summary>
+    /// The tactical suffixes and the domain-service segment are configurable like the use-case and
+    /// controller suffixes; a project whose ports are called something else configures them rather
+    /// than excluding the rule ids.
+    /// </summary>
+    [Fact]
+    public void TheTacticalNamesAreConfigurable()
+    {
+        Assert.Equal("AggregateRoot", Defaults.AggregateRootSuffix);
+        Assert.Equal("Repository", Defaults.RepositorySuffix);
+        Assert.Equal("Store", Defaults.StoreSuffix);
+        Assert.Equal("Factory", Defaults.FactorySuffix);
+        Assert.Equal("Specification", Defaults.SpecificationSuffix);
+        Assert.Equal("Service", Defaults.DomainServiceSegment);
+
+        var own = Defaults
+            .WithAggregateRootSuffix("Root")
+            .WithRepositorySuffix("Gateway")
+            .WithStoreSuffix("Table")
+            .WithFactorySuffix("Builder")
+            .WithSpecificationSuffix("Rule")
+            .WithDomainServiceSegment("Policy");
+
+        Assert.Equal("Root", own.AggregateRootSuffix);
+        Assert.Equal("Gateway", own.RepositorySuffix);
+        Assert.Equal("Table", own.StoreSuffix);
+        Assert.Equal("Builder", own.FactorySuffix);
+        Assert.Equal("Rule", own.SpecificationSuffix);
+        Assert.Equal("Policy", own.DomainServiceSegment);
+        Assert.Equal("Acme.Shop", own.RootNamespace);
+
+        Assert.Throws<ArgumentException>(() => Defaults.WithRepositorySuffix(string.Empty));
+        Assert.Throws<ArgumentException>(() => Defaults.WithDomainServiceSegment("  "));
+    }
+
+    /// <summary>
+    /// The suffix drives the selection: with the repository suffix changed, the bad tactical
+    /// fixture's <c>*Repository</c> interfaces are no longer selected and the name-anchored rules
+    /// pass — while the default suffix still reports them, so the assertion is not vacuous.
+    /// </summary>
+    [Fact]
+    public void TheRepositorySuffixDrivesTheSelection()
+    {
+        const string bad = "DomainCentric.ArchRules.Tests.Fixtures.Tactical.Bad";
+        var own = DcaLayout.ForRootNamespace(bad).WithRepositorySuffix("Gateway");
+        var arch = DcaArchitecture.Load(own, typeof(LayoutSegmentTests).Assembly);
+
+        foreach (var id in new[] { "DCA-TAC-013", "DCA-TAC-016" })
+        {
+            DcaRules.All(own).Single(r => r.Id == id).Check(arch);
+        }
+
+        var plain = DcaLayout.ForRootNamespace(bad);
+        var message = Assert.Throws<DcaRuleViolationException>(
+            () => DcaRules.All(plain).Single(r => r.Id == "DCA-TAC-016")
+                .Check(DcaArchitecture.Load(plain, typeof(LayoutSegmentTests).Assembly))).Message;
+        Assert.Contains("Repository", message, StringComparison.Ordinal);
     }
 }

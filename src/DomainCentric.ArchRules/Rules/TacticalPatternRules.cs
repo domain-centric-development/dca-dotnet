@@ -23,8 +23,6 @@ namespace DomainCentric.ArchRules.Rules;
 /// </remarks>
 public sealed class TacticalPatternRules : IDcaRuleSet
 {
-    private const string RepositorySuffix = "Repository";
-    private const string StoreSuffix = "Store";
 
     /// <summary>
     /// Write vocabulary a Store must not declare, compared case-insensitively so that the same six
@@ -90,8 +88,8 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 var violations = new List<string>();
                 foreach (var type in NonInterfaceTypes(arch))
                 {
-                    if (!type.Name.EndsWith("AggregateRoot", StringComparison.Ordinal)
-                        || type.Name == "AggregateRoot"
+                    if (!type.Name.EndsWith(arch.Layout.AggregateRootSuffix, StringComparison.Ordinal)
+                        || type.Name == arch.Layout.AggregateRootSuffix
                         || !ResidesInAny(type, arch.AllDomainModelPatterns()))
                     {
                         continue;
@@ -535,7 +533,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 foreach (var candidate in arch.Interfaces)
                 {
                     if (!ResidesInAny(candidate, arch.AllApplicationPatterns())
-                        || !HasSuffixButIsNotMarker(candidate, RepositorySuffix))
+                        || !HasSuffixButIsNotMarker(candidate, arch.Layout.RepositorySuffix))
                     {
                         continue;
                     }
@@ -583,7 +581,10 @@ public sealed class TacticalPatternRules : IDcaRuleSet
             .Checking(
                 "The type resides in <module>.Adapter.Outgoing of some module root. An "
                 + "implementation anywhere else below the root - a test double, say - is "
-                + "reported; an empty selection passes.");
+                + "reported; an empty selection passes. An implementation that carries the "
+                + "repository role and is also named *Repository is reported by DCA-HEX-008 as well: "
+                + "that rule finds unmarked implementations by name, and the two populations overlap "
+                + "where a project does both.");
 
     public static IDcaRule RepositoriesOnlyForAggregateRoots() =>
         DcaRule.Check(
@@ -599,7 +600,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                     var repoName = repository.Name.StartsWith("I", StringComparison.Ordinal) && repository.Name.Length > 1 && char.IsUpper(repository.Name[1])
                         ? repository.Name.Substring(1)
                         : repository.Name;
-                    if (!repoName.EndsWith(RepositorySuffix, StringComparison.Ordinal))
+                    if (!repoName.EndsWith(arch.Layout.RepositorySuffix, StringComparison.Ordinal))
                     {
                         continue;
                     }
@@ -618,17 +619,17 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                         {
                             violations.Add($"{repository.FullName} binds {bound.FullName} which does not implement {nameof(IAggregateRoot)}");
                         }
-                        else if (repoName != bound.Name + RepositorySuffix)
+                        else if (repoName != bound.Name + arch.Layout.RepositorySuffix)
                         {
                             violations.Add(
                                 $"{repository.FullName} binds {bound.FullName} but is named {repoName}"
-                                + $" - name it {bound.Name}{RepositorySuffix}");
+                                + $" - name it {bound.Name}{arch.Layout.RepositorySuffix}");
                         }
 
                         continue;
                     }
 
-                    var aggregateName = repoName.Substring(0, repoName.Length - RepositorySuffix.Length);
+                    var aggregateName = repoName.Substring(0, repoName.Length - arch.Layout.RepositorySuffix.Length);
                     var context = arch.RootContextNamespace(NamespaceOf(repository));
                     var candidates = NonInterfaceTypes(arch)
                         .Where(c => c.Name == aggregateName)
@@ -725,7 +726,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 var violations = new List<string>();
                 foreach (var candidate in arch.Interfaces)
                 {
-                    if (!HasSuffixButIsNotMarker(candidate, StoreSuffix))
+                    if (!HasSuffixButIsNotMarker(candidate, arch.Layout.StoreSuffix))
                     {
                         continue;
                     }
@@ -862,10 +863,10 @@ public sealed class TacticalPatternRules : IDcaRuleSet
     }
 
     private static IEnumerable<Interface> RepositoryInterfaces(DcaArchitecture arch) =>
-        arch.Interfaces.Where(i => i.Name != RepositorySuffix && IsAssignableTo(arch, i, arch.Layout.Markers.Repository));
+        arch.Interfaces.Where(i => i.Name != arch.Layout.RepositorySuffix && IsAssignableTo(arch, i, arch.Layout.Markers.Repository));
 
     private static IEnumerable<Interface> StoreInterfaces(DcaArchitecture arch) =>
-        arch.Interfaces.Where(i => i.Name != StoreSuffix && IsAssignableTo(arch, i, arch.Layout.Markers.Store));
+        arch.Interfaces.Where(i => i.Name != arch.Layout.StoreSuffix && IsAssignableTo(arch, i, arch.Layout.Markers.Store));
 
     private static bool HasSuffixButIsNotMarker(IType type, string suffix) =>
         type.Name.EndsWith(suffix, StringComparison.Ordinal) && type.Name != suffix && type.Name != "I" + suffix;

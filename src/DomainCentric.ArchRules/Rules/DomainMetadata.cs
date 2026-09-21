@@ -19,7 +19,7 @@ internal static class DomainMetadata
         if (type.IsAssignableTo(markers.DomainService)) return "DCA-ADV-011";
         if (type.IsAssignableTo(markers.Factory)) return "DCA-ADV-015";
         return AdvancedPatternRules.IsSpecificationRole(arch, type)
-            || type.Name.EndsWith("Specification", StringComparison.Ordinal)
+            || type.Name.EndsWith(arch.Layout.SpecificationSuffix, StringComparison.Ordinal)
             ? "DCA-ADV-018"
             : "DCA-ONI-003";
     }

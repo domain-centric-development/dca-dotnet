@@ -279,15 +279,16 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
     public IDcaRule FactoriesAreNamedFactory() =>
         DcaRule.Of(
             "DCA-ADV-013",
-            "Factories should implement IFactory Marker Interface",
-            "Classes implementing IFactory marker should have 'Factory' in their name",
+            "Types carrying the factory role are named *Factory",
+            "A factory is found by its role, and read by its name: a type that creates aggregates and is"
+                + " not called one makes the creation site hard to find in review and in a search",
             arch => Types()
                 .That()
                 .FollowCustomPredicate(t => t.IsAssignableTo(arch.Layout.Markers.Factory), "are factories")
                 .And()
                 .FollowCustomPredicate(t => t is not Interface, "are not interfaces")
                 .Should()
-                .HaveNameEndingWith("Factory"))
+                .HaveNameEndingWith(arch.Layout.FactorySuffix))
             .Selecting(
                 "Non-interface types anywhere under scan that are assignable to IFactory.")
             .Checking(
@@ -346,16 +347,17 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
     public IDcaRule SpecificationsResideInDomain() =>
         DcaRule.Of(
             "DCA-ADV-017",
-            "Specifications must end with 'Specification'",
-            "Specification implementations are part of the domain layer",
+            "Specifications reside in the domain layer",
+            "A specification is a rule of the model expressed as a predicate; it belongs where the model"
+                + " is, not in the layer that happens to ask the question",
             arch => Types()
                 .That()
                 .FollowCustomPredicate(
                     t => t is not Interface
-                        && t.Name != "Specification"
+                        && t.Name != arch.Layout.SpecificationSuffix
                         && t.FullName != arch.Layout.Markers.Specification
                         && (IsSpecificationRole(arch, t)
-                            || t.Name.EndsWith("Specification", StringComparison.Ordinal)),
+                            || t.Name.EndsWith(arch.Layout.SpecificationSuffix, StringComparison.Ordinal)),
                     "are specifications")
                 .Should()
                 .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns())))
@@ -399,7 +401,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
     }
 
     private string DomainServicePattern() =>
-        $"^.*\\.{Regex.Escape(Layout.DomainSegment)}\\.Service(\\..*)?$";
+        $"^.*\\.{Regex.Escape(Layout.DomainSegment)}\\.{Regex.Escape(Layout.DomainServiceSegment)}(\\..*)?$";
 
     private static bool InDomain(DcaArchitecture arch, IType type) =>
         type.Namespace is not null && Regex.IsMatch(type.Namespace.FullName, DcaLayout.AnyOf(arch.AllDomainPatterns()));

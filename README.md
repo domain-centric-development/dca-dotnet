@@ -185,6 +185,52 @@ builds Debug by default, so nothing changes for most projects; if you must analy
 opt in with `DcaArchitecture.Load(layout, allowOptimizedAssemblies: true, assemblies)` and accept the
 blind spot.
 
+## The smallest DCA
+
+Nothing in the catalog fires on a concept the project has not declared: a rule with an empty
+selection passes. So the first day needs seven building blocks, not thirty-one:
+
+- `IAggregateRoot<TSelf, TId>` and `IId` — one aggregate and its identifier
+- `IValue` — the attributes that have no lifecycle of their own
+- `IRepository<TAggregate, TId>` — how that aggregate is loaded and stored
+- `IInputPort` — what the outside may ask the application to do
+- `DomainException` — a broken rule of the model, named after the rule
+- `[BoundedContext]` on one marker class — so the rules know where the module begins
+
+That is enough for `DcaArchitectureTest` to say something useful. `IEntity`, `IDomainEvent`,
+`IIntegrationEvent`, `IDomainService`, `IFactory`, `ISpecification<T>`, `IStore`, the publishers and
+the context-map attributes each switch on the rules that govern them, when and only when the project
+introduces the concept.
+
+**Your own vocabulary instead of ours.** A code base that already has an aggregate base class keeps
+it and points the roles at it, rather than migrating types or excluding rule ids:
+
+```csharp
+var layout = DcaLayout.ForRootNamespace("Acme.Billing")
+    .WithMarkers(DcaMarkers.Dca() with
+    {
+        Name = "acme",
+        AggregateRoot = "Acme.Common.Aggregate",
+        Repository = "Acme.Common.Store",
+    });
+```
+
+Every rule then selects on those types, the vocabulary's own namespaces are excluded from the
+third-party checks, and the `LayoutDiagnostics` fact names the vocabulary it resolved. One caveat:
+`OutputPort` must be set as soon as any other port role is, because `DCA-HEX-009` measures every
+port against it.
+
+**Domain events are optional; the marker's API is not.** `IAggregateRoot<TSelf, TId>` declares
+`DomainEvents` and `ClearDomainEvents()`, so a project that models no events still inherits them.
+No rule requires an event to exist — every event rule passes on an empty selection — but if the two
+members are unwanted on the model, point the aggregate-root role at a type of your own; the rules
+follow the role, not the base class.
+
+**Your own names.** Where a rule finds something by name rather than by role — the use-case,
+controller, REST-controller, aggregate-root, repository, store, factory and specification suffixes,
+and the segments of the namespace layout — `DcaLayout` has a `With…` for it. Configure the name; do
+not switch the rule off.
+
 ## Rule catalog
 
 **127 rule ids in 12 sets: 121 enforced, 5 informational, 1 not applicable in .NET.** Three further ids are retired and keep their meaning in the retirement list. The

@@ -8,6 +8,10 @@ public class EventPolicyTests {
  [Fact] public void EventFreeSavePassesAndRecordedSaveFails() {
   var arch=Arch();var message=Assert.Throws<DcaRuleViolationException>(()=>Rule(arch,"DCA-USE-009").Check(arch)).Message;
   Assert.Contains("Recording.SaveUseCase",message);Assert.Contains("Unresolved.SaveUseCase",message);Assert.DoesNotContain("Free.SaveUseCase",message);
+  // A nested helper registers events on Note. The library's RegisterEvent is protected, so only a
+  // nested type can reach it - and a nested type belongs to the enclosing type's call graph, so the
+  // hierarchy walk already sees this. The external scan covers the same shape for an own vocabulary.
+  Assert.Contains("External.SaveUseCase",message);
  }
  [Fact] public void BoundaryCoverageHasDocumentedStaticLimit() {
   var layout=DcaLayout.ForRootNamespace(Root).WithFrameworkTypes(FrameworkTypes.AspNetCore() with { TransactionalAttribute=Root+".Module.Application.Declarative.WorkAttribute" });
@@ -32,5 +36,16 @@ public class EventPolicyTests {
  [Fact] public void BusinessVersionIsAllowedButAdapterContractsAreNot() {
   var arch=Arch();Rule(arch,"DCA-ADV-006").Check(arch);Rule(arch,"DCA-ADV-007").Check(arch);
   Assert.Contains("Misplaced",Assert.ThrowsAny<System.Exception>(()=>Rule(arch,"DCA-STR-007").Check(arch)).Message);
+ }
+ [Fact] public void AnExternalRegistrationOnAnOwnVocabularyDisablesTheExemption() {
+  // The library's own RegisterEvent is protected, so only a nested type can reach it - and a nested
+  // type already belongs to the enclosing type's call graph. A project whose own aggregate base
+  // exposes the registration is the case the external scan exists for; Java has it since 0.4.0.
+  const string root="DomainCentric.ArchRules.Tests.Fixtures.OwnEvents";
+  var layout=DcaLayout.ForRootNamespace(root).WithMarkers(DcaMarkers.Dca() with {
+   AggregateRoot=root+".Vocabulary.OwnAggregateBase" });
+  var arch=DcaArchitecture.Load(layout,typeof(EventPolicyTests).Assembly);
+  var message=Assert.Throws<DcaRuleViolationException>(()=>DcaRules.All(layout).Single(r=>r.Id=="DCA-USE-009").Check(arch)).Message;
+  Assert.Contains("SaveTicketUseCase",message);
  }
 }

@@ -348,7 +348,7 @@
       "title": "Repository Implementations must reside in the Adapter.Outgoing namespace",
       "rationale": "Repository implementations are outgoing adapters in bounded contexts",
       "selects": "Non-interface types below the root namespace assignable to IRepository, abstract base classes included.",
-      "checks": "The type resides in <module>.Adapter.Outgoing of some module root. An implementation anywhere else below the root - a test double, say - is reported; an empty selection passes.",
+      "checks": "The type resides in <module>.Adapter.Outgoing of some module root. An implementation anywhere else below the root - a test double, say - is reported; an empty selection passes. An implementation that carries the repository role and is also named *Repository is reported by DCA-HEX-008 as well: that rule finds unmarked implementations by name, and the two populations overlap where a project does both.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -765,8 +765,8 @@
     {
       "set": "advanced",
       "id": "DCA-ADV-013",
-      "title": "Factories should implement IFactory Marker Interface",
-      "rationale": "Classes implementing IFactory marker should have 'Factory' in their name",
+      "title": "Types carrying the factory role are named *Factory",
+      "rationale": "A factory is found by its role, and read by its name: a type that creates aggregates and is not called one makes the creation site hard to find in review and in a search",
       "selects": "Non-interface types anywhere under scan that are assignable to IFactory.",
       "checks": "The simple name ends with Factory. Only the suffix is checked. An empty selection passes.",
       "implementation": "dotnet",
@@ -805,8 +805,8 @@
     {
       "set": "advanced",
       "id": "DCA-ADV-017",
-      "title": "Specifications must end with 'Specification'",
-      "rationale": "Specification implementations are part of the domain layer",
+      "title": "Specifications reside in the domain layer",
+      "rationale": "A specification is a rule of the model expressed as a predicate; it belongs where the model is, not in the layer that happens to ask the question",
       "selects": "Non-interface types anywhere under scan that are assignable to the configured specification role or whose simple name ends with Specification, the role's own type and a type named exactly Specification excluded. The marker and the name both select, so a specification named after the predicate it expresses is governed too.",
       "checks": "Each resides in a domain namespace of some module root (<module>.Domain or below). An empty selection passes.",
       "implementation": "dotnet",
@@ -908,7 +908,7 @@
       "title": "Use cases that save an aggregate must publish its domain events",
       "rationale": "A saved aggregate must not keep its events: unpublished, they are lost, and stored on the instance they may later be published out of context. Publishing belongs after the save, in the use case that owns the unit of work - unless the aggregate is proven never to register an event. Checked per entry path, following calls within the use case class: every entry point that reaches a save - a method callable from outside the class, or one nothing in the class calls - must also reach a publication; a wrapper that publishes does not cover a direct call of the public method it wraps, and a helper two methods share does not connect them. That the publication follows the save and concerns the same aggregate is not established statically. Only IDomainEventPublisher.PublishAndClearEventsAsync counts as a publication: iterating DomainEvents and calling PublishAsync(event), even followed by ClearDomainEvents(), separates dispatch from acknowledgement and is not accepted",
       "selects": "Classes in <module>.Application of every module root selected by IInputPort assignability or the configured use-case suffix, whose runtime type is in the loaded assemblies.",
-      "checks": "Only a resolved IRepository<T,ID> aggregate with its complete non-building-block hierarchy under scan and no registration call, including helpers, is exempt. Unresolved arguments, partial scans and undecidable external helpers are not exempt. For every non-exempt method calling IRepository.SaveAsync, every entry point reaching it (a method callable from outside the class, or one nothing in the class calls) also reaches, through calls within the class, a call of IDomainEventPublisher.PublishAndClearEventsAsync. Calls are read from the IL of the class and its nested state-machine and closure types, so async methods and lambdas are followed. Only PublishAndClearEventsAsync counts - PublishAsync(event), even followed by ClearDomainEvents(), does not. A use case without a save (a query, a bulk delete) is selected but has nothing to check and passes. The method names are fixed and are not part of the marker roles: a vocabulary whose repository writes under another name is selected and then found to save nothing, so this rule passes over it.",
+      "checks": "Only a resolved IRepository<T,ID> aggregate is exempt, and only when its complete hierarchy is under scan and nothing registers an event on it: neither the hierarchy itself nor a type outside it. The walk stops at the platform and at the namespaces the configured marker roles live in, so a project's own vocabulary stops it where the library's does. Unresolved arguments and partial scans are not exempt. For every non-exempt method calling IRepository.SaveAsync, every entry point reaching it (a method callable from outside the class, or one nothing in the class calls) also reaches, through calls within the class, a call of IDomainEventPublisher.PublishAndClearEventsAsync. Calls are read from the IL of the class and its nested state-machine and closure types, so async methods and lambdas are followed. Only PublishAndClearEventsAsync counts - PublishAsync(event), even followed by ClearDomainEvents(), does not. A use case without a save (a query, a bulk delete) is selected but has nothing to check and passes. The method names are fixed and are not part of the marker roles: a vocabulary whose repository writes under another name is selected and then found to save nothing, so this rule passes over it.",
       "implementation": "dotnet",
       "status": "enforced"
     },
