@@ -85,4 +85,25 @@ public sealed class AdvancedPatternRulesTests
             Assert.DoesNotContain("ActiveOrder", e.Message, StringComparison.Ordinal);
         }
     }
+    /// <summary>
+    /// DCA-ADV-008 asks that the occurrence time is <em>stored</em>, not computed — the marker already
+    /// forces the accessor. Which type stores it is the project's decision: a code base whose own event
+    /// vocabulary wraps the timestamp in a value type names that type instead of excluding the rule.
+    /// </summary>
+    [Fact]
+    public void TheTimestampTypesFollowTheConfiguration()
+    {
+        const string own = "DomainCentric.ArchRules.Tests.Fixtures.OwnTimestamp";
+        var markers = DcaMarkers.Dca() with { DomainEvent = own + ".Vocabulary.IHappening" };
+        var defaults = DcaLayout.ForRootNamespace(own).WithMarkers(markers);
+
+        var reported = Assert.Throws<DcaRuleViolationException>(() =>
+            new AdvancedPatternRules(defaults).Rules.Single(r => r.Id == "DCA-ADV-008")
+                .Check(DcaArchitecture.Load(defaults, typeof(AdvancedPatternRulesTests).Assembly)));
+        Assert.Contains("TariffBilled", reported.Message, StringComparison.Ordinal);
+
+        var configured = defaults.WithTimestampTypes(own + ".Vocabulary.Timestamp");
+        new AdvancedPatternRules(configured).Rules.Single(r => r.Id == "DCA-ADV-008")
+            .Check(DcaArchitecture.Load(configured, typeof(AdvancedPatternRulesTests).Assembly));
+    }
 }

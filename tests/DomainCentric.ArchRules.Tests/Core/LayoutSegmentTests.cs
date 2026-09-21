@@ -90,4 +90,17 @@ public class LayoutSegmentTests
                 .Check(DcaArchitecture.Load(plain, typeof(LayoutSegmentTests).Assembly))).Message;
         Assert.Contains("Repository", message, StringComparison.Ordinal);
     }
+    [Fact]
+    public void TheTimestampTypesAreConfigurable()
+    {
+        Assert.Equal(new[] { "System.DateTimeOffset", "System.DateTime" }, Defaults.TimestampTypes);
+
+        var own = Defaults.WithTimestampTypes("Acme.Shop.Platform.Timestamp");
+        Assert.Equal(new[] { "Acme.Shop.Platform.Timestamp" }, own.TimestampTypes);
+        Assert.Equal("Acme.Shop", own.RootNamespace);
+
+        // An empty list would report every event, which is never what a caller means.
+        Assert.Throws<ArgumentException>(() => Defaults.WithTimestampTypes());
+        Assert.Throws<ArgumentException>(() => Defaults.WithTimestampTypes("  "));
+    }
 }

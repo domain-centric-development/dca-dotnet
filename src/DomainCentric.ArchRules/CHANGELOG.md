@@ -21,6 +21,9 @@ public, and a fixture proves it.
 **`DCA-ADV-009` is retired; `DCA-ADV-010` keeps the layer** — see the Java entry.
 `WithDomainServiceSegment` goes with it.
 
+**`DCA-ADV-008` follows a configurable list of timestamp types**, `WithTimestampTypes(...)` — see
+the Java entry. The default keeps `System.DateTimeOffset` and `System.DateTime`.
+
 **`DCA-STR-009` is retired** — see the Java entry. No replacement id.
 
 **The retirement reason of `DCA-TAC-022` is corrected** — see the Java entry.

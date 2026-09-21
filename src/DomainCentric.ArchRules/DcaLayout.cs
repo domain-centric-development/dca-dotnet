@@ -76,6 +76,7 @@ public sealed class DcaLayout
         string storeSuffix = "Store",
         string factorySuffix = "Factory",
         string specificationSuffix = "Specification",
+        IReadOnlyList<string>? timestampTypes = null,
         DcaMarkers? markers = null)
     {
         RootNamespace = RequireSegment(rootNamespace, nameof(rootNamespace));
@@ -111,6 +112,7 @@ public sealed class DcaLayout
         StoreSuffix = RequireSegment(storeSuffix, nameof(storeSuffix));
         FactorySuffix = RequireSegment(factorySuffix, nameof(factorySuffix));
         SpecificationSuffix = RequireSegment(specificationSuffix, nameof(specificationSuffix));
+        TimestampTypes = RequireTypeNames(timestampTypes ?? DefaultTimestampTypes, nameof(timestampTypes));
         ThirdPartyNamespacesAllowedInDomain = thirdPartyNamespacesAllowedInDomain.ToArray();
         FrameworkTypes = frameworkTypes ?? throw new ArgumentNullException(nameof(frameworkTypes));
         Markers = (markers ?? DcaMarkers.Dca()).Validate();
@@ -137,6 +139,27 @@ public sealed class DcaLayout
             "Resource",
             DefaultThirdPartyAllowedInDomain,
             FrameworkTypes.AspNetCore());
+
+    /// <summary>Types a domain event may store its occurrence time in, unless a project names its own.</summary>
+    private static readonly string[] DefaultTimestampTypes = { "System.DateTimeOffset", "System.DateTime" };
+
+    private static IReadOnlyList<string> RequireTypeNames(IReadOnlyList<string> values, string name)
+    {
+        if (values.Count == 0)
+        {
+            throw new ArgumentException($"{name} must name at least one type", name);
+        }
+
+        foreach (var value in values)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                throw new ArgumentException($"{name} must not contain a blank name", name);
+            }
+        }
+
+        return values.ToArray();
+    }
 
     private static string RequireSegment(string value, string name)
     {
@@ -220,6 +243,9 @@ public sealed class DcaLayout
     /// sub-namespace). Default: <c>System</c>, <c>Microsoft.Extensions.Logging.Abstractions</c> and the
     /// building blocks.
     /// </summary>
+    /// <summary>Types a domain event may store its occurrence time in, read by <c>DCA-ADV-008</c>.</summary>
+    public IReadOnlyList<string> TimestampTypes { get; }
+
     public IReadOnlyList<string> ThirdPartyNamespacesAllowedInDomain { get; }
 
     /// <summary>Where the layout's <see cref="FrameworkTypes"/> came from.</summary>
@@ -332,6 +358,14 @@ public sealed class DcaLayout
 
 
     /// <summary>Replaces the list of third-party namespace prefixes the domain layer may depend on.</summary>
+    /// <summary>
+    /// Replaces the types a domain event may store its occurrence time in (<c>System.DateTimeOffset</c>
+    /// and <c>System.DateTime</c> by default). A project whose own event vocabulary wraps the timestamp
+    /// in a value type names that type here instead of excluding <c>DCA-ADV-008</c>. At least one name
+    /// is required: an empty list would report every event.
+    /// </summary>
+    public DcaLayout WithTimestampTypes(params string[] typeNames) => Copy(timestampTypes: typeNames);
+
     public DcaLayout WithThirdPartyNamespacesAllowedInDomain(IEnumerable<string> prefixes) =>
         Copy(thirdParty: prefixes.ToArray());
 
@@ -392,6 +426,7 @@ public sealed class DcaLayout
         string? controllerSuffix = null,
         string? restControllerSuffix = null,
         IReadOnlyList<string>? thirdParty = null,
+        IReadOnlyList<string>? timestampTypes = null,
         FrameworkTypes? frameworkTypes = null,
         IReadOnlyList<string>? operationContainers = null,
         string? model = null,
@@ -431,6 +466,7 @@ public sealed class DcaLayout
             storeSuffix ?? StoreSuffix,
             factorySuffix ?? FactorySuffix,
             specificationSuffix ?? SpecificationSuffix,
+            timestampTypes ?? TimestampTypes,
             markers ?? Markers)
         {
             FrameworkTypesSource = frameworkTypesSource ?? FrameworkTypesSource,

@@ -22,12 +22,6 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
 {
     private static readonly string[] SchemaFields = { "schemaVersion", "eventVersion", "contractVersion" };
 
-    private static readonly string[] TimestampTypes =
-    {
-        typeof(DateTimeOffset).FullName!,
-        typeof(DateTime).FullName!,
-    };
-
     /// <summary>Java rules of this set that have no .NET counterpart (id → reason). None.</summary>
     public static readonly IReadOnlyDictionary<string, string> NotApplicable = new Dictionary<string, string>();
 
@@ -192,10 +186,14 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 + "when it also implements IDomainEvent.")
             .Checking(
                 "At least one field - declared by the type or inherited from a base type, static or not, "
-                + "of any name - has the type System.DateTimeOffset or System.DateTime; an auto-property or "
+                + "of any name - has one of the configured timestamp types, by default System.DateTimeOffset "
+                + "or System.DateTime; an auto-property or "
                 + "positional record parameter of one of these types counts through its backing field. "
                 + "DateOnly, TimeSpan, long or string fields do not satisfy it, and a computed property "
-                + "without a backing field does not either. A type the loader cannot resolve is read "
+                + "without a backing field does not either - which is what the rule is for, because the "
+                + "marker already forces the accessor; a project whose own event vocabulary wraps the "
+                + "timestamp in a value type names that type with WithTimestampTypes. A type the loader "
+                + "cannot resolve is read "
                 + "through the ArchUnitNET member model instead, which does not carry the backing fields "
                 + "of auto-properties. Every offender is reported in one violation; an empty selection "
                 + "passes.");
@@ -449,7 +447,8 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
         AllFields(arch, type).Any(f => SchemaFields.Contains(f.Name, StringComparer.OrdinalIgnoreCase));
 
     private static bool HasTimestampField(DcaArchitecture arch, IType type) =>
-        AllFields(arch, type).Any(f => f.TypeFullName is not null && TimestampTypes.Contains(f.TypeFullName));
+        AllFields(arch, type).Any(f =>
+            f.TypeFullName is not null && arch.Layout.TimestampTypes.Contains(f.TypeFullName));
 
     private static List<string> NonReadonlyFieldViolations(DcaArchitecture arch, Func<IType, bool> candidate)
     {

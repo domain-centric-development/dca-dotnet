@@ -228,12 +228,13 @@ follow the role, not the base class.
 
 **Your own names.** Where a rule finds something by name rather than by role — the use-case,
 controller, REST-controller, aggregate-root, repository, store, factory and specification suffixes,
-and the segments of the namespace layout — `DcaLayout` has a `With…` for it. Configure the name; do
-not switch the rule off.
+the segments of the namespace layout, and the types a domain event may store its occurrence time in
+(`WithTimestampTypes`) — `DcaLayout` has a `With…` for it. Configure the name; do not switch the
+rule off.
 
 ## Rule catalog
 
-**127 rule ids in 12 sets: 121 enforced, 5 informational, 1 not applicable in .NET.** Three further ids are retired and keep their meaning in the retirement list. The
+**125 rule ids in 12 sets: 119 enforced, 5 informational, 1 not applicable in .NET.** Five further ids are retired and keep their meaning in the retirement list. The
 exact, current list is [RULES.md](RULES.md) and [rules.json](rules.json), both generated from the code
 by `dotnet run --project tools/RulesCatalog -- .` and verified in CI; every number in this README is
 taken from there. `rules.json` names the package version its texts belong to.
