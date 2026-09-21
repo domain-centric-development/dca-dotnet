@@ -780,7 +780,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 + "Save, DeleteById and Delete, nor the camel-cased save, "
                 + "deleteById and delete - matched by name alone, parameters and return type "
                 + "disregarded. Inherited methods are not inspected, and no particular "
-                + "vocabulary (Record, Count, Exists) is required.");
+                + "vocabulary (Record, Count, Exists) is required. The three names are fixed and are not part of the marker roles: a vocabulary that writes under another name is selected and then found to declare no write.");
 
     // ---------------------------------------------------------------------------------------------
     // Enriched domain model pattern

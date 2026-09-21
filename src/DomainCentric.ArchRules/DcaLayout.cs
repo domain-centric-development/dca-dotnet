@@ -47,8 +47,11 @@ public sealed class DcaLayout
     public const string BuildingBlocksPortsOutNamespace = "DomainCentric.BuildingBlocks.Hexagonal.Ports.Out";
 
     /// <summary>Namespace prefixes the domain layer may use by default: the BCL and the building blocks.</summary>
+    // The platform, and the marker vocabulary for the attribute rules. Nothing else: which logging,
+    // validation or utility library a domain model may see is a project decision, and the way to make
+    // it is WithThirdPartyNamespacesAllowedInDomain(...), not a default that decides for everyone.
     private static readonly IReadOnlyList<string> DefaultThirdPartyAllowedInDomain =
-        new[] { "System", "Microsoft.Extensions.Logging.Abstractions", BuildingBlocksNamespace };
+        new[] { "System", BuildingBlocksNamespace };
 
     private DcaLayout(
         string rootNamespace,

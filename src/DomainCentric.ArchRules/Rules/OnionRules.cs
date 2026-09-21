@@ -97,8 +97,9 @@ public sealed class OnionRules : IDcaRuleSet
             .Checking(
                 "Every dependency whose target has a namespace points into one of those same "
                 + "domain namespaces or below an allowed prefix: the layout's third-party "
-                + "allow-list (by default System and Microsoft.Extensions.Logging.Abstractions, "
-                + "plus whatever the layout adds) and the namespaces the configured marker "
+                + "allow-list (by default System only - a logging, validation or utility library "
+                + "is a project decision, added with WithThirdPartyNamespacesAllowedInDomain) and "
+                + "the namespaces the configured marker "
                 + "vocabulary declares its domain-facing roles in - the tactical roles and the "
                 + "outgoing ports, which for the default vocabulary are Ddd.Tactical and "
                 + "Hexagonal.Ports.Out. The vocabulary's own namespaces are on the list because "

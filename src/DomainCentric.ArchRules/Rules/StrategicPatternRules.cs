@@ -393,8 +393,8 @@ public sealed class StrategicPatternRules : IDcaRuleSet
                         + $": [{string.Join(", ", observed)}].",
                     new[]
                     {
-                        "Name the segments this code base uses: WithDomainSegment(...), WithApplicationSegment(...) "
-                            + "and WithAdapterSegment(...) on the layout, or the matching dca.layout.* properties.",
+                        "Name the segments this code base uses on the layout: WithDomainSegment(...), "
+                            + "WithApplicationSegment(...) and WithAdapterSegment(...).",
                         "Check that the root namespace passed to DcaLayout.ForRootNamespace is the one the modules "
                             + "live under, and that every assembly holding them is passed to Load.",
                         "A code base that deliberately has no layered module switches this rule off with a recorded "

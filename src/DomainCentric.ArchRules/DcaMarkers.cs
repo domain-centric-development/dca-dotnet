@@ -24,6 +24,13 @@ namespace DomainCentric.ArchRules;
 /// <c>[Upstream]</c>, <c>[Partnership]</c> and their siblings). The rules do not only select on them, they
 /// read their members — the context a relationship names, the dependencies a module allows — and a name
 /// alone does not carry members. Those attributes stay the library's own.</para>
+/// <para><b>A role names a type, never a method.</b> Four method names are fixed, and pointing a role at
+/// your own type does not rename them: <c>SaveAsync</c> and <c>DeleteByIdAsync</c> on the repository role,
+/// <c>PublishAndClearEventsAsync</c> on the domain-event-publisher role, and <c>RegisterEvent</c> on the
+/// aggregate root. The rules that reason about a unit of work — <c>DCA-USE-009</c>, <c>DCA-USE-012</c> and
+/// <c>DCA-TAC-021</c> — look for calls by those names. A vocabulary whose repository writes under another
+/// name is selected correctly and then found to save nothing, so those rules pass over it. Keep the names,
+/// or switch the affected ids off with a recorded reason.</para>
 /// </remarks>
 /// <param name="Name">The vocabulary's name (<c>dca</c>, or whatever a with-expression set). It appears in
 /// <see cref="DcaLayout.MarkersReport"/> and in <see cref="DcaLayout.ToString"/>, together with the roles that

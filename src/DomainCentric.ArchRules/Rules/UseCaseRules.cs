@@ -270,7 +270,7 @@ public sealed class UseCaseRules : IDcaRuleSet
                 + " the class and its nested state-machine and closure types, so async methods and"
                 + " lambdas are followed. Only PublishAndClearEventsAsync counts - PublishAsync(event),"
                 + " even followed by ClearDomainEvents(), does not. A use case without a save (a query,"
-                + " a bulk delete) is selected but has nothing to check and passes.");
+                + " a bulk delete) is selected but has nothing to check and passes. The method names are fixed and are not part of the marker roles: a vocabulary whose repository writes under another name is selected and then found to save nothing, so this rule passes over it.");
 
     public static IDcaRule MutatingUseCasesAreTransactional(DcaLayout layout) =>
         DcaRule.Check("DCA-USE-012", "Use cases that save an aggregate or publish domain events must have a transaction boundary",
@@ -303,7 +303,7 @@ public sealed class UseCaseRules : IDcaRuleSet
                 DcaRule.Fail("Use cases that save, delete or publish require transaction coverage", violations.Distinct().ToList());
             })
         .Selecting("Concrete application operations selected by IInputPort marker or suffix with loadable runtime types, including closure and async units.")
-        .Checking("Every entry path to a unit calling IRepository.SaveAsync, IRepository.DeleteByIdAsync or an IDomainEventPublisher crosses a unit calling ITransactionBoundary.InTransactionAsync (including its extension overloads) or carrying the configured TransactionalAttribute; a type-level attribute covers all paths. A use case that neither saves, deletes nor publishes (a query, a Store write) is selected but has nothing to check and passes. Static limit: a boundary call in the same unit passes even when the save or publication follows an empty boundary block. Runtime rollback containment must be tested separately.");
+        .Checking("Every entry path to a unit calling IRepository.SaveAsync, IRepository.DeleteByIdAsync or an IDomainEventPublisher crosses a unit calling ITransactionBoundary.InTransactionAsync (including its extension overloads) or carrying the configured TransactionalAttribute; a type-level attribute covers all paths. A use case that neither saves, deletes nor publishes (a query, a Store write) is selected but has nothing to check and passes. Static limit: a boundary call in the same unit passes even when the save or publication follows an empty boundary block. Runtime rollback containment must be tested separately. The method names are fixed and are not part of the marker roles: a vocabulary whose repository writes under another name is selected and then found to save nothing, so this rule passes over it.");
 
     /// <summary>
     /// The effect of a code unit that needs a transaction, worded for the violation, or <c>null</c>

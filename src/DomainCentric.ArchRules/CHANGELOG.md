@@ -4,6 +4,15 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+**No logging library in the domain by default.** `Microsoft.Extensions.Logging.Abstractions` leaves the
+`DCA-ONI-002` allow-list; the Java twin never had a logging facade in it, and one rule id cannot mean two
+policies. **This can turn a green build red** — a domain model that logs adds the namespace back with
+`WithThirdPartyNamespacesAllowedInDomain(...)`, which is the supported way to make that decision.
+
+**The four fixed method names are written down.** `SaveAsync`, `DeleteByIdAsync`,
+`PublishAndClearEventsAsync` and `RegisterEvent` are matched by name and are not marker roles. The three
+`Checks` texts and the `DcaMarkers` documentation now say so.
+
 **`DCA-NAM-006` now expects `*Resource`, as `dca-archunit` always did.** The same rule id demanded
 opposite class names in the two libraries: `Resource` in Java and the conventions the guide states,
 `Controller` here — so the same story produced differently named classes in the two reference samples,
