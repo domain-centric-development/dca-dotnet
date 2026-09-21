@@ -206,6 +206,37 @@ public void RenderContextMap() =>
 
 Because the rules guarantee declarations match the code, the rendered map cannot drift.
 
+## Compatibility
+
+| Runs on | Version | Tested against |
+|---|---|---|
+| .NET | 8.0 and 10.0 | both |
+| `DomainCentric.BuildingBlocks` | also `netstandard2.1` | — |
+| ArchUnitNET | 0.13.4 | 0.13.4 |
+| `DomainCentric.ArchRules.Xunit` | **xUnit v2 only** (`xunit.core` 2.x) | 2.9.3 |
+| Build configuration | **Debug** | see *Run against Debug builds* |
+
+**xUnit v3 is not supported by `DomainCentric.ArchRules.Xunit`.** The package compiles and restores
+against a v3 project without a warning, and then the runner discovers nothing from it: `dotnet test`
+exits 0, no architecture rule runs and the build stays green while nothing is checked. Since 0.5.0 the
+package refuses that combination with build error `DCA0001` rather than letting it pass silently.
+
+A v3 project runs the whole catalog without this package — reference `DomainCentric.ArchRules` alone
+and call the catalog from a test of your own:
+
+```csharp
+[Fact]
+public void ArchitectureRulesHold()
+{
+    var layout = DcaLayout.ForRootNamespace("Acme.Shop");
+    var architecture = DcaArchitecture.Load(layout, typeof(ArchitectureTests).Assembly);
+    DcaRules.CheckAll(architecture, DcaRuleSelection.All());
+}
+```
+
+That works on any test framework. What it does not give you is one test per rule in the report, which
+is the only thing the `.Xunit` package adds.
+
 ## Versioning
 
 Semantic versioning, independent per package family:

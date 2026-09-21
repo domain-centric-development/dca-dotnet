@@ -4,6 +4,14 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+**xUnit v3 no longer builds green while nothing runs.** `DomainCentric.ArchRules.Xunit` builds on
+`xunit.core` 2.x. On a v3 project it restored and compiled without a warning and then contributed no
+test: `dotnet test` exited 0 and all 123 architecture rules silently did not run. The package now ships
+a build target that stops such a project with error `DCA0001` and points at the supported path —
+`DomainCentric.ArchRules` alone plus `DcaRules.CheckAll` in a test of your own, which works on any
+framework. Set `DcaArchRulesXunitSkipVersionGuard=true` to build anyway. Both READMEs gained a
+compatibility table.
+
 **New rule `DCA-STR-012` — at least one module owns a DCA layer.** The third guard of the same kind as
 an empty import and an undeclared bounded context. A code base whose layers are named `core` and `usecases`
 instead of the configured segments yields no module root, so every rule that selects over the layers — the
