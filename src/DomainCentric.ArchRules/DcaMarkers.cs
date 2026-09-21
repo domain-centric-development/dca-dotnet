@@ -181,7 +181,52 @@ public sealed record DcaMarkers(string Name)
     /// <c>DCA-ERR-002</c> from reporting a foreign base type as an exception outside its layer.
     /// </summary>
     public IReadOnlyList<string> DeclaringNamespaces() =>
-        Roles().Select(r => r.Value)
+        NamespacesOf(Roles().Select(r => r.Value));
+
+    /// <summary>
+    /// The roles whose types a domain type may legitimately depend on: the tactical vocabulary and the
+    /// outgoing ports. The application-layer roles (<c>UseCaseException</c>, <c>TransactionBoundary</c>)
+    /// and the incoming ports (<c>InputPort</c>, <c>UseCase</c>) are deliberately absent — a domain type
+    /// reaching for one of them is the violation <c>DCA-ONI-002</c> exists to report.
+    /// </summary>
+    public static readonly IReadOnlyList<string> DomainFacingRoles = new[]
+    {
+        nameof(AggregateRoot),
+        nameof(Entity),
+        nameof(Value),
+        nameof(Id),
+        nameof(DomainEvent),
+        nameof(IntegrationEvent),
+        nameof(DomainService),
+        nameof(Factory),
+        nameof(DomainException),
+        nameof(OutputPort),
+        nameof(Repository),
+        nameof(Store),
+        nameof(DomainEventPublisher),
+        nameof(IntegrationEventPublisher),
+    };
+
+    /// <summary>
+    /// The namespaces of the named roles.
+    /// </summary>
+    /// <remarks>
+    /// This is what a rule asks for when it needs "the namespaces the vocabulary declares these types in"
+    /// rather than a hard-wired library namespace. With the default roles and <see cref="DomainFacingRoles"/>
+    /// it yields the building blocks' tactical and outgoing-port namespaces — exactly the two that used to be
+    /// written into <c>DCA-ONI-002</c> by hand — and with a project's own markers it yields the namespaces
+    /// those markers live in, so the project's vocabulary is not reported as a foreign library inside its own
+    /// domain. An unknown role name is ignored.
+    /// </remarks>
+    public IReadOnlyList<string> DeclaringNamespacesOf(IEnumerable<string> roleNames)
+    {
+        var roles = Roles().ToDictionary(r => r.Key, r => r.Value, StringComparer.Ordinal);
+        return NamespacesOf(roleNames.Select(name => roles.TryGetValue(name, out var fqn) ? fqn : null)
+            .Where(fqn => fqn is not null)!);
+    }
+
+    private static IReadOnlyList<string> NamespacesOf(IEnumerable<string> fullyQualifiedNames) =>
+        fullyQualifiedNames
             .Select(fqn => fqn.Contains('.') ? fqn[..fqn.LastIndexOf('.')] : "")
             .Where(ns => ns.Length > 0)
             .Distinct(StringComparer.Ordinal)

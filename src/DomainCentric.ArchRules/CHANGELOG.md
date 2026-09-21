@@ -4,6 +4,13 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+**`DCA-ONI-002` no longer reports a project's own marker vocabulary.** The rule named the two
+building-blocks namespaces directly, so a project that pointed the roles at its own markers was told
+its aggregate root was a forbidden third-party dependency inside its own domain. The allowed
+namespaces are now derived from the configured roles
+(`DcaMarkers.DeclaringNamespacesOf(DcaMarkers.DomainFacingRoles)`); with the default roles this
+yields exactly the two namespaces that were written in by hand. Matches `dca-archunit`.
+
 **Every violation now names its rule.** A report line used to carry the offending element and, for the five
 `DCA-ERR` rules, the id written into the header by hand; the other rules named it nowhere. `DcaRuleExecution`
 now prefixes every line of every report with `[DCA-XXX-nnn]`, matching `dca-archunit`. Nothing about a rule's

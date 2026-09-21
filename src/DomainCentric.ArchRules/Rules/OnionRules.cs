@@ -69,11 +69,14 @@ public sealed class OnionRules : IDcaRuleSet
             {
                 var domain = new Regex(DcaLayout.AnyOf(arch.AllDomainPatterns()));
                 // The layout's allow-list may name the whole building-blocks namespace (the default does, so
-                // that attribute rules accept every marker); for *dependencies* only the tactical markers and
-                // the output ports belong in the domain - strategic annotations and input ports do not.
+                // that attribute rules accept every marker); for *dependencies* only the namespaces the
+                // configured vocabulary declares its domain-facing roles in belong in the domain - the
+                // application-layer roles, the strategic attributes and the input ports do not. Derived from
+                // the roles rather than hard-wired, so a project that points the roles at its own markers is
+                // not reported as depending on a foreign library inside its own domain.
                 var allowedPrefixes = Layout.ThirdPartyNamespacesAllowedInDomain
                     .Where(p => !DcaLayout.IsBelow(p, DcaLayout.BuildingBlocksNamespace))
-                    .Concat(new[] { DcaLayout.BuildingBlocksTacticalNamespace, DcaLayout.BuildingBlocksPortsOutNamespace })
+                    .Concat(Layout.Markers.DeclaringNamespacesOf(DcaMarkers.DomainFacingRoles))
                     .ToList();
                 bool Allowed(string ns) => domain.IsMatch(ns) || allowedPrefixes.Any(p => DcaLayout.IsBelow(ns, p));
 
@@ -95,12 +98,17 @@ public sealed class OnionRules : IDcaRuleSet
                 "Every dependency whose target has a namespace points into one of those same "
                 + "domain namespaces or below an allowed prefix: the layout's third-party "
                 + "allow-list (by default System and Microsoft.Extensions.Logging.Abstractions, "
-                + "plus whatever the layout adds) and, of the building blocks, only Ddd.Tactical "
-                + "and Hexagonal.Ports.Out - a building-blocks entry in the allow-list is ignored "
-                + "here, so the strategic annotations and the input ports are not allowed in the "
-                + "domain. The shared kernel is not on the list either, unless it is a module root "
-                + "with a Domain layer of its own. A dependency on any other namespace is reported, "
-                + "each distinct pair once.");
+                + "plus whatever the layout adds) and the namespaces the configured marker "
+                + "vocabulary declares its domain-facing roles in - the tactical roles and the "
+                + "outgoing ports, which for the default vocabulary are Ddd.Tactical and "
+                + "Hexagonal.Ports.Out. The vocabulary's own namespaces are on the list because "
+                + "they are derived from the roles, so pointing a role at another library's type "
+                + "does not make that library a reported dependency. A building-blocks entry in "
+                + "the allow-list is ignored here, so the strategic attributes, the "
+                + "application-layer roles and the input ports are not allowed in the domain. The "
+                + "shared kernel is not on the list either, unless it is a module root with a "
+                + "Domain layer of its own. A dependency on any other namespace is reported, each "
+                + "distinct pair once.");
     }
 
     /// <summary>Domain-model metadata is classified by configured prohibited roles.</summary>

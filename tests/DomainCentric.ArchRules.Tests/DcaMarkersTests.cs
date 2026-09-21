@@ -16,6 +16,19 @@ public sealed class DcaMarkersTests
     /// <summary>The same vocabulary, in a tree whose domain failure sits in an incoming adapter.</summary>
     private const string Misplaced = "DomainCentric.ArchRules.Tests.Fixtures.OwnMarkersBad";
 
+    /// <summary>The same vocabulary in a tree that violates nothing — the adoption path as documented.</summary>
+    private const string Clean = "DomainCentric.ArchRules.Tests.Fixtures.OwnMarkersClean";
+
+    private const string CleanVocabulary = Clean + ".Vocabulary";
+
+    private static readonly DcaMarkers OwnClean = DcaMarkers.Dca() with
+    {
+        Name = "own",
+        AggregateRoot = CleanVocabulary + ".IContractRoot",
+        Repository = CleanVocabulary + ".IContractStore",
+        DomainException = CleanVocabulary + ".ContractFailure",
+    };
+
     private static readonly DcaMarkers Own = DcaMarkers.Dca() with
     {
         Name = "own",
@@ -123,5 +136,28 @@ public sealed class DcaMarkersTests
             () => (DcaMarkers.Dca() with { Repository = "" }).Validate());
 
         Assert.Contains("Repository", refused.Message);
+    }
+
+    /// <summary>
+    /// The documented adoption path does not report the vocabulary it was pointed at. <c>DCA-ONI-002</c>
+    /// used to name the two building-blocks namespaces directly, so a project that put its own markers into
+    /// the roles was told its own aggregate root was a forbidden third-party dependency inside its own
+    /// domain — one violation per aggregate, value object and domain exception, on the very first run.
+    /// </summary>
+    [Fact]
+    public void OwnVocabularyIsNotAForeignDependencyInTheDomain() =>
+        Rule(Clean, OwnClean, "DCA-ONI-002").Check(Arch(Clean, OwnClean));
+
+    /// <summary>
+    /// The contrast that shows the roles are what decides it: with the roles left at the library's own
+    /// markers, the same tree's vocabulary is a foreign dependency and is reported.
+    /// </summary>
+    [Fact]
+    public void AnUnconfiguredVocabularyIsStillAForeignDependency()
+    {
+        var failure = Assert.Throws<DcaRuleViolationException>(
+            () => Rule(Clean, DcaMarkers.Dca(), "DCA-ONI-002").Check(Arch(Clean, DcaMarkers.Dca())));
+
+        Assert.Contains("IContractRoot", failure.Message, StringComparison.Ordinal);
     }
 }
