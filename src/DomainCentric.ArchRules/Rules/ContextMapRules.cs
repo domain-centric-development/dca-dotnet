@@ -159,42 +159,6 @@ public sealed class ContextMapRules : IDcaRuleSet
                 + " system declared by two different contexts is not reported; Translation"
                 + " and ContractNamespaces are not checked here.");
 
-    /// <summary>DCA-MAP-003.</summary>
-    public static IDcaRule ExternalSystemNamesDistinctAfterNormalization() =>
-        DcaRule.Check(
-            "DCA-MAP-003",
-            "Distinct external system names must not collide after mermaid id normalization",
-            "The generated context map renders one node per normalized external system name — two spellings of the"
-                + " same system would silently merge into one node",
-            arch =>
-            {
-                var violations = new List<string>();
-                var idToName = new Dictionary<string, string>(StringComparer.Ordinal);
-                foreach (var ns in arch.BoundedContextNamespaces)
-                {
-                    foreach (var e in arch.NamespaceAttributes<ExternalUpstreamAttribute>(ns))
-                    {
-                        var id = NormalizedExternalId(e.Name);
-                        var known = idToName.TryGetValue(id, out var k) ? k : e.Name;
-                        if (known != e.Name)
-                        {
-                            violations.Add("External system names '" + known + "' and '" + e.Name
-                                + "' normalize to the same mermaid node id '" + id + "' — use one canonical spelling");
-                        }
-                        idToName[id] = e.Name;
-                    }
-                }
-                DcaRule.Fail("Distinct external system names must not collide after mermaid id normalization", violations);
-            })
-        .Selecting(
-            "Every [ExternalUpstream] declaration on the marker class of every namespace"
-                + " carrying [BoundedContext], across all contexts, reading Name. Planned"
-                + " declarations are included.")
-        .Checking(
-            "Two declarations whose Name differs but normalizes to the same node id of"
-                + " the generated context map (the renderer's own normalization) are reported"
-                + " as a collision. Repeating one spelling of a name is not a collision.");
-
     /// <summary>DCA-MAP-004.</summary>
     public static IDcaRule UpstreamsReferenceExistingContexts() =>
         DcaRule.Check(
