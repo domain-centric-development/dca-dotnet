@@ -185,6 +185,26 @@ public sealed class DcaLayout
     /// </summary>
     public IReadOnlyList<string> ThirdPartyNamespacesAllowedInDomain { get; }
 
+    /// <summary>Where the layout's <see cref="FrameworkTypes"/> came from.</summary>
+    public enum FrameworkTypesOrigin
+    {
+        /// <summary>Nobody said; the library's default preset applies.</summary>
+        Default,
+
+        /// <summary>Selected by name, e.g. <c>dca.framework=none</c> in the properties file.</summary>
+        Preset,
+
+        /// <summary>Set in code with <see cref="WithFrameworkTypes"/>, which always wins over the file.</summary>
+        Explicit,
+    }
+
+    /// <summary>
+    /// Where <see cref="FrameworkTypes"/> came from. <c>dca.framework</c> from the properties file is
+    /// applied only when this is <see cref="FrameworkTypesOrigin.Default"/>: a layout that names its
+    /// framework types in code is not overridden by a file.
+    /// </summary>
+    public FrameworkTypesOrigin FrameworkTypesSource { get; private init; } = FrameworkTypesOrigin.Default;
+
     /// <summary>
     /// The framework types the rules look for, by role — <see cref="FrameworkTypes.AspNetCore"/> (default),
     /// <see cref="FrameworkTypes.None"/>, or an adjusted preset. The preset in use is part of <see cref="ToString"/>.
@@ -260,7 +280,41 @@ public sealed class DcaLayout
     public DcaLayout AllowingInDomain(params string[] prefixes) =>
         Copy(thirdParty: ThirdPartyNamespacesAllowedInDomain.Concat(prefixes).ToArray());
 
-    public DcaLayout WithFrameworkTypes(FrameworkTypes value) => Copy(frameworkTypes: value);
+    public DcaLayout WithFrameworkTypes(FrameworkTypes value) =>
+        Copy(frameworkTypes: value, frameworkTypesSource: FrameworkTypesOrigin.Explicit);
+
+    /// <summary>
+    /// <paramref name="layout"/> with <c>dca.framework=&lt;name&gt;</c> from the given properties applied —
+    /// unless the layout names its framework types in code, which always wins. Mirrors
+    /// <c>dca-archunit</c>'s handling of the same key.
+    /// </summary>
+    public static DcaLayout ApplyConfiguredFramework(DcaLayout layout, IReadOnlyDictionary<string, string> properties)
+    {
+        ArgumentNullException.ThrowIfNull(layout);
+        ArgumentNullException.ThrowIfNull(properties);
+        if (!properties.TryGetValue("dca.framework", out var name) || string.IsNullOrWhiteSpace(name))
+        {
+            return layout;
+        }
+
+        return layout.FrameworkTypesSource == FrameworkTypesOrigin.Explicit
+            ? layout
+            : layout.WithFrameworkPreset(name.Trim());
+    }
+
+    /// <summary>
+    /// The preset registered under the given name — <c>aspnetcore</c> or <c>none</c>. This is what
+    /// <c>dca.framework=&lt;name&gt;</c> in <c>dca-archunit.properties</c> applies; an unknown name fails,
+    /// a typo must not fall back silently. Matches <c>dca-archunit</c>'s <c>withFrameworkPreset</c>.
+    /// </summary>
+    public DcaLayout WithFrameworkPreset(string name)
+    {
+        var preset = FrameworkTypes.Preset(name)
+            ?? throw new ArgumentException(
+                $"No framework preset named '{name}' - known: {string.Join(", ", FrameworkTypes.PresetNames)}",
+                nameof(name));
+        return Copy(frameworkTypes: preset, frameworkTypesSource: FrameworkTypesOrigin.Preset);
+    }
 
     /// <summary>The building-block types the rules select on, by role.</summary>
     public DcaLayout WithMarkers(DcaMarkers value) => Copy(markers: value);
@@ -283,7 +337,8 @@ public sealed class DcaLayout
         IReadOnlyList<string>? operationContainers = null,
         string? model = null,
         string? incomingEvent = null,
-        DcaMarkers? markers = null) =>
+        DcaMarkers? markers = null,
+        FrameworkTypesOrigin? frameworkTypesSource = null) =>
         new(
             RootNamespace,
             sharedKernel ?? SharedKernelSegment,
@@ -303,7 +358,10 @@ public sealed class DcaLayout
             operationContainers ?? OperationContainers,
             model ?? ModelSegment,
             incomingEvent ?? IncomingEventSegment,
-            markers ?? Markers);
+            markers ?? Markers)
+        {
+            FrameworkTypesSource = frameworkTypesSource ?? FrameworkTypesSource,
+        };
 
     // ---------------------------------------------------------------------------------------------
     // Derived namespace names and patterns

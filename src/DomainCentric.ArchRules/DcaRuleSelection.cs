@@ -186,7 +186,7 @@ public sealed class DcaRuleSelection
     /// expression for the same rule uses an indexed key (<c>.ignore.1</c>, <c>.ignore.2</c>, …, applied
     /// after the unindexed one, in numeric order). Lists of rule ids and set names are comma-separated.
     /// An unknown rule identifier or set name fails immediately — a typo must not silently leave a rule
-    /// enforced. <c>dca.rules.freeze*</c> is not supported on .NET and fails with an explanatory message.
+    /// enforced. <c>dca.rules.freeze*</c> is not supported yet and fails with an explanatory message.
     /// </summary>
     public static DcaRuleSelection FromFile(string path) => FromProperties(ReadProperties(path));
 
@@ -199,8 +199,9 @@ public sealed class DcaRuleSelection
         foreach (var key in properties.Keys.Where(k => k.StartsWith("dca.rules.freeze", StringComparison.Ordinal)))
         {
             throw new ArgumentException(
-                $"'{key}' is not supported on .NET: ArchUnitNET has no equivalent of ArchUnit's FreezingArchRule. "
-                + "Lower the rule to a warning (dca.rules.warn) instead.");
+                $"'{key}' is not supported yet: the rules of this library do not expose the ArchUnitNET rule "
+                + "behind them, so there is nothing for ArchUnitNET's FreezingArchRule to build a baseline "
+                + "from. Lower the rule to a warning (dca.rules.warn) instead.");
         }
 
         var sets = Split(Value(properties, "dca.rules.sets"));
@@ -346,6 +347,19 @@ public sealed class DcaRuleSelection
         string.IsNullOrWhiteSpace(value)
             ? Array.Empty<string>()
             : value.Split(',').Select(p => p.Trim()).Where(p => p.Length > 0).ToList();
+
+    /// <summary>
+    /// The key/value pairs of <c>dca-archunit.properties</c> in the given directory, or an empty map when
+    /// the file is absent. Exposed so that settings outside the rule selection — <c>dca.framework</c>,
+    /// read by <see cref="DcaLayout.ApplyConfiguredFramework"/> — come from the same file and parser.
+    /// </summary>
+    public static IReadOnlyDictionary<string, string> PropertiesFrom(string directory)
+    {
+        var file = Path.Combine(directory, DefaultFileName);
+        return File.Exists(file)
+            ? ReadProperties(file)
+            : new Dictionary<string, string>(StringComparer.Ordinal);
+    }
 
     private static IReadOnlyDictionary<string, string> ReadProperties(string path)
     {

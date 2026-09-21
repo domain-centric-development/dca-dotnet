@@ -125,7 +125,12 @@ dca.rules.warn              = DCA-TAC-009
 dca.rules.warn.sets         = naming
 dca.rule.DCA-STR-003.ignore = .*Legacy.*
 dca.rule.DCA-STR-003.ignore.1 = Generated.{1,3}Client
+dca.framework               = none
 ```
+
+`dca.framework` selects the framework preset by name — `aspnetcore` (the default) or `none`. An
+unknown name fails and lists the known ones. A layout that names its framework types in code with
+`WithFrameworkTypes(...)` always wins over the file.
 
 An unknown rule id or set name fails the run immediately — a typo must never leave a rule silently
 enforced. The value of an `.ignore` key is **one** regular expression, commas included; a second
@@ -135,8 +140,9 @@ Both sources combine: the file is the base, `AdditionalSelection` is merged on t
 wins per rule id. Override `AdditionalSelection`, not `Selection` — the latter *replaces* the file, so
 a `dca-archunit.properties` added later would be ignored without a word.
 
-**Three differences from the Java library.** There is no baseline dial (`frozen` /
-`dca.rules.freeze`): ArchUnitNET has no equivalent of ArchUnit's `FreezingArchRule`, and the properties
+**Three differences from the Java library.** There is no baseline dial yet (`frozen` /
+`dca.rules.freeze`). ArchUnitNET does ship a `FreezingArchRule`, but the rules of this library do not
+expose the ArchUnitNET rule behind them, so there is nothing to build a baseline from; the properties
 key is rejected with a message saying so — lower those rules to a warning instead. Because xUnit v2
 cannot skip a test dynamically, a rule at `WARN` or `OFF` is reported green rather than skipped. And
 only the **file** shapes the report: theory cases are built statically, before an instance exists, so a

@@ -77,6 +77,26 @@ public sealed record FrameworkTypes(
     /// </summary>
     public static FrameworkTypes None() => new("none", "", "", "", "");
 
+    /// <summary>The names the presets are known under, for <c>dca.framework</c> and error messages.</summary>
+    public static IReadOnlyList<string> PresetNames { get; } = Array.AsReadOnly(new[] { "aspnetcore", "none" });
+
+    /// <summary>
+    /// The preset registered under the given name, or <c>null</c> when there is none. This is what
+    /// <c>dca.framework=&lt;name&gt;</c> in <c>dca-archunit.properties</c> resolves, matching
+    /// <c>dca-archunit</c>'s <c>FrameworkAnnotations.preset(name)</c>. Names are compared
+    /// case-insensitively.
+    /// </summary>
+    /// <remarks>
+    /// Unlike the Java library this has no provider SPI yet: a framework without a preset here is
+    /// configured in code with a <c>with</c> expression on <see cref="None"/>.
+    /// </remarks>
+    public static FrameworkTypes? Preset(string name) => (name ?? "").Trim().ToLowerInvariant() switch
+    {
+        "aspnetcore" => AspNetCore(),
+        "none" => None(),
+        _ => null,
+    };
+
     /// <summary>Whether a role is configured (non-blank).</summary>
     public static bool IsSet(string role) => !string.IsNullOrWhiteSpace(role);
 

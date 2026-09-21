@@ -4,6 +4,22 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+**`dca.framework` works here too.** The Java library lets `dca-archunit.properties` select a framework
+preset by name; .NET only accepted one in code. `dca.framework=aspnetcore|none` is now read from the
+same file, an unknown name fails and lists the known ones, and a layout that sets its framework types
+in code always wins over the file. New: `FrameworkTypes.Preset(name)`, `FrameworkTypes.PresetNames`,
+`DcaLayout.WithFrameworkPreset(name)`, `DcaLayout.FrameworkTypesSource`,
+`DcaLayout.ApplyConfiguredFramework(layout, properties)` and `DcaRuleSelection.PropertiesFrom(directory)`
+— the last two so a project running the catalog without the xUnit package gets the same behaviour.
+Unlike the Java side there is still no provider SPI: a framework without a preset is built up in code
+from `FrameworkTypes.None()`.
+
+**Corrected: why `dca.rules.freeze` is refused.** The message claimed ArchUnitNET has no equivalent of
+ArchUnit's `FreezingArchRule`. It does — `ArchUnitNET.Fluent.Freeze` ships `FreezingArchRule`,
+`IViolationStore`, `JsonViolationStore` and `XmlViolationStore`. The real obstacle is this library:
+`IDcaRule` does not expose the ArchUnitNET rule behind a check, so there is nothing to build a baseline
+from. The message and the README now say that instead.
+
 **`DCA-ERR-002` and `DCA-ERR-003` no longer both report the same exception.** A subtype of
 `DomainException` declared in an application namespace was reported twice, with contradictory
 remedies. `DCA-ERR-002` owns the case; `DCA-ERR-003` no longer selects domain-exception subtypes.
