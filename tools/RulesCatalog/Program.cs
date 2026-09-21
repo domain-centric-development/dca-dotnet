@@ -30,8 +30,20 @@ foreach (var set in ruleSets)
 
 entries = entries.OrderBy(e => ruleSets.ToList().FindIndex(s => s.Name == e.Set)).ThenBy(e => e.Id, StringComparer.Ordinal).ToList();
 
+// The catalog records which release its rule texts belong to, so that a consumer of rules.json — the
+// knowledge catalog, an agent, a rendered rule list — can tell which version a text came from. Taken
+// from the DomainCentric.ArchRules assembly that produced the entries, never typed in here.
+var libraryVersion =
+    typeof(DcaRules).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+    ?? typeof(DcaRules).Assembly.GetName().Version?.ToString()
+    ?? "unspecified";
+if (libraryVersion.Contains('+', StringComparison.Ordinal))
+{
+    libraryVersion = libraryVersion[..libraryVersion.IndexOf('+', StringComparison.Ordinal)];
+}
+
 var json = JsonSerializer.Serialize(
-    new { rules = entries.Select(e => e.Status != "n/a"
+    new { library = "DomainCentric.ArchRules", version = libraryVersion, rules = entries.Select(e => e.Status != "n/a"
         ? (object)new { set = e.Set, id = e.Id, title = e.Title, rationale = e.Rationale, selects = e.Selects, checks = e.Checks, implementation = "dotnet", status = e.Status }
         : new { set = e.Set, id = e.Id, status = "n/a", reason = e.Reason }), retired = DcaRules.Retired().OrderBy(e => e.Key).Select(e => new { id = e.Key, reason = e.Value.Reason, replacement = e.Value.Replacement, since = e.Value.Since }) },
     new JsonSerializerOptions { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });

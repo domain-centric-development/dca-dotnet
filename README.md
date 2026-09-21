@@ -10,7 +10,7 @@ same building blocks, same rule ids.
 | Package | What it is | Dependencies |
 |---------|------------|--------------|
 | `DomainCentric.BuildingBlocks` | The building blocks your code implements: DDD tactical markers (`IAggregateRoot`, `IEntity`, `IValue`, `IDomainEvent`, …), strategic attributes (`[BoundedContext]`, `[SharedKernel]`, `[Upstream]`, `[Partnership]`, …) and hexagonal port interfaces (`IUseCase`, `IRepository`, `IStore`, …) | none (`netstandard2.1`, `net8.0`, `net10.0`) |
-| `DomainCentric.ArchRules` | The governance rules: ~100 ArchUnitNET rules pinned to those building blocks, plus an executable context map | `DomainCentric.BuildingBlocks`, ArchUnitNET (`net8.0`, `net10.0`) |
+| `DomainCentric.ArchRules` | The governance rules: 127 ArchUnitNET rules pinned to those building blocks, plus an executable context map | `DomainCentric.BuildingBlocks`, ArchUnitNET (`net8.0`, `net10.0`) |
 | `DomainCentric.ArchRules.Xunit` | xUnit base class — one theory case per rule | `DomainCentric.ArchRules`, xunit.core |
 
 Versions are independent per package family; see [Versioning](#versioning).
@@ -167,6 +167,11 @@ blind spot.
 
 ## Rule catalog
 
+**127 rule ids in 12 sets: 119 enforced, 5 informational, 3 not applicable in .NET.** Three further ids are retired and keep their meaning in the retirement list. The
+exact, current list is [RULES.md](RULES.md) and [rules.json](rules.json), both generated from the code
+by `dotnet run --project tools/RulesCatalog -- .` and verified in CI; every number in this README is
+taken from there. `rules.json` names the package version its texts belong to.
+
 Rule sets and identifier prefixes (identical to dca-java, so guide, catalog and tooling can speak of
 one rule across both languages):
 
@@ -237,16 +242,39 @@ public void ArchitectureRulesHold()
 That works on any test framework. What it does not give you is one test per rule in the report, which
 is the only thing the `.Xunit` package adds.
 
+## Public API
+
+What a consumer may rely on, and what may change in a patch:
+
+| Public — covered by the versioning promise | Internal — may change without notice |
+|---|---|
+| The **rule ids** and their meaning, `rules.json` and `RULES.md` | The rule-set classes (`TacticalPatternRules`, `UseCaseRules`, …) and their factory methods |
+| `DcaLayout`, `DcaMarkers`, `FrameworkTypes` and the preset SPI | The `Rules` namespace as a whole, and every helper in it |
+| `DcaArchitecture`, `DcaRules`, `DcaRuleSelection`, `DcaRuleExecution`, `DcaRuleOutcome`, `DcaSeverity` | The wording of a violation message, beyond the `[DCA-XXX-nnn]` prefix every line carries |
+| `IDcaRule` as a type to read — `Id`, `Title`, `Rationale`, `Selects`, `Checks` | The retired rules' implementations, which exist only so an old reference still compiles |
+| `DomainCentric.BuildingBlocks` — every marker and port type | Test fixtures, and anything under an `Internal` namespace |
+| The xUnit base class `DcaArchitectureTest` (xUnit v2 — see *Compatibility*) | |
+
+The rule-set classes are `public` because the catalog tool and the xUnit integration live outside
+their namespace, not because they are meant to be called directly. Build a run through `DcaRules` and
+a `DcaRuleSelection`; that is the supported entry point, and the one that applies severities and
+tolerated violations.
+
 ## Versioning
 
 Semantic versioning, independent per package family:
 
 - `DomainCentric.BuildingBlocks` — rarely changes; a new marker is a minor bump, a removed or renamed
   one a major bump.
-- `DomainCentric.ArchRules` (+ `.Xunit`, released together) — a new rule is a minor bump (it can fail
-  your build — pin versions), a tightened rule is a major bump, a relaxed rule or fixed false positive
-  a patch. **Before 1.0** a minor version may add and tighten rules as well; every such change is listed
-  under *Changed — breaking* in the changelog, with a migration note at the top of the release.
+- `DomainCentric.ArchRules` (+ `.Xunit`, released together) — **from 1.0 on, a new or tightened rule is
+  a major bump.** Adding a rule can turn a green build red, and SemVer calls that breaking however small
+  the change is. A relaxed rule, a fixed false positive and a clearer message are patches. **Before 1.0**
+  a minor version may add and tighten rules, which is what 0.x is for: every such change is listed under
+  *What can turn a green build red* in the changelog, with a migration note at the top of the release.
+  Either way, pin the version.
+- **Rule ids are the stable contract.** An id is never reused for a different check and never
+  renumbered. A withdrawn rule keeps its id in the retirement list of `rules.json` with the reason and
+  its replacement, so a `dca.rules.off` entry or a catalog reference never silently means something else.
 
 Tags: `building-blocks/vX.Y.Z`, `archrules/vX.Y.Z`; the release procedure is in [RELEASING.md](RELEASING.md). Changelogs: [src/DomainCentric.BuildingBlocks/CHANGELOG.md](src/DomainCentric.BuildingBlocks/CHANGELOG.md), [src/DomainCentric.ArchRules/CHANGELOG.md](src/DomainCentric.ArchRules/CHANGELOG.md).
 

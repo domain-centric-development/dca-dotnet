@@ -4,6 +4,12 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+**The packages carry the version they will ship as, and `rules.json` says which release its texts
+belong to.** `DomainCentric.ArchRules` and `.Xunit` are `0.5.0`, `DomainCentric.BuildingBlocks` `0.2.0`
+for the two new exception base types. `rules.json` gained `library` and `version` at the top, read from
+the assembly that produced the entries. The README now states the public API surface, the versioning
+promise after 1.0 — a new or tightened rule is a major bump — and the exact rule counts.
+
 **xUnit v3 no longer builds green while nothing runs.** `DomainCentric.ArchRules.Xunit` builds on
 `xunit.core` 2.x. On a v3 project it restored and compiled without a warning and then contributed no
 test: `dotnet test` exited 0 and all 123 architecture rules silently did not run. The package now ships
