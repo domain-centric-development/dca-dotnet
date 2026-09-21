@@ -10,7 +10,7 @@ same building blocks, same rule ids.
 | Package | What it is | Dependencies |
 |---------|------------|--------------|
 | `DomainCentric.BuildingBlocks` | The building blocks your code implements: DDD tactical markers (`IAggregateRoot`, `IEntity`, `IValue`, `IDomainEvent`, …), strategic attributes (`[BoundedContext]`, `[SharedKernel]`, `[Upstream]`, `[Partnership]`, …) and hexagonal port interfaces (`IUseCase`, `IRepository`, `IStore`, …) | none (`netstandard2.1`, `net8.0`, `net10.0`) |
-| `DomainCentric.ArchRules` | The governance rules: 127 ArchUnitNET rules pinned to those building blocks, plus an executable context map | `DomainCentric.BuildingBlocks`, ArchUnitNET (`net8.0`, `net10.0`) |
+| `DomainCentric.ArchRules` | The governance rules: 125 ArchUnitNET rules pinned to those building blocks, plus an executable context map | `DomainCentric.BuildingBlocks`, ArchUnitNET (`net8.0`, `net10.0`) |
 | `DomainCentric.ArchRules.Xunit` | xUnit base class — one theory case per rule | `DomainCentric.ArchRules`, xunit.core |
 
 Versions are independent per package family; see [Versioning](#versioning).
