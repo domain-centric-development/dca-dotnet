@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using ArchUnitNET.Domain;
 using ArchUnitNET.Fluent;
+using ArchUnitNET.Fluent.Conditions;
 using ArchUnitNET.Domain.Extensions;
 using System.Reflection;
 using DomainCentric.BuildingBlocks.Ddd.Tactical;
@@ -105,7 +106,7 @@ public sealed class HexagonalRules : IDcaRuleSet
             "Controllers must go through use cases (input ports), never directly to repositories",
             arch => Classes().That().FollowCustomPredicate(c => IsController(c, Layout), "are controllers")
                 .Should().NotDependOnAnyTypesThat()
-                .FollowCustomPredicate(t => t.IsAssignableTo(typeof(IRepository).FullName!), "are repositories"))
+                .FollowCustomPredicate(t => t.IsAssignableTo(arch.Layout.Markers.Repository), "are repositories"))
         .Selecting(
             "Controller classes anywhere in the loaded assemblies: a class whose name ends with"
                 + " the configured controller suffix or the configured REST-controller suffix, one deriving"
@@ -243,7 +244,9 @@ public sealed class HexagonalRules : IDcaRuleSet
                 + " are part of their enclosing port's contract, not ports themselves",
             arch => Interfaces().That().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllSharedOutputPortPatterns()))
                 .And().FollowCustomPredicate(i => !i.IsNested, "are top-level interfaces")
-                .Should().BeAssignableTo(typeof(IOutputPort)))
+                .Should().FollowCustomCondition(
+                    i => new ConditionResult(i, i.IsAssignableTo(arch.Layout.Markers.OutputPort), $"{i.FullName} is not assignable to {arch.Layout.Markers.OutputPort}"),
+                    "be assignable to the configured output-port marker"))
         .Selecting(
             "Top-level interfaces in <module>.Application.Shared of every module root."
                 + " Nested interfaces are not selected - they belong to their enclosing port's"
@@ -252,7 +255,11 @@ public sealed class HexagonalRules : IDcaRuleSet
             "The interface is assignable to IOutputPort, directly or through IRepository,"
                 + " IStore, IDomainEventPublisher, IIntegrationEventPublisher or another IOutputPort"
                 + " sub-interface. Classes, records and enums in Application.Shared are not checked."
-                + " An empty selection passes.");
+                + " An empty selection passes. The rule presumes the vocabulary has a common port"
+                + " root: OutputPort must be set whenever any port role is, because every port of"
+                + " the project is measured against it. A vocabulary that has no such root has"
+                + " nothing this rule can assert - switch the id off rather than pointing the role"
+                + " at an unrelated type.");
 
     public IDcaRule OutputPortsMustNotResideInDomain() =>
         DcaRule.Of(
@@ -260,7 +267,7 @@ public sealed class HexagonalRules : IDcaRuleSet
             "Output ports must not reside in the domain layer",
             "output ports (IRepository, IStore, IOutputPort) are an application-layer concern and must live"
                 + " in Application/Shared/, not Domain/",
-            arch => Interfaces().That().AreAssignableTo(typeof(IOutputPort))
+            arch => Interfaces().That().FollowCustomPredicate(i => i.IsAssignableTo(arch.Layout.Markers.OutputPort), "are output ports")
                 .Should().NotResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns())))
         .Selecting(
             "Interfaces anywhere in the loaded assemblies that are assignable to"
@@ -326,7 +333,7 @@ public sealed class HexagonalRules : IDcaRuleSet
                 {
                     var services = adapter.Dependencies
                         .Select(d => d.Target)
-                        .Where(t => !t.IsGenericParameter && IsAssignableTo(arch, t, typeof(IDomainService)))
+                        .Where(t => !t.IsGenericParameter && IsAssignableTo(arch, t, arch.Layout.Markers.DomainService))
                         .Select(t => t.FullName);
                     var runtime = arch.RuntimeType(adapter);
                     if (runtime is not null)
@@ -335,7 +342,7 @@ public sealed class HexagonalRules : IDcaRuleSet
                             .GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
                             .SelectMany(c => c.GetParameters())
                             .Select(p => p.ParameterType)
-                            .Where(t => typeof(IDomainService).IsAssignableFrom(t))
+                            .Where(t => DcaMarkers.IsAssignableToByName(t, arch.Layout.Markers.DomainService))
                             .Select(t => t.FullName!));
                     }
 
@@ -361,20 +368,20 @@ public sealed class HexagonalRules : IDcaRuleSet
 
     /// <summary>A use case implementation: a class (never an interface) behind an <see cref="IInputPort"/>.</summary>
     private static bool IsUseCaseImplementation(DcaArchitecture arch, IType type) =>
-        type is Class && !type.IsGenericParameter && IsAssignableTo(arch, type, typeof(IInputPort));
+        type is Class && !type.IsGenericParameter && IsAssignableTo(arch, type, arch.Layout.Markers.InputPort);
 
     private static bool InNamespace(IType type, string pattern) =>
         type.Namespace is not null && Regex.IsMatch(type.Namespace.FullName, pattern);
 
-    private static bool IsAssignableTo(DcaArchitecture arch, IType type, Type marker)
+    private static bool IsAssignableTo(DcaArchitecture arch, IType type, string marker)
     {
-        var markerName = marker.FullName!;
+        var markerName = marker;
         if (type.FullName == markerName || type.ImplementsInterface(markerName) || type.IsAssignableTo(markerName))
         {
             return true;
         }
 
         var runtime = arch.RuntimeType(type);
-        return runtime is not null && marker.IsAssignableFrom(runtime);
+        return runtime is not null && DcaMarkers.IsAssignableToByName(runtime, marker);
     }
 }

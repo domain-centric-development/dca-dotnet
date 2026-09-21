@@ -116,7 +116,8 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Strategic.Good.Cart.Adapter.Out
     }
 }
 
-namespace DomainCentric.ArchRules.Tests.Fixtures.Strategic.Good.Cart.Adapter.Incoming.Event.Acl
+// An anti-corruption layer lives in the incoming adapter; no Acl segment is required.
+namespace DomainCentric.ArchRules.Tests.Fixtures.Strategic.Good.Cart.Adapter.Incoming.Event
 {
     using Good.Catalog.Events;
 

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using DomainCentric.ArchRules.Rules;
@@ -48,13 +49,19 @@ public sealed class TacticalPatternRulesTests
         Assert.False(string.IsNullOrWhiteSpace(ex.Message));
     }
 
-    /// <summary>A static port breaks persistence ignorance (TAC-002); a static same-type member holds no aggregate (TAC-003).</summary>
+    /// <summary>
+    /// A static port breaks persistence ignorance (TAC-002); a static member is not instance state, so
+    /// TAC-003, TAC-007 and TAC-008 all pass over one. The three read the same thing, in both languages.
+    /// </summary>
     [Fact]
-    public void StaticMembersArePortsButNotAggregateState()
+    public void StaticMembersArePortsButNotAggregateOrEntityState()
     {
         var message = Assert.Throws<DcaRuleViolationException>(() => Rule(Statics, "DCA-TAC-002").Check(Arch(Statics))).Message;
         Assert.Contains("Lookup", message, System.StringComparison.Ordinal);
-        Rule(Statics, "DCA-TAC-003").Check(Arch(Statics));
+        foreach (var id in new[] { "DCA-TAC-003", "DCA-TAC-007", "DCA-TAC-008" })
+        {
+            Rule(Statics, id).Check(Arch(Statics));
+        }
     }
 
     [Theory]
@@ -82,5 +89,21 @@ public sealed class TacticalPatternRulesTests
 
         Assert.Contains("'Root'", message);
         Assert.Matches("Order has field 'Customer' of type .*Customer", message);
+    }
+
+    /// <summary>
+    /// The aggregate comes from the bound type argument, and the name must name it. A repository
+    /// bound to one aggregate and named after another is what name-only resolution could not see;
+    /// a generic intermediate port binds a type variable and is skipped instead of misreported.
+    /// </summary>
+    [Fact]
+    public void RepositoriesAreNamedAfterTheAggregateTheyBind()
+    {
+        var message = Assert.Throws<DcaRuleViolationException>(() => Rule(Bad, "DCA-TAC-016").Check(Arch(Bad))).Message;
+        Assert.Contains("IShipmentRepository binds", message, StringComparison.Ordinal);
+        Assert.Contains("name it OrderRepository", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("IAuditedRepository", message, StringComparison.Ordinal);
+
+        Rule(Good, "DCA-TAC-016").Check(Arch(Good));
     }
 }

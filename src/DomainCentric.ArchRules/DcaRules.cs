@@ -30,7 +30,9 @@ public static class DcaRules
         new System.Collections.ObjectModel.ReadOnlyDictionary<string, RetiredRule>(new Dictionary<string, RetiredRule> {
             ["DCA-MAP-003"] = new("Renderer disambiguates normalized external-system identifiers", "ContextMapRenderer", "0.4.0"),
             ["DCA-ADV-003"] = new("Immutable event shape is checked by DCA-ADV-001", "DCA-ADV-001", "0.4.0"),
-            ["DCA-TAC-022"] = new("Value model already covered; enrichment remains guide and catalog guidance", "DCA-TAC-008..012", "0.4.0")
+            ["DCA-TAC-022"] = new("Selected on the sample's own pattern name (Enriched*), which a general rule may not carry; value models are covered by DCA-TAC-008..012 and naming one enriched remains guide and catalog guidance", "DCA-TAC-008..012", "0.4.0"),
+            ["DCA-ADV-009"] = new("Where a domain service sits inside the domain layer is the team's decision; DCA-ADV-010 keeps the layer itself", "DCA-ADV-010", "0.5.0"),
+            ["DCA-STR-009"] = new("A separate segment for the anti-corruption layer is a filing decision, and the selection named three suffixes a project cannot change; the pattern stays guide and catalog guidance", "none", "0.5.0")
         });
 
     /// <summary>All rule sets, in catalog order.</summary>

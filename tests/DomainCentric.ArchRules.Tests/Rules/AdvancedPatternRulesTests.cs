@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using DomainCentric.ArchRules.Rules;
@@ -13,7 +14,7 @@ public sealed class AdvancedPatternRulesTests
     private static readonly string[] ExpectedIds =
     {
         "DCA-ADV-001", "DCA-ADV-002", "DCA-ADV-004", "DCA-ADV-005", "DCA-ADV-006",
-        "DCA-ADV-007", "DCA-ADV-008", "DCA-ADV-009", "DCA-ADV-010", "DCA-ADV-011", "DCA-ADV-012",
+        "DCA-ADV-007", "DCA-ADV-008", "DCA-ADV-010", "DCA-ADV-011", "DCA-ADV-012",
         "DCA-ADV-013", "DCA-ADV-014", "DCA-ADV-015", "DCA-ADV-016", "DCA-ADV-017", "DCA-ADV-018",
     };
 
@@ -55,5 +56,54 @@ public sealed class AdvancedPatternRulesTests
         var rule = RuleSet(Bad).Rules.Single(r => r.Id == id);
         var ex = Assert.Throws<DcaRuleViolationException>(() => rule.Check(Arch(Bad)));
         Assert.False(string.IsNullOrWhiteSpace(ex.Message));
+    }
+
+    /// <summary>
+    /// The specification role selects, not only the name. Both reference samples name their
+    /// specifications after the predicate they express (HasMinTotal, ActiveCart) and carry the marker
+    /// through an intermediate interface; under name-only selection neither rule saw them.
+    /// </summary>
+    [Fact]
+    public void SpecificationsWithoutTheSuffixAreSelectedByTheirRole()
+    {
+        var placement = Assert.Throws<DcaRuleViolationException>(
+            () => RuleSet(Bad).Rules.Single(r => r.Id == "DCA-ADV-017").Check(Arch(Bad))).Message;
+        Assert.Contains("HasMinTotal", placement, StringComparison.Ordinal);
+
+        var metadata = Assert.Throws<DcaRuleViolationException>(
+            () => RuleSet(Bad).Rules.Single(r => r.Id == "DCA-ADV-018").Check(Arch(Bad))).Message;
+        Assert.Contains("ActiveOrder", metadata, StringComparison.Ordinal);
+
+        // Ownership is exclusive, so the container stereotype reaches DCA-ONI-003 nowhere.
+        var onion = new OnionRules(DcaLayout.ForRootNamespace(Bad)).Rules.Single(r => r.Id == "DCA-ONI-003");
+        try
+        {
+            onion.Check(Arch(Bad));
+        }
+        catch (DcaRuleViolationException e)
+        {
+            Assert.DoesNotContain("ActiveOrder", e.Message, StringComparison.Ordinal);
+        }
+    }
+    /// <summary>
+    /// DCA-ADV-008 asks that the occurrence time is <em>stored</em>, not computed — the marker already
+    /// forces the accessor. Which type stores it is the project's decision: a code base whose own event
+    /// vocabulary wraps the timestamp in a value type names that type instead of excluding the rule.
+    /// </summary>
+    [Fact]
+    public void TheTimestampTypesFollowTheConfiguration()
+    {
+        const string own = "DomainCentric.ArchRules.Tests.Fixtures.OwnTimestamp";
+        var markers = DcaMarkers.Dca() with { DomainEvent = own + ".Vocabulary.IHappening" };
+        var defaults = DcaLayout.ForRootNamespace(own).WithMarkers(markers);
+
+        var reported = Assert.Throws<DcaRuleViolationException>(() =>
+            new AdvancedPatternRules(defaults).Rules.Single(r => r.Id == "DCA-ADV-008")
+                .Check(DcaArchitecture.Load(defaults, typeof(AdvancedPatternRulesTests).Assembly)));
+        Assert.Contains("TariffBilled", reported.Message, StringComparison.Ordinal);
+
+        var configured = defaults.WithTimestampTypes(own + ".Vocabulary.Timestamp");
+        new AdvancedPatternRules(configured).Rules.Single(r => r.Id == "DCA-ADV-008")
+            .Check(DcaArchitecture.Load(configured, typeof(AdvancedPatternRulesTests).Assembly));
     }
 }

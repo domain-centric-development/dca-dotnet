@@ -40,15 +40,15 @@ public sealed class DcaLayout
     /// <summary>Root namespace of the DomainCentric.BuildingBlocks package.</summary>
     public const string BuildingBlocksNamespace = "DomainCentric.BuildingBlocks";
 
-    public const string BuildingBlocksTacticalNamespace = "DomainCentric.BuildingBlocks.Ddd.Tactical";
-    public const string BuildingBlocksStrategicNamespace = "DomainCentric.BuildingBlocks.Ddd.Strategic";
-    public const string BuildingBlocksPortsNamespace = "DomainCentric.BuildingBlocks.Hexagonal.Ports";
     public const string BuildingBlocksPortsInNamespace = "DomainCentric.BuildingBlocks.Hexagonal.Ports.In";
     public const string BuildingBlocksPortsOutNamespace = "DomainCentric.BuildingBlocks.Hexagonal.Ports.Out";
 
     /// <summary>Namespace prefixes the domain layer may use by default: the BCL and the building blocks.</summary>
+    // The platform, and the marker vocabulary for the attribute rules. Nothing else: which logging,
+    // validation or utility library a domain model may see is a project decision, and the way to make
+    // it is WithThirdPartyNamespacesAllowedInDomain(...), not a default that decides for everyone.
     private static readonly IReadOnlyList<string> DefaultThirdPartyAllowedInDomain =
-        new[] { "System", "Microsoft.Extensions.Logging.Abstractions", BuildingBlocksNamespace };
+        new[] { "System", BuildingBlocksNamespace };
 
     private DcaLayout(
         string rootNamespace,
@@ -68,16 +68,27 @@ public sealed class DcaLayout
         FrameworkTypes frameworkTypes,
         IReadOnlyList<string>? operationContainers = null,
         string modelSegment = "Model",
-        string incomingEventSegment = "Event")
+        string incomingEventSegment = "Event",
+        string webSegment = "Web",
+        string sharedSegment = "Shared",
+        string aggregateRootSuffix = "AggregateRoot",
+        string repositorySuffix = "Repository",
+        string storeSuffix = "Store",
+        string factorySuffix = "Factory",
+        string specificationSuffix = "Specification",
+        IReadOnlyList<string>? timestampTypes = null,
+        DcaMarkers? markers = null)
     {
         RootNamespace = RequireSegment(rootNamespace, nameof(rootNamespace));
         SharedKernelSegment = RequireSegment(sharedKernelSegment, nameof(sharedKernelSegment));
         DomainSegment = RequireSegment(domainSegment, nameof(domainSegment));
         ModelSegment = RequireSegment(modelSegment, nameof(modelSegment));
         ApplicationSegment = RequireSegment(applicationSegment, nameof(applicationSegment));
+        SharedSegment = RequireSegment(sharedSegment, nameof(sharedSegment));
         AdapterSegment = RequireSegment(adapterSegment, nameof(adapterSegment));
         IncomingSegment = RequireSegment(incomingSegment, nameof(incomingSegment));
         IncomingEventSegment = RequireSegment(incomingEventSegment, nameof(incomingEventSegment));
+        WebSegment = RequireSegment(webSegment, nameof(webSegment));
         OutgoingSegment = RequireSegment(outgoingSegment, nameof(outgoingSegment));
         InfrastructureSegment = RequireSegment(infrastructureSegment, nameof(infrastructureSegment));
         ApiSegment = RequireSegment(apiSegment, nameof(apiSegment));
@@ -88,11 +99,23 @@ public sealed class DcaLayout
         }
 
         OperationContainers = Array.AsReadOnly((operationContainers ?? Array.Empty<string>()).ToArray());
+        if (OperationContainers.Contains(SharedSegment))
+        {
+            throw new ArgumentException($"The shared segment '{SharedSegment}' may not also be an operation container", nameof(operationContainers));
+        }
+
         UseCaseSuffix = RequireSegment(useCaseSuffix, nameof(useCaseSuffix));
         ControllerSuffix = RequireSegment(controllerSuffix, nameof(controllerSuffix));
         RestControllerSuffix = RequireSegment(restControllerSuffix, nameof(restControllerSuffix));
+        AggregateRootSuffix = RequireSegment(aggregateRootSuffix, nameof(aggregateRootSuffix));
+        RepositorySuffix = RequireSegment(repositorySuffix, nameof(repositorySuffix));
+        StoreSuffix = RequireSegment(storeSuffix, nameof(storeSuffix));
+        FactorySuffix = RequireSegment(factorySuffix, nameof(factorySuffix));
+        SpecificationSuffix = RequireSegment(specificationSuffix, nameof(specificationSuffix));
+        TimestampTypes = RequireTypeNames(timestampTypes ?? DefaultTimestampTypes, nameof(timestampTypes));
         ThirdPartyNamespacesAllowedInDomain = thirdPartyNamespacesAllowedInDomain.ToArray();
         FrameworkTypes = frameworkTypes ?? throw new ArgumentNullException(nameof(frameworkTypes));
+        Markers = (markers ?? DcaMarkers.Dca()).Validate();
     }
 
     /// <summary>The DCA default layout for the given root namespace.</summary>
@@ -110,9 +133,33 @@ public sealed class DcaLayout
             "Events",
             "UseCase",
             "Controller",
-            "Controller",
+            // The REST endpoint class is *Resource, as in dca-archunit and in the conventions the guide
+            // states. ASP.NET Core's own convention is *Controller; WithRestControllerSuffix("Controller")
+            // restores it for a code base that prefers the platform's word.
+            "Resource",
             DefaultThirdPartyAllowedInDomain,
             FrameworkTypes.AspNetCore());
+
+    /// <summary>Types a domain event may store its occurrence time in, unless a project names its own.</summary>
+    private static readonly string[] DefaultTimestampTypes = { "System.DateTimeOffset", "System.DateTime" };
+
+    private static IReadOnlyList<string> RequireTypeNames(IReadOnlyList<string> values, string name)
+    {
+        if (values.Count == 0)
+        {
+            throw new ArgumentException($"{name} must name at least one type", name);
+        }
+
+        foreach (var value in values)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                throw new ArgumentException($"{name} must not contain a blank name", name);
+            }
+        }
+
+        return values.ToArray();
+    }
 
     private static string RequireSegment(string value, string name)
     {
@@ -136,11 +183,17 @@ public sealed class DcaLayout
     public string ModelSegment { get; }
 
     public string ApplicationSegment { get; }
+
+    /// <summary>Segment of the application layer that holds the output ports shared by the use cases of one context (<c>Shared</c> by default); reserved, so it may not be an operation container.</summary>
+    public string SharedSegment { get; }
     public string AdapterSegment { get; }
     public string IncomingSegment { get; }
 
     /// <summary>Segment of the incoming adapters that holds the event consumers (<c>Event</c> by default) — the one kind of incoming adapter the adapter-isolation rules exempt.</summary>
     public string IncomingEventSegment { get; }
+
+    /// <summary>Segment of the incoming adapters that holds the web adapter (<c>Web</c> by default); only <c>DCA-NAM-011</c> reads it.</summary>
+    public string WebSegment { get; }
 
     public string OutgoingSegment { get; }
     public string InfrastructureSegment { get; }
@@ -170,18 +223,64 @@ public sealed class DcaLayout
     /// <summary>Suffix of REST/API controllers ([ApiController]), e.g. <c>Controller</c> (default) or <c>Resource</c>.</summary>
     public string RestControllerSuffix { get; }
 
+    /// <summary>Name suffix of an aggregate root, by which DCA-TAC-001 finds one (<c>AggregateRoot</c> by default).</summary>
+    public string AggregateRootSuffix { get; }
+
+    /// <summary>Name suffix of a repository port, read by DCA-TAC-013 and DCA-TAC-016 (<c>Repository</c> by default).</summary>
+    public string RepositorySuffix { get; }
+
+    /// <summary>Name suffix of a store port, read by DCA-TAC-018 (<c>Store</c> by default).</summary>
+    public string StoreSuffix { get; }
+
+    /// <summary>Name suffix of a factory, read by DCA-ADV-013 (<c>Factory</c> by default).</summary>
+    public string FactorySuffix { get; }
+
+    /// <summary>Name suffix of a specification without a marker, read by DCA-ADV-017 and DCA-ADV-018 (<c>Specification</c> by default).</summary>
+    public string SpecificationSuffix { get; }
+
     /// <summary>
     /// Namespace prefixes the domain layer may depend on besides its own code (exact namespace or any
     /// sub-namespace). Default: <c>System</c>, <c>Microsoft.Extensions.Logging.Abstractions</c> and the
     /// building blocks.
     /// </summary>
+    /// <summary>Types a domain event may store its occurrence time in, read by <c>DCA-ADV-008</c>.</summary>
+    public IReadOnlyList<string> TimestampTypes { get; }
+
     public IReadOnlyList<string> ThirdPartyNamespacesAllowedInDomain { get; }
+
+    /// <summary>Where the layout's <see cref="FrameworkTypes"/> came from.</summary>
+    public enum FrameworkTypesOrigin
+    {
+        /// <summary>Nobody said; the library's default preset applies.</summary>
+        Default,
+
+        /// <summary>Selected by name, e.g. <c>dca.framework=none</c> in the properties file.</summary>
+        Preset,
+
+        /// <summary>Set in code with <see cref="WithFrameworkTypes"/>, which always wins over the file.</summary>
+        Explicit,
+    }
+
+    /// <summary>
+    /// Where <see cref="FrameworkTypes"/> came from. <c>dca.framework</c> from the properties file is
+    /// applied only when this is <see cref="FrameworkTypesOrigin.Default"/>: a layout that names its
+    /// framework types in code is not overridden by a file.
+    /// </summary>
+    public FrameworkTypesOrigin FrameworkTypesSource { get; private init; } = FrameworkTypesOrigin.Default;
 
     /// <summary>
     /// The framework types the rules look for, by role — <see cref="FrameworkTypes.AspNetCore"/> (default),
     /// <see cref="FrameworkTypes.None"/>, or an adjusted preset. The preset in use is part of <see cref="ToString"/>.
     /// </summary>
     public FrameworkTypes FrameworkTypes { get; }
+
+    /// <summary>
+    /// The building-block types the rules select on, by role — <see cref="DcaMarkers.Dca"/> by default,
+    /// or a vocabulary pointed at the project's own markers. The rules then select what carries those
+    /// types instead of the library's, so a code base with an established vocabulary needs no rule
+    /// exclusions.
+    /// </summary>
+    public DcaMarkers Markers { get; }
 
     // ---------------------------------------------------------------------------------------------
     // Fluent overrides
@@ -196,6 +295,9 @@ public sealed class DcaLayout
 
     public DcaLayout WithApplicationSegment(string value) => Copy(application: value);
 
+    /// <summary>Segment of the application layer that holds a context's shared output ports, e.g. <c>Shared</c> (default), <c>Ports</c> or <c>Spi</c>; the name is reserved and may not be an operation container.</summary>
+    public DcaLayout WithSharedSegment(string value) => Copy(shared: value);
+
     public DcaLayout WithAdapterSegment(string value) => Copy(adapter: value);
 
     /// <summary>Name of the incoming (driving/primary) adapter namespace segment — <c>In</c> in some projects.</summary>
@@ -203,6 +305,9 @@ public sealed class DcaLayout
 
     /// <summary>Segment of the event consumers below the incoming adapters, e.g. <c>Event</c> (default) or <c>Listener</c>; types below <c>&lt;Module&gt;.Adapter.Incoming.&lt;Event&gt;</c> are exempt from the adapter-isolation rules.</summary>
     public DcaLayout WithIncomingEventSegment(string value) => Copy(incomingEvent: value);
+
+    /// <summary>Segment of the web adapter below the incoming adapters, e.g. <c>Web</c> (default), <c>Ui</c> or <c>Mvc</c>; <c>DCA-NAM-011</c> requires a ViewModel below <c>&lt;Module&gt;.Adapter.Incoming.&lt;Web&gt;</c>.</summary>
+    public DcaLayout WithWebSegment(string value) => Copy(web: value);
 
     /// <summary>Name of the outgoing (driven/secondary) adapter namespace segment — <c>Out</c> in some projects.</summary>
     public DcaLayout WithOutgoingSegment(string value) => Copy(outgoing: value);
@@ -224,7 +329,7 @@ public sealed class DcaLayout
     {
         foreach (var name in names)
         {
-            if (string.IsNullOrWhiteSpace(name) || !Regex.IsMatch(name, "^[A-Za-z_][A-Za-z0-9_]*$") || name == "Shared")
+            if (string.IsNullOrWhiteSpace(name) || !Regex.IsMatch(name, "^[A-Za-z_][A-Za-z0-9_]*$") || name == SharedSegment)
                 throw new ArgumentException("Invalid operation container: " + name, nameof(names));
         }
         return Copy(operationContainers: names);
@@ -236,7 +341,31 @@ public sealed class DcaLayout
 
     public DcaLayout WithRestControllerSuffix(string value) => Copy(restControllerSuffix: value);
 
+    /// <summary>Suffix by which DCA-TAC-001 finds a project's aggregate roots by name; only the suffix selects, and the role is what every other tactical rule selects on.</summary>
+    public DcaLayout WithAggregateRootSuffix(string value) => Copy(aggregateRootSuffix: value);
+
+    /// <summary>Suffix of a repository port; DCA-TAC-016 also requires the name to be the bound aggregate plus this suffix.</summary>
+    public DcaLayout WithRepositorySuffix(string value) => Copy(repositorySuffix: value);
+
+    /// <summary>Suffix of a store port, read by DCA-TAC-018.</summary>
+    public DcaLayout WithStoreSuffix(string value) => Copy(storeSuffix: value);
+
+    /// <summary>Suffix of a factory, read by DCA-ADV-013.</summary>
+    public DcaLayout WithFactorySuffix(string value) => Copy(factorySuffix: value);
+
+    /// <summary>Suffix by which a specification is found when it carries no marker, read alongside the specification role.</summary>
+    public DcaLayout WithSpecificationSuffix(string value) => Copy(specificationSuffix: value);
+
+
     /// <summary>Replaces the list of third-party namespace prefixes the domain layer may depend on.</summary>
+    /// <summary>
+    /// Replaces the types a domain event may store its occurrence time in (<c>System.DateTimeOffset</c>
+    /// and <c>System.DateTime</c> by default). A project whose own event vocabulary wraps the timestamp
+    /// in a value type names that type here instead of excluding <c>DCA-ADV-008</c>. At least one name
+    /// is required: an empty list would report every event.
+    /// </summary>
+    public DcaLayout WithTimestampTypes(params string[] typeNames) => Copy(timestampTypes: typeNames);
+
     public DcaLayout WithThirdPartyNamespacesAllowedInDomain(IEnumerable<string> prefixes) =>
         Copy(thirdParty: prefixes.ToArray());
 
@@ -244,7 +373,44 @@ public sealed class DcaLayout
     public DcaLayout AllowingInDomain(params string[] prefixes) =>
         Copy(thirdParty: ThirdPartyNamespacesAllowedInDomain.Concat(prefixes).ToArray());
 
-    public DcaLayout WithFrameworkTypes(FrameworkTypes value) => Copy(frameworkTypes: value);
+    public DcaLayout WithFrameworkTypes(FrameworkTypes value) =>
+        Copy(frameworkTypes: value, frameworkTypesSource: FrameworkTypesOrigin.Explicit);
+
+    /// <summary>
+    /// <paramref name="layout"/> with <c>dca.framework=&lt;name&gt;</c> from the given properties applied —
+    /// unless the layout names its framework types in code, which always wins. Mirrors
+    /// <c>dca-archunit</c>'s handling of the same key.
+    /// </summary>
+    public static DcaLayout ApplyConfiguredFramework(DcaLayout layout, IReadOnlyDictionary<string, string> properties)
+    {
+        ArgumentNullException.ThrowIfNull(layout);
+        ArgumentNullException.ThrowIfNull(properties);
+        if (!properties.TryGetValue("dca.framework", out var name) || string.IsNullOrWhiteSpace(name))
+        {
+            return layout;
+        }
+
+        return layout.FrameworkTypesSource == FrameworkTypesOrigin.Explicit
+            ? layout
+            : layout.WithFrameworkPreset(name.Trim());
+    }
+
+    /// <summary>
+    /// The preset registered under the given name — <c>aspnetcore</c> or <c>none</c>. This is what
+    /// <c>dca.framework=&lt;name&gt;</c> in <c>dca-archunit.properties</c> applies; an unknown name fails,
+    /// a typo must not fall back silently. Matches <c>dca-archunit</c>'s <c>withFrameworkPreset</c>.
+    /// </summary>
+    public DcaLayout WithFrameworkPreset(string name)
+    {
+        var preset = FrameworkTypes.Preset(name)
+            ?? throw new ArgumentException(
+                $"No framework preset named '{name}' - known: {string.Join(", ", FrameworkTypes.PresetNames)}",
+                nameof(name));
+        return Copy(frameworkTypes: preset, frameworkTypesSource: FrameworkTypesOrigin.Preset);
+    }
+
+    /// <summary>The building-block types the rules select on, by role.</summary>
+    public DcaLayout WithMarkers(DcaMarkers value) => Copy(markers: value);
 
     private DcaLayout Copy(
         string? sharedKernel = null,
@@ -260,10 +426,20 @@ public sealed class DcaLayout
         string? controllerSuffix = null,
         string? restControllerSuffix = null,
         IReadOnlyList<string>? thirdParty = null,
+        IReadOnlyList<string>? timestampTypes = null,
         FrameworkTypes? frameworkTypes = null,
         IReadOnlyList<string>? operationContainers = null,
         string? model = null,
-        string? incomingEvent = null) =>
+        string? incomingEvent = null,
+        string? web = null,
+        string? shared = null,
+        string? aggregateRootSuffix = null,
+        string? repositorySuffix = null,
+        string? storeSuffix = null,
+        string? factorySuffix = null,
+        string? specificationSuffix = null,
+        DcaMarkers? markers = null,
+        FrameworkTypesOrigin? frameworkTypesSource = null) =>
         new(
             RootNamespace,
             sharedKernel ?? SharedKernelSegment,
@@ -282,7 +458,19 @@ public sealed class DcaLayout
             frameworkTypes ?? FrameworkTypes,
             operationContainers ?? OperationContainers,
             model ?? ModelSegment,
-            incomingEvent ?? IncomingEventSegment);
+            incomingEvent ?? IncomingEventSegment,
+            web ?? WebSegment,
+            shared ?? SharedSegment,
+            aggregateRootSuffix ?? AggregateRootSuffix,
+            repositorySuffix ?? RepositorySuffix,
+            storeSuffix ?? StoreSuffix,
+            factorySuffix ?? FactorySuffix,
+            specificationSuffix ?? SpecificationSuffix,
+            timestampTypes ?? TimestampTypes,
+            markers ?? Markers)
+        {
+            FrameworkTypesSource = frameworkTypesSource ?? FrameworkTypesSource,
+        };
 
     // ---------------------------------------------------------------------------------------------
     // Derived namespace names and patterns
@@ -315,8 +503,8 @@ public sealed class DcaLayout
     /// <summary>Pattern for <c>Root.*.Application</c> and below.</summary>
     public string ApplicationPattern => Below($"{RootNamespace}.{Segment}.{ApplicationSegment}");
 
-    /// <summary>Pattern for <c>Root.*.Application.Shared</c> and below — output ports shared by the use cases of one context.</summary>
-    public string SharedOutputPortPattern => Below($"{RootNamespace}.{Segment}.{ApplicationSegment}.Shared");
+    /// <summary>Pattern for <c>Root.*.Application.&lt;Shared&gt;</c> and below — output ports shared by the use cases of one context.</summary>
+    public string SharedOutputPortPattern => Below($"{RootNamespace}.{Segment}.{ApplicationSegment}.{SharedSegment}");
 
     /// <summary>Pattern for <c>Root.*.Adapter</c> and below.</summary>
     public string AdapterPattern => Below($"{RootNamespace}.{Segment}.{AdapterSegment}");
@@ -341,7 +529,7 @@ public sealed class DcaLayout
 
     public string ApplicationPatternOf(string contextNamespace) => Below($"{contextNamespace}.{ApplicationSegment}");
 
-    public string SharedOutputPortPatternOf(string contextNamespace) => Below($"{contextNamespace}.{ApplicationSegment}.Shared");
+    public string SharedOutputPortPatternOf(string contextNamespace) => Below($"{contextNamespace}.{ApplicationSegment}.{SharedSegment}");
 
     public string AdapterPatternOf(string contextNamespace) => Below($"{contextNamespace}.{AdapterSegment}");
 
@@ -386,5 +574,39 @@ public sealed class DcaLayout
     private static string EscapeKeepingSegments(string ns) =>
         string.Join(Segment, ns.Split(new[] { Segment }, StringSplitOptions.None).Select(Regex.Escape));
 
-    public override string ToString() => $"DcaLayout[{RootNamespace}, frameworkTypes={FrameworkTypes}]";
+    /// <summary>
+    /// One line for a report: the framework preset the rules resolved their attributes with, and where
+    /// that choice came from. The counterpart of <c>dca-archunit</c>'s
+    /// <c>frameworkAnnotationsReport()</c>; .NET has no detection, so the origin is never
+    /// <c>detected</c>.
+    /// </summary>
+    public string FrameworkTypesReport() => FrameworkTypesSource switch
+    {
+        FrameworkTypesOrigin.Preset => $"{FrameworkTypes.Name} (configured)",
+        FrameworkTypesOrigin.Explicit => $"{FrameworkTypes.Name} (explicit)",
+        _ => $"{FrameworkTypes.Name} (default)",
+    };
+
+    /// <summary>
+    /// One line for a report: <c>dca (library default)</c> while every role names the building blocks' own
+    /// marker, or the vocabulary's name and the roles that differ, so a reader sees which types the rules
+    /// actually selected on.
+    /// </summary>
+    public string MarkersReport()
+    {
+        if (Markers.IsDefault)
+        {
+            return $"{Markers.Name} (library default)";
+        }
+
+        var defaults = DcaMarkers.Dca().Roles().ToDictionary(r => r.Key, r => r.Value);
+        var changed = Markers.Roles()
+            .Where(r => !string.Equals(r.Value, defaults[r.Key], StringComparison.Ordinal))
+            .Select(r => $"{r.Key}={r.Value}")
+            .ToArray();
+        return changed.Length == 0 ? Markers.Name : $"{Markers.Name} ({string.Join(", ", changed)})";
+    }
+
+    public override string ToString() =>
+        $"DcaLayout[{RootNamespace}, frameworkTypes={FrameworkTypes}, markers={MarkersReport()}]";
 }

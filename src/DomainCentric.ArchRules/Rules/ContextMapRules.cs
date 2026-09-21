@@ -20,17 +20,15 @@ namespace DomainCentric.ArchRules.Rules;
 /// the declarations consistent with each other and with the actual code. Organizational patterns
 /// (Customer–Supplier etc.) are deliberately not machine-classified; Separate Ways is the absence of
 /// any declaration.</para>
-/// <para>The Java rule <c>DCA-MAP-006</c> (agreement between the upstream declarations and a module
-/// system's declared allowed dependencies) has no .NET counterpart — see <see cref="NotApplicable"/>.</para>
+/// <para><c>DCA-MAP-006</c> (agreement between the upstream declarations and a module system's declared
+/// allowed dependencies) is carried under the same id as in Java and selects nothing until a project
+/// configures <c>ModuleDeclarationAttributeTypes</c> — .NET draws module boundaries with projects rather
+/// than with an attribute, so no preset names one.</para>
 /// </remarks>
 public sealed class ContextMapRules : IDcaRuleSet
 {
     /// <summary>Java rules of this set that have no .NET counterpart (id → reason).</summary>
-    public static readonly IReadOnlyDictionary<string, string> NotApplicable = new Dictionary<string, string>
-    {
-        ["DCA-MAP-006"] = "Upstream declarations and the module declaration's allowed dependencies must agree — .NET has no"
-            + " module-declaration attribute; project boundaries take that role",
-    };
+    public static readonly IReadOnlyDictionary<string, string> NotApplicable = new Dictionary<string, string>();
 
     public ContextMapRules(DcaLayout layout)
     {
@@ -42,6 +40,7 @@ public sealed class ContextMapRules : IDcaRuleSet
 
             UpstreamsReferenceExistingContexts(),
             UpstreamsUniquePerContextAndChannel(),
+            UpstreamsAgreeWithModuleDependencies(),
             ImplementedUpstreamsBackedByCode(),
             AntiCorruptionLayerStaysInAdapter(),
             ConformistNeverReachesDomain(),
@@ -286,6 +285,78 @@ public sealed class ContextMapRules : IDcaRuleSet
     // ---------------------------------------------------------------------------------------------
 
     /// <summary>DCA-MAP-007.</summary>
+    /// <summary>DCA-MAP-006: the context map and the module boundary must describe the same edges.</summary>
+    private IDcaRule UpstreamsAgreeWithModuleDependencies() =>
+        DcaRule.Check(
+            "DCA-MAP-006",
+            "Upstream declarations and the module declaration's allowed dependencies must agree",
+            "Neither the context map nor the module boundary may know more than the other — an edge"
+                + " that exists only on one side is stale",
+            arch =>
+            {
+                var declarations = ModuleDeclarationTypes(arch);
+                if (declarations.Count == 0)
+                {
+                    return;
+                }
+
+                var violations = new List<string>();
+                var moduleNames = ModuleNames(arch);
+                foreach (var ns in arch.BoundedContextNamespaces)
+                {
+                    var source = ShortName(arch, ns);
+                    var declared = DeclaredEdges(arch, ns);
+                    var carried = ModuleDeclarationsOn(arch, ns, declarations);
+                    if (declared.Count > 0 && carried.Count == 0)
+                    {
+                        violations.Add("Context '" + source + "': module declaration missing on '" + source
+                            + "', allowed dependencies unknown - it declares [Upstream] edges "
+                            + Listed(declared)
+                            + " but its marker class carries none of the configured module declaration"
+                            + " attributes; declare the module there so both sides can be compared");
+                        continue;
+                    }
+
+                    var allowed = new HashSet<string>(StringComparer.Ordinal);
+                    foreach (var entry in AllowedDependencies(carried))
+                    {
+                        var normalized = Regex.Replace(entry, @"\s*::\s*", " :: ").Trim();
+                        if (normalized.Contains(" :: ", StringComparison.Ordinal)
+                            && moduleNames.Contains(normalized.Split(" :: ")[0]))
+                        {
+                            allowed.Add(normalized);
+                        }
+                    }
+
+                    if (!declared.SetEquals(allowed))
+                    {
+                        violations.Add("Context '" + source + "': [Upstream] declarations " + Listed(declared)
+                            + " and the module declaration's allowedDependencies named-interface entries "
+                            + Listed(allowed)
+                            + " must describe the same edges — neither side may know more than the other");
+                    }
+                }
+
+                DcaRule.Fail("Upstream declarations and the module declaration must agree", violations);
+            })
+        .Selecting(
+            "Every namespace carrying [BoundedContext], provided the layout configures at least one"
+                + " module declaration attribute (a module system's per-module declaration) that is in"
+                + " the loaded assemblies; reads its [Upstream] declarations (Context, Via; Planned"
+                + " included) and, reflectively, the AllowedDependencies property of every configured"
+                + " module declaration the marker class carries. Without a configured and loadable"
+                + " module declaration the rule selects nothing and passes - which is the default here,"
+                + " because .NET draws module boundaries with projects and no preset names an attribute.")
+        .Checking(
+            "The set of declared edges 'context :: channel' equals the set of AllowedDependencies"
+                + " entries of the form 'module :: named-interface' whose module is a bounded context,"
+                + " whitespace around '::' normalized. Entries without '::' and entries naming a"
+                + " non-context module are ignored. A context that declares [Upstream] edges but whose"
+                + " marker class carries none of the configured module declaration attributes is"
+                + " reported once, as a missing module declaration with unknown allowed dependencies -"
+                + " its edges are not compared; a context without [Upstream] declarations and without a"
+                + " module declaration has nothing to compare and passes.");
+
     public static IDcaRule ImplementedUpstreamsBackedByCode() =>
         DcaRule.Check(
             "DCA-MAP-007",
@@ -708,6 +779,60 @@ public sealed class ContextMapRules : IDcaRuleSet
     /// <summary>The mermaid node id of an external system in the generated context map.</summary>
     private static string NormalizedExternalId(string name) =>
         "ext_" + Regex.Replace(name.ToLower(CultureInfo.InvariantCulture), "[^a-z0-9]+", "_");
+
+    /// <summary>Every configured module-declaration attribute type that is in the loaded assemblies.</summary>
+    private IReadOnlyList<Type> ModuleDeclarationTypes(DcaArchitecture arch)
+    {
+        var types = new List<Type>();
+        foreach (var name in Layout.FrameworkTypes.ModuleDeclarationAttributeTypes)
+        {
+            var type = arch.RuntimeTypes().FirstOrDefault(t => t.FullName == name)
+                ?? Type.GetType(name, throwOnError: false);
+            if (type is not null && typeof(Attribute).IsAssignableFrom(type))
+            {
+                types.Add(type);
+            }
+        }
+
+        return types;
+    }
+
+    /// <summary>The configured module declarations the context's marker class carries.</summary>
+    private static IReadOnlyList<Attribute> ModuleDeclarationsOn(
+        DcaArchitecture arch, string contextNamespace, IReadOnlyList<Type> declarations) =>
+        arch.RuntimeTypes()
+            .Where(t => t.Namespace == contextNamespace)
+            .SelectMany(t => declarations.SelectMany(d => t.GetCustomAttributes(d, inherit: false).Cast<Attribute>()))
+            .ToList();
+
+    /// <summary>
+    /// The AllowedDependencies of the given declarations, read reflectively so the library never
+    /// references a module system. A string or a string sequence both count.
+    /// </summary>
+    private static IEnumerable<string> AllowedDependencies(IEnumerable<Attribute> declarations)
+    {
+        foreach (var declaration in declarations)
+        {
+            var value = declaration.GetType().GetProperty("AllowedDependencies")?.GetValue(declaration);
+            switch (value)
+            {
+                case string single when !string.IsNullOrWhiteSpace(single):
+                    yield return single;
+                    break;
+                case IEnumerable<string> many:
+                    foreach (var entry in many.Where(e => !string.IsNullOrWhiteSpace(e)))
+                    {
+                        yield return entry;
+                    }
+
+                    break;
+            }
+        }
+    }
+
+    /// <summary>A sorted, bracketed list, so a message is stable between runs.</summary>
+    private static string Listed(IEnumerable<string> entries) =>
+        "[" + string.Join(", ", entries.OrderBy(e => e, StringComparer.Ordinal)) + "]";
 
     private static string ShortName(DcaArchitecture arch, string contextNamespace) => arch.ContextName(contextNamespace);
 }

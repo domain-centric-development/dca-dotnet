@@ -104,7 +104,7 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Dotnet.Bad.Order.Application.Pl
     {
     }
 
-    // DCA-NET-003: two public ExecuteAsync entry points.
+    // DCA-USE-017: a second public ExecuteAsync overload beyond the input-port surface.
     public sealed class PlaceOrderUseCase : IPlaceOrderInputPort
     {
         public Task<PlaceOrderResult> ExecuteAsync(PlaceOrderCommand input, CancellationToken cancellationToken = default) =>

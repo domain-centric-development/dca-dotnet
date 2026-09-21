@@ -10,7 +10,15 @@ public sealed class DotnetRulesTests
     private const string Good = "DomainCentric.ArchRules.Tests.Fixtures.Dotnet.Good";
     private const string Bad = "DomainCentric.ArchRules.Tests.Fixtures.Dotnet.Bad";
 
-    private static readonly IReadOnlyDictionary<string, string> NoNegativeFixture = new Dictionary<string, string>();
+    private const string OwnContract = "DomainCentric.ArchRules.Tests.Fixtures.Dotnet.OwnContract";
+
+    private static readonly IReadOnlyDictionary<string, string> NoNegativeFixture = new Dictionary<string, string>
+    {
+        // With the library's own vocabulary the C# compiler enforces the signature of
+        // IUseCase<TIn,TOut>, so the rule can only fail where the use-case role names another
+        // contract — see UseCaseContractOfAProjectsOwnVocabularyIsChecked.
+        ["DCA-NET-003"] = "the default contract cannot violate it; the OwnContract fixture does",
+    };
 
     private static readonly string[] ExpectedIds =
     {
@@ -52,5 +60,26 @@ public sealed class DotnetRulesTests
         var rule = Set(Bad).Rules.Single(r => r.Id == id);
         var ex = Assert.Throws<DcaRuleViolationException>(() => rule.Check(Arch(Bad)));
         Assert.False(string.IsNullOrWhiteSpace(ex.Message));
+    }
+
+    /// <summary>
+    /// DCA-NET-003 reads the configured use-case role, not the name of a method. Pointing the role at
+    /// a project's own contract is the only way it can be violated — the library's own contract is
+    /// enforced by the compiler.
+    /// </summary>
+    [Fact]
+    public void UseCaseContractOfAProjectsOwnVocabularyIsChecked()
+    {
+        var layout = DcaLayout.ForRootNamespace(OwnContract).WithMarkers(DcaMarkers.Dca() with
+        {
+            UseCase = OwnContract + ".Vocabulary.IHandler",
+        });
+        var arch = DcaArchitecture.Load(layout, typeof(DotnetRulesTests).Assembly);
+        var rule = new DotnetRules(layout).Rules.Single(r => r.Id == "DCA-NET-003");
+
+        var message = Assert.Throws<DcaRuleViolationException>(() => rule.Check(arch)).Message;
+
+        Assert.Contains("ShipParcelUseCase.Handle", message, System.StringComparison.Ordinal);
+        Assert.Contains("CancellationToken", message, System.StringComparison.Ordinal);
     }
 }

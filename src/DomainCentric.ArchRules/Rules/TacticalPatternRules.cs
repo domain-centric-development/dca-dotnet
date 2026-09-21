@@ -23,14 +23,15 @@ namespace DomainCentric.ArchRules.Rules;
 /// </remarks>
 public sealed class TacticalPatternRules : IDcaRuleSet
 {
-    private const string RepositorySuffix = "Repository";
-    private const string StoreSuffix = "Store";
 
-    private static readonly HashSet<string> RepositoryMethodNames = new(StringComparer.Ordinal)
+    /// <summary>
+    /// Write vocabulary a Store must not declare, compared case-insensitively so that the same six
+    /// names are matched in both languages — <c>Save</c> and <c>save</c> are the same name.
+    /// </summary>
+    private static readonly HashSet<string> RepositoryMethodNames = new(StringComparer.OrdinalIgnoreCase)
     {
-        "SaveAsync", "DeleteByIdAsync", "DeleteAsync",
         "Save", "DeleteById", "Delete",
-        "save", "deleteById", "delete",
+        "SaveAsync", "DeleteByIdAsync", "DeleteAsync",
     };
 
     /// <summary>Rule ids of the Java catalog that have no .NET reading (none in this set).</summary>
@@ -87,14 +88,14 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 var violations = new List<string>();
                 foreach (var type in NonInterfaceTypes(arch))
                 {
-                    if (!type.Name.EndsWith("AggregateRoot", StringComparison.Ordinal)
-                        || type.Name == "AggregateRoot"
+                    if (!type.Name.EndsWith(arch.Layout.AggregateRootSuffix, StringComparison.Ordinal)
+                        || type.Name == arch.Layout.AggregateRootSuffix
                         || !ResidesInAny(type, arch.AllDomainModelPatterns()))
                     {
                         continue;
                     }
 
-                    if (!IsAssignableTo(arch, type, typeof(IAggregateRoot)))
+                    if (!IsAssignableTo(arch, type, arch.Layout.Markers.AggregateRoot))
                     {
                         violations.Add($"{type.FullName} is named *AggregateRoot but does not implement {nameof(IAggregateRoot)}");
                     }
@@ -120,12 +121,12 @@ public sealed class TacticalPatternRules : IDcaRuleSet
             arch =>
             {
                 var violations = new List<string>();
-                foreach (var aggregate in ConcreteTypesAssignableTo(arch, typeof(IAggregateRoot)))
+                foreach (var aggregate in ConcreteTypesAssignableTo(arch, arch.Layout.Markers.AggregateRoot))
                 {
                     foreach (var member in DataMembers(arch, aggregate))
                     {
                         var fieldType = member.Type;
-                        if (IsAssignableTo(arch, fieldType, typeof(IRepository)) || IsAssignableTo(arch, fieldType, typeof(IOutputPort)))
+                        if (IsAssignableTo(arch, fieldType, arch.Layout.Markers.Repository) || IsAssignableTo(arch, fieldType, arch.Layout.Markers.OutputPort))
                         {
                             violations.Add($"{FieldDescription(aggregate, member)} which is a repository/output port");
                         }
@@ -151,12 +152,12 @@ public sealed class TacticalPatternRules : IDcaRuleSet
         DcaRule.Check(
             "DCA-TAC-003",
             "Aggregate Roots must not have fields with other Aggregate Root types",
-            "Vernon's Aggregate Design Rule #2: reference other Aggregates by identity to keep"
+            "Vernon's Aggregate Design Rule #3: reference other Aggregates by identity to keep"
             + " aggregate boundaries and transactional consistency intact",
             arch =>
             {
                 var violations = new List<string>();
-                foreach (var aggregate in ConcreteTypesAssignableTo(arch, typeof(IAggregateRoot)))
+                foreach (var aggregate in ConcreteTypesAssignableTo(arch, arch.Layout.Markers.AggregateRoot))
                 {
                     foreach (var member in InstanceDataMembers(arch, aggregate))
                     {
@@ -175,7 +176,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                     }
                 }
 
-                DcaRule.Fail("Aggregates must reference other aggregates by ID only (Vernon's Rule #2).", violations);
+                DcaRule.Fail("Aggregates must reference other aggregates by ID only (Vernon's Rule #3).", violations);
             })
             .Selecting(
                 "Non-interface types below the root namespace assignable to IAggregateRoot, "
@@ -195,15 +196,15 @@ public sealed class TacticalPatternRules : IDcaRuleSet
             arch =>
             {
                 var violations = new List<string>();
-                foreach (var entity in ConcreteTypesAssignableTo(arch, typeof(IEntity)))
+                foreach (var entity in ConcreteTypesAssignableTo(arch, arch.Layout.Markers.Entity))
                 {
                     if (entity is Class { IsAbstract: true })
                     {
                         continue;
                     }
 
-                    var hasIdMember = DataMembers(arch, entity).Any(m => IsAssignableTo(arch, m.Type, typeof(IId)))
-                        || RuntimeDataMemberTypes(arch, entity).Any(t => typeof(IId).IsAssignableFrom(t));
+                    var hasIdMember = DataMembers(arch, entity).Any(m => IsAssignableTo(arch, m.Type, arch.Layout.Markers.Id))
+                        || RuntimeDataMemberTypes(arch, entity).Any(t => DcaMarkers.IsAssignableToByName(t, arch.Layout.Markers.Id));
                     if (!hasIdMember)
                     {
                         violations.Add($"{entity.FullName} has no field or property whose type implements {nameof(IId)}");
@@ -243,8 +244,9 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                         var ns = runtime.Namespace ?? "";
                         var sameDomain = root is not null && root == arch.ModuleRootOf(ns)
                             && (ns == domain || ns.StartsWith(domain + ".", StringComparison.Ordinal));
-                        var role = typeof(IAggregateRoot).IsAssignableFrom(runtime) || typeof(IEntity).IsAssignableFrom(runtime)
-                            || typeof(IFactory).IsAssignableFrom(runtime);
+                        var role = DcaMarkers.IsAssignableToByName(runtime, arch.Layout.Markers.AggregateRoot)
+                            || DcaMarkers.IsAssignableToByName(runtime, arch.Layout.Markers.Entity)
+                            || DcaMarkers.IsAssignableToByName(runtime, arch.Layout.Markers.Factory);
                         if (runtime != entity && !(sameDomain && role))
                             violations.Add($"{runtime.FullName} constructs entity {entity.FullName} outside its domain construction boundary");
                     }
@@ -263,7 +265,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
             arch =>
             {
                 var violations = new List<string>();
-                foreach (var domainClass in ConcreteTypesAssignableTo(arch, typeof(IEntity)))
+                foreach (var domainClass in ConcreteTypesAssignableTo(arch, arch.Layout.Markers.Entity))
                 {
                     foreach (var setter in Setters(domainClass, publicOnly: true))
                     {
@@ -296,7 +298,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 var violations = new List<string>();
                 foreach (var entity in NonRootEntities(arch))
                 {
-                    foreach (var member in DataMembers(arch, entity))
+                    foreach (var member in InstanceDataMembers(arch, entity))
                     {
                         if (IsConcreteAggregateRoot(arch, member.Type))
                         {
@@ -333,9 +335,9 @@ public sealed class TacticalPatternRules : IDcaRuleSet
             arch =>
             {
                 var violations = new List<string>();
-                foreach (var valueObject in ConcreteTypesAssignableTo(arch, typeof(IValue)))
+                foreach (var valueObject in ConcreteTypesAssignableTo(arch, arch.Layout.Markers.Value))
                 {
-                    foreach (var member in DataMembers(arch, valueObject))
+                    foreach (var member in InstanceDataMembers(arch, valueObject))
                     {
                         if (IsConcreteAggregateRoot(arch, member.Type))
                         {
@@ -383,7 +385,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 {
                     if (valueObject.IsCompilerGenerated
                         || !ResidesInAny(valueObject, arch.AllDomainModelPatterns())
-                        || !IsAssignableTo(arch, valueObject, typeof(IValue)))
+                        || !IsAssignableTo(arch, valueObject, arch.Layout.Markers.Value))
                     {
                         continue;
                     }
@@ -414,7 +416,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
             arch =>
             {
                 var violations = new List<string>();
-                foreach (var valueObject in ConcreteTypesAssignableTo(arch, typeof(IValue)))
+                foreach (var valueObject in ConcreteTypesAssignableTo(arch, arch.Layout.Markers.Value))
                 {
                     if (valueObject is Enum)
                     {
@@ -462,7 +464,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
             arch =>
             {
                 var violations = new List<string>();
-                foreach (var valueObject in ConcreteTypesAssignableTo(arch, typeof(IValue)))
+                foreach (var valueObject in ConcreteTypesAssignableTo(arch, arch.Layout.Markers.Value))
                 {
                     foreach (var setter in Setters(valueObject, publicOnly: false))
                     {
@@ -491,7 +493,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
             arch =>
             {
                 var violations = new List<string>();
-                foreach (var valueObject in ConcreteTypesAssignableTo(arch, typeof(IValue)))
+                foreach (var valueObject in ConcreteTypesAssignableTo(arch, arch.Layout.Markers.Value))
                 {
                     if (IsRecord(valueObject) || valueObject is Enum)
                     {
@@ -531,12 +533,12 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 foreach (var candidate in arch.Interfaces)
                 {
                     if (!ResidesInAny(candidate, arch.AllApplicationPatterns())
-                        || !HasSuffixButIsNotMarker(candidate, RepositorySuffix))
+                        || !HasSuffixButIsNotMarker(candidate, arch.Layout.RepositorySuffix))
                     {
                         continue;
                     }
 
-                    if (!IsAssignableTo(arch, candidate, typeof(IRepository)))
+                    if (!IsAssignableTo(arch, candidate, arch.Layout.Markers.Repository))
                     {
                         violations.Add($"{candidate.FullName} is named *Repository but does not extend {nameof(IRepository)}");
                     }
@@ -571,7 +573,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
             "Repository Implementations must reside in the Adapter.Outgoing namespace",
             "Repository implementations are outgoing adapters in bounded contexts",
             arch => RequireNamespace(
-                ConcreteTypesAssignableTo(arch, typeof(IRepository)),
+                ConcreteTypesAssignableTo(arch, arch.Layout.Markers.Repository),
                 DcaLayout.AnyOf(arch.AllOutgoingAdapterPatterns()), "Repository implementations", "the outgoing adapter namespace"))
             .Selecting(
                 "Non-interface types below the root namespace assignable to IRepository, "
@@ -579,7 +581,10 @@ public sealed class TacticalPatternRules : IDcaRuleSet
             .Checking(
                 "The type resides in <module>.Adapter.Outgoing of some module root. An "
                 + "implementation anywhere else below the root - a test double, say - is "
-                + "reported; an empty selection passes.");
+                + "reported; an empty selection passes. An implementation that carries the "
+                + "repository role and is also named *Repository is reported by DCA-HEX-008 as well: "
+                + "that rule finds unmarked implementations by name, and the two populations overlap "
+                + "where a project does both.");
 
     public static IDcaRule RepositoriesOnlyForAggregateRoots() =>
         DcaRule.Check(
@@ -595,12 +600,36 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                     var repoName = repository.Name.StartsWith("I", StringComparison.Ordinal) && repository.Name.Length > 1 && char.IsUpper(repository.Name[1])
                         ? repository.Name.Substring(1)
                         : repository.Name;
-                    if (!repoName.EndsWith(RepositorySuffix, StringComparison.Ordinal))
+                    if (!repoName.EndsWith(arch.Layout.RepositorySuffix, StringComparison.Ordinal))
                     {
                         continue;
                     }
 
-                    var aggregateName = repoName.Substring(0, repoName.Length - RepositorySuffix.Length);
+                    var binding = BoundAggregateArgument(arch, repository);
+                    if (binding is { } bound)
+                    {
+                        if (bound.IsGenericParameter)
+                        {
+                            // A generic intermediate port binds no aggregate of its own.
+                            continue;
+                        }
+
+                        var boundType = arch.Types.FirstOrDefault(t => t.FullName == bound.FullName);
+                        if (boundType is null || !IsAssignableTo(arch, boundType, arch.Layout.Markers.AggregateRoot))
+                        {
+                            violations.Add($"{repository.FullName} binds {bound.FullName} which does not implement {nameof(IAggregateRoot)}");
+                        }
+                        else if (repoName != bound.Name + arch.Layout.RepositorySuffix)
+                        {
+                            violations.Add(
+                                $"{repository.FullName} binds {bound.FullName} but is named {repoName}"
+                                + $" - name it {bound.Name}{arch.Layout.RepositorySuffix}");
+                        }
+
+                        continue;
+                    }
+
+                    var aggregateName = repoName.Substring(0, repoName.Length - arch.Layout.RepositorySuffix.Length);
                     var context = arch.RootContextNamespace(NamespaceOf(repository));
                     var candidates = NonInterfaceTypes(arch)
                         .Where(c => c.Name == aggregateName)
@@ -616,27 +645,35 @@ public sealed class TacticalPatternRules : IDcaRuleSet
 
                     foreach (var candidate in candidates)
                     {
-                        if (!IsAssignableTo(arch, candidate, typeof(IAggregateRoot)))
+                        if (!IsAssignableTo(arch, candidate, arch.Layout.Markers.AggregateRoot))
                         {
                             violations.Add($"{repository.FullName} exists for {candidate.FullName} which does not implement {nameof(IAggregateRoot)}");
                         }
                     }
                 }
 
-                DcaRule.Fail("Repositories should only exist for Aggregate Roots, not for Entities (DDD pattern).", violations);
+                DcaRule.Fail(
+                    "Repositories should only exist for Aggregate Roots, not for Entities (DDD pattern).",
+                    violations,
+                    "name the repository after the aggregate root it binds");
             })
             .Selecting(
                 "Interfaces below the root namespace assignable to IRepository whose name "
                 + "ends with Repository; an interface named exactly Repository excluded.")
             .Checking(
-                "The aggregate name is the interface's name minus a leading I followed by an "
-                + "upper-case letter and minus 'Repository'. Among all non-interface types "
-                + "below the root with exactly that name and in the same context - the nearest "
-                + "enclosing namespace carrying a [BoundedContext] or [SharedKernel] marker "
-                + "class, falling back to the first segment below the root namespace - at least "
-                + "one must exist and every one must be assignable to IAggregateRoot. No such "
-                + "type and a type that is not an aggregate root are both reported; the "
-                + "interface's methods play no role.");
+                "The aggregate is read from the type argument the interface binds: the first argument "
+                + "of the generic repository role it implements. That type must be assignable to "
+                + "IAggregateRoot, and the interface's name - minus a leading I followed by an "
+                + "upper-case letter - must be that type's name plus 'Repository', so a repository "
+                + "bound to one aggregate and named after another is reported. An unresolved type "
+                + "argument is skipped: a generic intermediate port such as "
+                + "IAuditedRepository<TAggregate, TId> binds no aggregate of its own. When the role is "
+                + "not generic, is used raw, or the runtime type cannot be resolved, the aggregate is "
+                + "resolved by name instead: among all non-interface types below the root with the "
+                + "interface's name minus 'Repository' and in the same context - the nearest enclosing "
+                + "namespace carrying a [BoundedContext] or [SharedKernel] marker class, falling back "
+                + "to the first segment below the root namespace - at least one must exist and every "
+                + "one must be assignable to IAggregateRoot. The interface's methods play no role.");
 
     public static IDcaRule RepositoriesReturnNoNonRootEntities() =>
         DcaRule.Check(
@@ -653,7 +690,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                     {
                         foreach (var type in TypesInvolvedIn(method.ReturnTypeInstance))
                         {
-                            if (IsConcreteNonRootEntity(arch, type) || (IsAssignableTo(arch, type, typeof(IEntity)) && !IsAssignableTo(arch, type, typeof(IAggregateRoot))))
+                            if (IsConcreteNonRootEntity(arch, type) || (IsAssignableTo(arch, type, arch.Layout.Markers.Entity) && !IsAssignableTo(arch, type, arch.Layout.Markers.AggregateRoot)))
                             {
                                 violations.Add($"{repository.FullName}.{SimpleName(method)} exposes {type.FullName}, an Entity that is not an Aggregate Root");
                             }
@@ -689,17 +726,17 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 var violations = new List<string>();
                 foreach (var candidate in arch.Interfaces)
                 {
-                    if (!HasSuffixButIsNotMarker(candidate, StoreSuffix))
+                    if (!HasSuffixButIsNotMarker(candidate, arch.Layout.StoreSuffix))
                     {
                         continue;
                     }
 
-                    if (!IsAssignableTo(arch, candidate, typeof(IStore)))
+                    if (!IsAssignableTo(arch, candidate, arch.Layout.Markers.Store))
                     {
                         violations.Add($"{candidate.FullName} is named *Store but does not extend {nameof(IStore)}");
                     }
 
-                    if (IsAssignableTo(arch, candidate, typeof(IRepository)))
+                    if (IsAssignableTo(arch, candidate, arch.Layout.Markers.Repository))
                     {
                         violations.Add($"{candidate.FullName} is named *Store but extends {nameof(IRepository)}");
                     }
@@ -735,7 +772,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
             "Store implementations must reside in the Adapter.Outgoing namespace",
             "Store implementations are outgoing adapters in bounded contexts",
             arch => RequireNamespace(
-                ConcreteTypesAssignableTo(arch, typeof(IStore)),
+                ConcreteTypesAssignableTo(arch, arch.Layout.Markers.Store),
                 DcaLayout.AnyOf(arch.AllOutgoingAdapterPatterns()), "Store implementations", "the outgoing adapter namespace"))
             .Selecting(
                 "Non-interface types below the root namespace assignable to IStore, abstract "
@@ -774,56 +811,13 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 "Interfaces below the root namespace assignable to IStore; an interface named "
                 + "exactly Store excluded.")
             .Checking(
-                "No method declared on the interface itself is named "
-                + "SaveAsync, DeleteByIdAsync or DeleteAsync, nor their synchronous forms "
-                + "Save, DeleteById and Delete, nor the camel-cased save, "
-                + "deleteById and delete - matched by name alone, parameters and return type "
-                + "disregarded. Inherited methods are not inspected, and no particular "
-                + "vocabulary (Record, Count, Exists) is required.");
-
-    // ---------------------------------------------------------------------------------------------
-    // Enriched domain model pattern
-    // ---------------------------------------------------------------------------------------------
-
-    public static IDcaRule EnrichedModelsAreValueRecords(DcaLayout layout) =>
-        DcaRule.Check(
-            "DCA-TAC-022",
-            "Enriched Domain Models must be Value Object records",
-            "Enriched domain models are immutable read projections and must be records implementing IValue",
-            arch =>
-            {
-                var violations = new List<string>();
-                foreach (var type in arch.Types.Where(t => !t.IsCompilerGenerated && !t.IsGenericParameter))
-                {
-                    if (!type.Name.StartsWith("Enriched", StringComparison.Ordinal)
-                        || !ResidesInAny(type, arch.AllDomainModelPatterns())
-                        || IsAssignableTo(arch, type, typeof(IFactory)))
-                    {
-                        continue;
-                    }
-
-                    if (!IsRecordLike(type))
-                    {
-                        violations.Add($"{type.FullName} is not a record");
-                    }
-
-                    if (!IsAssignableTo(arch, type, typeof(IValue)))
-                    {
-                        violations.Add($"{type.FullName} does not implement {nameof(IValue)}");
-                    }
-                }
-
-                DcaRule.Fail("Enriched domain models must be records implementing IValue.", violations);
-            })
-            .Selecting(
-                "Types in <module>.Domain.Model of every module root whose name starts with "
-                + "Enriched and that do not implement IFactory; interfaces included, "
-                + "compiler-generated types excluded.")
-            .Checking(
-                "The type is a record class or a struct and is assignable to IValue; both "
-                + "must hold, and each failing alone is reported - an interface named Enriched* "
-                + "is reported because it is no record. An Enriched*Factory is excluded because "
-                + "it implements IFactory. An empty selection passes.");
+                "No method declared on the interface itself is named Save, DeleteById, Delete "
+                + "or one of their asynchronous forms SaveAsync, DeleteByIdAsync, DeleteAsync - "
+                + "matched by name alone, parameters and return type disregarded and case "
+                + "ignored, so both languages match the same six names. Inherited methods are not "
+                + "inspected, and no particular vocabulary (Record, Count, Exists) is required. "
+                + "The six names are fixed and are not part of the marker roles: a vocabulary that "
+                + "writes under another name is selected and then found to declare no write.");
 
     // ---------------------------------------------------------------------------------------------
     // Helpers
@@ -833,26 +827,55 @@ public sealed class TacticalPatternRules : IDcaRuleSet
     private static IEnumerable<IType> NonInterfaceTypes(DcaArchitecture arch) =>
         arch.Types.Where(t => t is not Interface && !t.IsCompilerGenerated && !t.IsGenericParameter);
 
-    private static IEnumerable<IType> ConcreteTypesAssignableTo(DcaArchitecture arch, Type marker) =>
+    private static IEnumerable<IType> ConcreteTypesAssignableTo(DcaArchitecture arch, string marker) =>
         NonInterfaceTypes(arch).Where(t => IsAssignableTo(arch, t, marker));
 
     private static IEnumerable<IType> NonRootEntities(DcaArchitecture arch) =>
-        ConcreteTypesAssignableTo(arch, typeof(IEntity)).Where(t => !IsAssignableTo(arch, t, typeof(IAggregateRoot)));
+        ConcreteTypesAssignableTo(arch, arch.Layout.Markers.Entity).Where(t => !IsAssignableTo(arch, t, arch.Layout.Markers.AggregateRoot));
+
+    /// <summary>
+    /// The aggregate type a repository interface binds: the first type argument of the generic
+    /// repository role it implements. Null when the role is not generic, is used raw, or when the
+    /// runtime type cannot be resolved — the rule then falls back to resolving the aggregate by name.
+    /// </summary>
+    private static Type? BoundAggregateArgument(DcaArchitecture arch, IType repository)
+    {
+        var runtime = arch.RuntimeType(repository);
+        if (runtime is null)
+        {
+            return null;
+        }
+
+        foreach (var candidate in runtime.GetInterfaces())
+        {
+            if (candidate.IsGenericType
+                && DcaMarkers.CarriesRole(candidate.GetGenericTypeDefinition(), arch.Layout.Markers.Repository))
+            {
+                var arguments = candidate.GetGenericArguments();
+                if (arguments.Length > 0)
+                {
+                    return arguments[0];
+                }
+            }
+        }
+
+        return null;
+    }
 
     private static IEnumerable<Interface> RepositoryInterfaces(DcaArchitecture arch) =>
-        arch.Interfaces.Where(i => i.Name != RepositorySuffix && IsAssignableTo(arch, i, typeof(IRepository)));
+        arch.Interfaces.Where(i => i.Name != arch.Layout.RepositorySuffix && IsAssignableTo(arch, i, arch.Layout.Markers.Repository));
 
     private static IEnumerable<Interface> StoreInterfaces(DcaArchitecture arch) =>
-        arch.Interfaces.Where(i => i.Name != StoreSuffix && IsAssignableTo(arch, i, typeof(IStore)));
+        arch.Interfaces.Where(i => i.Name != arch.Layout.StoreSuffix && IsAssignableTo(arch, i, arch.Layout.Markers.Store));
 
     private static bool HasSuffixButIsNotMarker(IType type, string suffix) =>
         type.Name.EndsWith(suffix, StringComparison.Ordinal) && type.Name != suffix && type.Name != "I" + suffix;
 
     private static bool IsConcreteAggregateRoot(DcaArchitecture arch, IType type) =>
-        IsAssignableTo(arch, type, typeof(IAggregateRoot));
+        IsAssignableTo(arch, type, arch.Layout.Markers.AggregateRoot);
 
     private static bool IsConcreteNonRootEntity(DcaArchitecture arch, IType type) =>
-        IsAssignableTo(arch, type, typeof(IEntity)) && !IsAssignableTo(arch, type, typeof(IAggregateRoot));
+        IsAssignableTo(arch, type, arch.Layout.Markers.Entity) && !IsAssignableTo(arch, type, arch.Layout.Markers.AggregateRoot);
 
     /// <summary>A record class, a struct (record structs are structs) — the .NET reading of Java's "record".</summary>
     internal static bool IsRecordLike(IType type) => type is Struct || type is Class { IsRecord: true };
@@ -883,7 +906,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
     /// when the type is available at runtime, reflection decides, which also sees interfaces that a
     /// base class from another assembly implements.
     /// </summary>
-    private static bool IsAssignableTo(DcaArchitecture arch, IType type, Type marker)
+    private static bool IsAssignableTo(DcaArchitecture arch, IType type, string marker)
     {
         if (type.IsGenericParameter)
         {
@@ -893,10 +916,10 @@ public sealed class TacticalPatternRules : IDcaRuleSet
         var runtime = arch.RuntimeType(type);
         if (runtime is not null)
         {
-            return marker.IsAssignableFrom(runtime);
+            return DcaMarkers.IsAssignableToByName(runtime, marker);
         }
 
-        return type.IsAssignableTo(marker.FullName!) || type.ImplementsInterface(marker.FullName!);
+        return type.IsAssignableTo(marker) || type.ImplementsInterface(marker);
     }
 
     private static IEnumerable<IMember> AllMembers(IType type) =>

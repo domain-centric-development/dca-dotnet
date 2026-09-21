@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using DomainCentric.ArchRules.Rules;
@@ -12,10 +13,11 @@ public sealed class ContextMapRulesTests
     private const string Nested = "DomainCentric.ArchRules.Tests.Fixtures.ContextMap.Nested";
     private const string Planned = "DomainCentric.ArchRules.Tests.Fixtures.ContextMap.Planned";
     private const string PlannedMisplaced = "DomainCentric.ArchRules.Tests.Fixtures.ContextMap.PlannedMisplaced";
+    private const string ModuleDeclaration = "DomainCentric.ArchRules.Tests.Fixtures.ContextMap.ModuleDeclaration";
 
     private static readonly string[] ExpectedIds =
     {
-        "DCA-MAP-001", "DCA-MAP-002", "DCA-MAP-004", "DCA-MAP-005",
+        "DCA-MAP-001", "DCA-MAP-002", "DCA-MAP-004", "DCA-MAP-005", "DCA-MAP-006",
         "DCA-MAP-007", "DCA-MAP-008", "DCA-MAP-009", "DCA-MAP-010", "DCA-MAP-011",
         "DCA-MAP-012", "DCA-MAP-013",
     };
@@ -23,6 +25,10 @@ public sealed class ContextMapRulesTests
     private static readonly IReadOnlyDictionary<string, string> NoNegativeFixture = new Dictionary<string, string>
     {
         ["DCA-MAP-013"] = "diagnostic rule — prints the declared context map, never fails",
+        // Inert until a project configures a module-declaration attribute — no .NET preset names
+        // one. Its negative fixture therefore needs a configured layout: see
+        // AModuleDeclarationThatDisagreesWithTheContextMapIsReportedOnceConfigured.
+        ["DCA-MAP-006"] = "no .NET preset configures a module-declaration attribute; the ModuleDeclaration fixture does",
     };
 
     private static DcaArchitecture Arch(string ns) =>
@@ -41,7 +47,7 @@ public sealed class ContextMapRulesTests
         var set = Set(Good);
         Assert.Equal("contextmap", set.Name);
         Assert.Equal(ExpectedIds, set.Rules.Select(r => r.Id).ToArray());
-        Assert.Equal(new[] { "DCA-MAP-006" }, ContextMapRules.NotApplicable.Keys.ToArray());
+        Assert.Empty(ContextMapRules.NotApplicable);
         Assert.DoesNotContain(set.Rules, r => ContextMapRules.NotApplicable.ContainsKey(r.Id));
     }
 
@@ -95,5 +101,28 @@ public sealed class ContextMapRulesTests
         var ex = Assert.Throws<DcaRuleViolationException>(() => Set(Nested).Rules.Single(r => r.Id == "DCA-MAP-001").Check(Arch(Nested)));
         Assert.Contains(Nested + ".Cart.Application.GetCart", ex.Message);
         Assert.Contains("[Partnership]", ex.Message);
+    }
+
+    /// <summary>
+    /// DCA-MAP-006 is carried under the same id as in Java and selects nothing until a project names
+    /// its module-declaration attribute — .NET draws module boundaries with projects, so no preset
+    /// names one. Java behaves identically where no module system is on the class path.
+    /// </summary>
+    [Fact]
+    public void AModuleDeclarationThatDisagreesWithTheContextMapIsReportedOnceConfigured()
+    {
+        Set(ModuleDeclaration).Rules.Single(r => r.Id == "DCA-MAP-006").Check(Arch(ModuleDeclaration));
+
+        const string attribute = ModuleDeclaration + ".ApplicationModuleAttribute";
+        var layout = DcaLayout.ForRootNamespace(ModuleDeclaration).WithFrameworkTypes(
+            FrameworkTypes.AspNetCore() with { ModuleDeclarationAttributeTypes = new[] { attribute } });
+        var rule = new ContextMapRules(layout).Rules.Single(r => r.Id == "DCA-MAP-006");
+
+        var message = Assert.Throws<DcaRuleViolationException>(
+            () => rule.Check(DcaArchitecture.Load(layout, typeof(ContextMapRulesTests).Assembly))).Message;
+
+        Assert.Contains("Ordering", message, StringComparison.Ordinal);
+        Assert.Contains("Catalog :: Api", message, StringComparison.Ordinal);
+        Assert.Contains("Catalog :: Events", message, StringComparison.Ordinal);
     }
 }

@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using Xunit;
 
@@ -67,5 +69,65 @@ public sealed class FrameworkTypesTests
             .Select(outcome => outcome.RuleId)
             .OrderBy(id => id, System.StringComparer.Ordinal)
             .ToArray();
+    }
+
+    /// <summary>
+    /// dca.framework=&lt;name&gt; selects a preset, exactly as it does in dca-archunit. An unknown name
+    /// fails and lists the known ones — a typo must not fall back to the default silently.
+    /// </summary>
+    [Fact]
+    public void APresetIsSelectableByName()
+    {
+        Assert.Equal("aspnetcore", FrameworkTypes.Preset("aspnetcore")!.Name);
+        Assert.Equal("none", FrameworkTypes.Preset("NONE")!.Name);
+        Assert.Null(FrameworkTypes.Preset("quarkus"));
+
+        var layout = DcaLayout.ForRootNamespace("Acme.Shop").WithFrameworkPreset("none");
+        Assert.Equal("none", layout.FrameworkTypes.Name);
+        Assert.Equal(DcaLayout.FrameworkTypesOrigin.Preset, layout.FrameworkTypesSource);
+
+        var failure = Assert.Throws<ArgumentException>(
+            () => DcaLayout.ForRootNamespace("Acme.Shop").WithFrameworkPreset("quarkus"));
+        Assert.Contains("aspnetcore", failure.Message, StringComparison.Ordinal);
+        Assert.Contains("none", failure.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>The property applies to a default layout and never overrides one configured in code.</summary>
+    [Fact]
+    public void TheConfiguredFrameworkAppliesUnlessTheLayoutSaysOtherwise()
+    {
+        var properties = new Dictionary<string, string>(StringComparer.Ordinal) { ["dca.framework"] = "none" };
+
+        var fromDefault = DcaLayout.ApplyConfiguredFramework(DcaLayout.ForRootNamespace("Acme.Shop"), properties);
+        Assert.Equal("none", fromDefault.FrameworkTypes.Name);
+
+        var inCode = DcaLayout.ForRootNamespace("Acme.Shop").WithFrameworkTypes(FrameworkTypes.AspNetCore());
+        var unchanged = DcaLayout.ApplyConfiguredFramework(inCode, properties);
+        Assert.Equal("aspnetcore", unchanged.FrameworkTypes.Name);
+        Assert.Equal(DcaLayout.FrameworkTypesOrigin.Explicit, unchanged.FrameworkTypesSource);
+
+        var noKey = DcaLayout.ApplyConfiguredFramework(
+            DcaLayout.ForRootNamespace("Acme.Shop"),
+            new Dictionary<string, string>(StringComparer.Ordinal));
+        Assert.Equal("aspnetcore", noKey.FrameworkTypes.Name);
+        Assert.Equal(DcaLayout.FrameworkTypesOrigin.Default, noKey.FrameworkTypesSource);
+    }
+
+    /// <summary>
+    /// The report line the <c>LayoutDiagnostics</c> fact prints names the preset and where it came
+    /// from, so a run says which attributes the rules looked for.
+    /// </summary>
+    [Fact]
+    public void TheFrameworkReportNamesThePresetAndItsOrigin()
+    {
+        Assert.Equal("aspnetcore (default)", DcaLayout.ForRootNamespace("Acme.Shop").FrameworkTypesReport());
+
+        var configured = DcaLayout.ApplyConfiguredFramework(
+            DcaLayout.ForRootNamespace("Acme.Shop"),
+            new Dictionary<string, string>(StringComparer.Ordinal) { ["dca.framework"] = "none" });
+        Assert.Equal("none (configured)", configured.FrameworkTypesReport());
+
+        var inCode = DcaLayout.ForRootNamespace("Acme.Shop").WithFrameworkTypes(FrameworkTypes.None());
+        Assert.Equal("none (explicit)", inCode.FrameworkTypesReport());
     }
 }

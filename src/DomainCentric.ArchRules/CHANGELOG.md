@@ -4,7 +4,249 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+**Every name a rule matches on is configurable.** `WithAggregateRootSuffix`,
+`WithRepositorySuffix`, `WithStoreSuffix`, `WithFactorySuffix` and `WithSpecificationSuffix` join
+the use-case and controller suffixes; the same six rules as in Java follow the project's names.
+Defaults unchanged.
+
+**`DCA-USE-009` exempts no more than the Java twin does.** Two gaps: the walk's stop condition was
+hard-wired to `System.` and `DomainCentric.BuildingBlocks.`, so with a project's own vocabulary it
+stopped nowhere and the exemption was unreachable; and a registration from outside the aggregate's
+hierarchy was not looked for. The stop condition is derived from the configured marker roles now, and
+the external scan is here. One .NET difference is written into the `checks` text: the library's own
+`RegisterEvent` is protected, so only a nested type can reach it — and a nested type already belongs
+to the enclosing type's call graph. The scan therefore matters for a vocabulary whose registration is
+public, and a fixture proves it.
+
+**`DCA-ADV-009` is retired; `DCA-ADV-010` keeps the layer** — see the Java entry.
+`WithDomainServiceSegment` goes with it.
+
+**`DCA-ADV-008` follows a configurable list of timestamp types**, `WithTimestampTypes(...)` — see
+the Java entry. The default keeps `System.DateTimeOffset` and `System.DateTime`.
+
+**`DCA-STR-009` is retired** — see the Java entry. No replacement id.
+
+**The retirement reason of `DCA-TAC-022` is corrected** — see the Java entry.
+
+**`DCA-NET-001` and `DCA-NET-006` say so when Java has no twin.** Both make a statement about
+architecture rather than about C#: the domain layer stays synchronous, and the application layer
+names no persistence or transaction API. Java checks neither — `DCA-LAY-003` forbids the
+infrastructure packages, not the persistence API itself. The ids stay where they are for this
+release; both `checks` texts now state the gap in one sentence, so a reader does not infer a
+constraint that holds on one stack only.
+
+**`DCA-ADV-013` and `DCA-ADV-017` are titled after what they check** — see the Java entry.
+
+**`DCA-TAC-015` names its overlap with `DCA-HEX-008`.**
+
+**The README has a "smallest DCA" and an "own vocabulary" section**, and the building-blocks README's
+language-mapping table gained the rows it was missing: `DomainException`, `UseCaseException` and
+`ISpecification<T>` — the first two are the base types the `errors` set of this release rests on.
+
+**`DCA-TAC-007` and `DCA-TAC-008` inspect instance state only, as Java does and as all six `checks`
+texts have always said.** A static field is not aggregate state — the project decided that for
+`DCA-TAC-003`, and these two contradicted the decision in one language. This can turn a red build
+green, never the other way round.
+
+**`DCA-TAC-016` reads the aggregate the repository binds, and the name must name it.** See the Java
+entry; `ICategoryRepository : IRepository<Order, OrderId>` is now reported, a generic intermediate
+port is skipped.
+
+**`Specification` is a role, not only a suffix.** `DcaMarkers` gains `Specification`; `DCA-ADV-017`
+and `DCA-ADV-018` select through the marker or the name, resolved through the runtime type so the
+generic arity of `ISpecification<T>` does not hide it.
+
+**`DCA-NET-003` checks the contract, not a method name.** It required an operation named
+`ExecuteAsync` to implement `IUseCase<TIn,TOut>` — a name reservation no source supports, and a use
+case whose own port named its operation anything else was reported by no rule at all. What remains,
+and what the rule is now titled and argued for, is the shape of the *configured* use-case contract:
+awaitable, and taking a `CancellationToken`. With the library's own vocabulary the compiler already
+enforces that, so the rule speaks where a project points the `useCase` role at a contract of its own.
+Renamed to `UseCaseContractIsAsynchronousAndCancellable()`.
+
+**`DCA-USE-013` and `DCA-MAP-006` are carried here, under the same ids.** Both were listed as not
+applicable. Java carries `MAP-006` and lets it select nothing until a module-declaration annotation is
+configured, so "inert until configured" is a state the library already accepts for a shared id. Both
+now read a role that no .NET preset fills — `TransactionalAttribute` and the new
+`ModuleDeclarationAttributeTypes` — and say so in their `checks` texts. Nothing changes for a project
+that configures neither. `DCA-NAM-002` is the one remaining n/a, and the only one whose reason lies in
+the platform.
+
+**`DCA-LAY-004` sees a declarative boundary.** It read only the transaction API and the manager, so a
+project with its own transaction attribute could put it on a domain type and pass. The third selection
+the Java twin has always had is here now, reading `FrameworkTypes.TransactionalAttribute` — empty in
+both presets, so inert without configuration.
+
+**`DCA-ERR-004` has the same contract as in Java, and stops skipping silently.** Three empty roles —
+web controller, REST controller, event listener — join the four it read, so the id means the same
+thing on both stacks and a project whose framework has such an attribute can name it. A type whose
+runtime reflection is unavailable is counted and named on standard output instead of passing unseen.
+
+**Dead public API is gone while the version is unpublished.** Three unused namespace constants and the
+two public factory methods for the retired `DCA-ADV-003` and `DCA-TAC-022` are removed; a new test
+asserts that no rule set offers a retired id.
+
+**`DCA-NAM-003`, `DCA-ONI-003` and `DCA-HEX-009` say what they presume** — the `I` prefix as a platform
+convention, the container role as empty in both presets (which is why the half of `ONI-003` that does
+the most work in Java selects nothing here), and the common port root `DCA-HEX-009` needs.
+
+**One more hard-wired segment.** `DCA-USE-014`'s depth check still read a literal `Shared`; it reads
+the configured segment now.
+
+**A run says which preset and which vocabulary it resolved.** `DcaArchitectureTest` gained a
+`LayoutDiagnostics` fact that prints `framework annotations: aspnetcore (default)` and
+`building block markers: dca (library default)` — the same two lines, in the same wording, the Java
+carrier has printed since 0.4.0. New: `DcaLayout.FrameworkTypesReport()`. A mistyped role or a wrong
+root namespace is no longer a green suite with nothing to read. The README now also states, in the
+paragraph that exists for exactly this, that .NET has neither framework detection nor a preset SPI.
+
+**The advanced rules no longer change their verdict when a type cannot be loaded.**
+`DCA-ADV-006`, `-007`, `-008`, `-012` and `-016` read fields through the CLR only; for a type
+ArchUnitNET models but the loader cannot resolve, four of them passed silently and `DCA-ADV-008`
+reported a violation that was not there. They now fall back to the ArchUnitNET member model, and the
+five `checks` texts say what that model does not carry — the backing fields of auto-properties — and
+that a field whose writability neither model states is not reported.
+
+**`DCA-USE-012` says what to change.** The message named the missing property, not which of the two
+accepted forms to add — and with no transactional attribute configured, which is the .NET default,
+only one of them was available. It now names the configured attribute (or "none configured") and
+`ITransactionBoundary.InTransactionAsync(...)`, mirroring the Java wording, and the header is the
+rule's own title. Its `checks` text now states that the declarative path is empty by default here
+while the Java presets fill it.
+
+**`DCA-ERR-005` no longer rejects Ubiquitous-Language names.** The word list matched `Status` and
+`Response` as substrings, so `OrderStatusInvalidException` failed the rule that exists to protect the
+language. It now matches `Http`, `StatusCode`, `ResponseStatus` and `ResponseEntity`, in both
+languages.
+
+**`DCA-TAC-021` matches the same six write names in both languages**, compared case-insensitively
+instead of through a nine-entry list that spelled the Java names out.
+
+**`DCA-NET-004` says what it checks.** The rule is "Struct value objects must be readonly", but its
+rationale argued for records, its factory was called `ValueObjectsShouldBeRecords()` and the set's
+comment said "records for values". A reader who followed the rationale converted classes to records
+for no reason — `DCA-TAC-012` accepts any immutable type with value equality. Renamed to
+`StructValueObjectsMustBeReadonly()`; the rationale now argues from the copy semantics of a struct.
+
+**Four `DCA-USE` titles say what the rule checks** — `DCA-USE-002`, `-003`, `-006` and `-008` named
+the suffix as a requirement when it is the selection. Titles are not ids; nothing breaks.
+
+**`DCA-USE-015`'s `checks` text matches the walk**, which binds public and non-public members, and
+says that a type the loader cannot resolve is not walked.
+
+**The web adapter and shared segments are configurable.** `WithWebSegment(...)` and
+`WithSharedSegment(...)` join the other segments; `Web` was hard-wired in `DCA-NAM-011` and `Shared`
+in the shared-output-port patterns and the cycle slicing. Defaults unchanged, and the shared segment
+stays reserved against the operation containers whatever it is called.
+
+**`DCA-STR-008` cites the right reason** — a published contract, not event sourcing, which DCA
+prescribes nowhere.
+
+**`dca.framework` works here too.** The Java library lets `dca-archunit.properties` select a framework
+preset by name; .NET only accepted one in code. `dca.framework=aspnetcore|none` is now read from the
+same file, an unknown name fails and lists the known ones, and a layout that sets its framework types
+in code always wins over the file. New: `FrameworkTypes.Preset(name)`, `FrameworkTypes.PresetNames`,
+`DcaLayout.WithFrameworkPreset(name)`, `DcaLayout.FrameworkTypesSource`,
+`DcaLayout.ApplyConfiguredFramework(layout, properties)` and `DcaRuleSelection.PropertiesFrom(directory)`
+— the last two so a project running the catalog without the xUnit package gets the same behaviour.
+Unlike the Java side there is still no provider SPI: a framework without a preset is built up in code
+from `FrameworkTypes.None()`.
+
+**Corrected: why `dca.rules.freeze` is refused.** The message claimed ArchUnitNET has no equivalent of
+ArchUnit's `FreezingArchRule`. It does — `ArchUnitNET.Fluent.Freeze` ships `FreezingArchRule`,
+`IViolationStore`, `JsonViolationStore` and `XmlViolationStore`. The real obstacle is this library:
+`IDcaRule` does not expose the ArchUnitNET rule behind a check, so there is nothing to build a baseline
+from. The message and the README now say that instead.
+
+**`DCA-ERR-002` and `DCA-ERR-003` no longer both report the same exception.** A subtype of
+`DomainException` declared in an application namespace was reported twice, with contradictory
+remedies. `DCA-ERR-002` owns the case; `DCA-ERR-003` no longer selects domain-exception subtypes.
+
+**No logging library in the domain by default.** `Microsoft.Extensions.Logging.Abstractions` leaves the
+`DCA-ONI-002` allow-list; the Java twin never had a logging facade in it, and one rule id cannot mean two
+policies. **This can turn a green build red** — a domain model that logs adds the namespace back with
+`WithThirdPartyNamespacesAllowedInDomain(...)`, which is the supported way to make that decision.
+
+**The four fixed method names are written down.** `SaveAsync`, `DeleteByIdAsync`,
+`PublishAndClearEventsAsync` and `RegisterEvent` are matched by name and are not marker roles. The three
+`Checks` texts and the `DcaMarkers` documentation now say so.
+
+**`DCA-NAM-006` now expects `*Resource`, as `dca-archunit` always did.** The same rule id demanded
+opposite class names in the two libraries: `Resource` in Java and the conventions the guide states,
+`Controller` here — so the same story produced differently named classes in the two reference samples,
+and the .NET sample only passed because its architecture test overrode the default back to `Resource`.
+The .NET default is now `Resource` too. **This can turn a green build red**: an ASP.NET Core code base
+that follows the platform's own convention restores it with
+`WithRestControllerSuffix("Controller")`, one line in the layout. `ControllerSuffix`, which governs MVC
+and Razor page models, is unchanged at `Controller`.
+
+**The packages carry the version they will ship as, and `rules.json` says which release its texts
+belong to.** `DomainCentric.ArchRules` and `.Xunit` are `0.5.0`, `DomainCentric.BuildingBlocks` `0.2.0`
+for the two new exception base types. `rules.json` gained `library` and `version` at the top, read from
+the assembly that produced the entries. The README now states the public API surface, the versioning
+promise after 1.0 — a new or tightened rule is a major bump — and the exact rule counts.
+
+**xUnit v3 no longer builds green while nothing runs.** `DomainCentric.ArchRules.Xunit` builds on
+`xunit.core` 2.x. On a v3 project it restored and compiled without a warning and then contributed no
+test: `dotnet test` exited 0 and all 123 architecture rules silently did not run. The package now ships
+a build target that stops such a project with error `DCA0001` and points at the supported path —
+`DomainCentric.ArchRules` alone plus `DcaRules.CheckAll` in a test of your own, which works on any
+framework. Set `DcaArchRulesXunitSkipVersionGuard=true` to build anyway. Both READMEs gained a
+compatibility table.
+
+**New rule `DCA-STR-012` — at least one module owns a DCA layer.** The third guard of the same kind as
+an empty import and an undeclared bounded context. A code base whose layers are named `core` and `usecases`
+instead of the configured segments yields no module root, so every rule that selects over the layers — the
+whole use-case set among them — matched nothing and the suite was green. The violation names the configured
+segments, the namespaces it did see, and the way out. This is the most likely first run of a code base that has
+not configured the layout, so **it can turn a green build red**; switch it off with a recorded reason if the
+code base deliberately has no layered module.
+
+**`DCA-ONI-002` no longer reports a project's own marker vocabulary.** The rule named the two
+building-blocks namespaces directly, so a project that pointed the roles at its own markers was told
+its aggregate root was a forbidden third-party dependency inside its own domain. The allowed
+namespaces are now derived from the configured roles
+(`DcaMarkers.DeclaringNamespacesOf(DcaMarkers.DomainFacingRoles)`); with the default roles this
+yields exactly the two namespaces that were written in by hand. Matches `dca-archunit`.
+
+**Every violation now names its rule.** A report line used to carry the offending element and, for the five
+`DCA-ERR` rules, the id written into the header by hand; the other rules named it nowhere. `DcaRuleExecution`
+now prefixes every line of every report with `[DCA-XXX-nnn]`, matching `dca-archunit`. Nothing about a rule's
+selection, check or severity changes. A consumer that parses report text sees the new prefix.
+
 **What can turn a green build red:**
+
+- `DCA-ERR-004` also forbids the new `TransportStatusAttributeTypes` role — full attribute type names that
+  fix the protocol answer of the type they sit on. Empty in every preset, because the platform answers
+  through a mapper type rather than through an attribute on the failure; a project that has such an
+  attribute of its own configures it and a domain or use-case exception carrying it turns red. The twin
+  setting in `dca-archunit` is the `transportStatus` role.
+
+- **The rules no longer reference the building-block markers as types.** Every selection that used to name
+  `IAggregateRoot`, `IEntity`, `IValue`, `IId`, `IDomainEvent`, `IIntegrationEvent`, `IDomainService`,
+  `IFactory`, `DomainException`, `UseCaseException`, `ITransactionBoundary`, `IInputPort`, `IUseCase`,
+  `IOutputPort`, `IRepository`, `IStore`, `IDomainEventPublisher` or `IIntegrationEventPublisher` now asks
+  the layout for that *role*, resolved by full type name through the new `DcaMarkers`. `DcaLayout` defaults
+  to `DcaMarkers.Dca()`, so nothing changes for a project on the building blocks; a project with its own
+  markers points the roles at its own types (`WithMarkers(DcaMarkers.Dca() with { AggregateRoot =
+  "Acme.Platform.IContractRoot" })`) and is governed by the whole catalog instead of excluding the affected
+  rule ids. A role must name a type — an empty one is refused rather than silently selecting nothing. What
+  the roles do not cover are the strategic attributes: the rules read their members, and a name does not
+  carry members.
+- Correcting the first cut of this change, found in review: the `UseCase` and `TransactionBoundary` roles had no
+  reader at all — `DCA-NET-003`, `DCA-NET-006`, `DCA-NAM-002` and the transaction-coverage check still matched
+  `IUseCase<,>` and `ITransactionBoundary` as types, so configuring either role changed nothing. Both now
+  resolve through the role, generic arity included (`DcaMarkers.IsRole` / `CarriesRole`). The exclusion of the
+  vocabulary's own code in the error rules was hard-wired to this library's namespace and is now derived from
+  the namespaces the configured role types live in, so a project's own exception base type is no longer
+  reported as residing outside its layer.
+- `DcaMarkers.Validate()` states what the layout does with a vocabulary when it is built, instead of calling
+  `Roles()` for its side effect, and it also refuses a blank `Name` — which only the Java library did.
+- `DcaLayout.MarkersReport()` names the vocabulary and the roles that differ; `ToString()` carries it. The
+  xUnit base class has no diagnostic case of its own, unlike the Java library's, and the documentation says so
+  rather than promising a report.
+- `DCA-USE-015` names the configured aggregate-root and entity roles in its violation instead of the
+  literal `IAggregateRoot` / `IEntity`, so the message stays true under a project's own vocabulary.
 
 - The `errors` rule set is new, `DCA-ERR-001` … `DCA-ERR-006`, and pins the two new building blocks
   `DomainException` and `UseCaseException`. A project that declares its own exception types in the domain or

@@ -86,7 +86,7 @@ public sealed class NamingRules : IDcaRuleSet
             {
                 var violations = arch.Interfaces
                     .Where(i => InNamespace(i, DcaLayout.AnyOf(arch.AllApplicationPatterns()))
-                        && IsAssignableTo(arch, i, typeof(IInputPort))
+                        && IsAssignableTo(arch, i, arch.Layout.Markers.InputPort)
                         && !IsBaseInputPortName(i.Name)
                         && !(i.Name.StartsWith("I", StringComparison.Ordinal) && i.Name.EndsWith("InputPort", StringComparison.Ordinal)))
                     .Select(i => $"{i.FullName} is an input port but is not named I*InputPort")
@@ -100,9 +100,11 @@ public sealed class NamingRules : IDcaRuleSet
             "Interfaces in <module>.Application of every module root that are assignable to"
                 + " IInputPort, except those named exactly InputPort, IInputPort, UseCase or IUseCase.")
         .Checking(
-            "The name starts with I and ends with InputPort (IPlaceOrderInputPort). Classes and"
-                + " records are not selected, and an interface extending IInputPort outside an"
-                + " application namespace is not checked. An empty selection passes.");
+            "The name starts with I and ends with InputPort (IPlaceOrderInputPort). The I prefix is the"
+                + " platform convention and is checked here only: the Java twin requires the suffix and"
+                + " nothing else, because Java interfaces carry no prefix. Classes and records are not"
+                + " selected, and an interface extending IInputPort outside an application namespace is"
+                + " not checked. An empty selection passes.");
 
     public static IDcaRule RepositoryInterfacesEndWithRepository(DcaLayout layout) =>
         DcaRule.Check(
@@ -271,14 +273,15 @@ public sealed class NamingRules : IDcaRuleSet
 
     /// <summary>
     /// The web-adapter namespaces are derived from the discovered module roots
-    /// (<c>Root.Adapter.Incoming.Web</c> and below, per module), so a grouped context and a single-context
+    /// (<c>Root.Adapter.Incoming.&lt;Web&gt;</c> and below, per module), so a grouped context and a single-context
     /// application whose root namespace is the context are governed like a flat layout.
     /// </summary>
     public static IDcaRule ViewModelsResideInIncomingWebAdapters(DcaLayout layout) =>
         DcaRule.Of(
             "DCA-NAM-011",
-            "ViewModels must reside in Adapter.Incoming.Web namespaces",
-            "ViewModels are presentation concerns and must reside in incoming web adapter namespaces",
+            "ViewModels must reside in the configured web adapter namespace",
+            "A ViewModel is shaped for the protocol of one incoming adapter and belongs in it. It has no"
+            + " reading in the domain or the application layer, and none in a second adapter",
             arch =>
                 Types()
                     .That()
@@ -287,14 +290,15 @@ public sealed class NamingRules : IDcaRuleSet
                     .ResideInNamespaceMatching(DcaLayout.Below(layout.RootNamespace))
                     .Should()
                     .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.ModuleRoots().Select(root =>
-                        DcaLayout.Below($"{root}.{layout.AdapterSegment}.{layout.IncomingSegment}.Web")))))
+                        DcaLayout.Below($"{root}.{layout.AdapterSegment}.{layout.IncomingSegment}.{layout.WebSegment}")))))
         .Selecting(
             "Types under the root namespace whose name ends with ViewModel.")
         .Checking(
-            "Each resides in <module>.Adapter.Incoming.Web of some module root - the adapter"
-                + " and incoming segments are the configured ones, the Web segment is fixed. A"
-                + " ViewModel in a domain or application namespace, or in a non-web incoming adapter"
-                + " such as Adapter.Incoming.Mcp, is reported. An empty selection passes.");
+            "Each resides in <module>.Adapter.Incoming.<Web> of some module root - all three"
+                + " segments are the configured ones (WithWebSegment changes the last). A"
+                + " ViewModel in a domain or application namespace, or in an incoming adapter"
+                + " other than the configured web one, such as Adapter.Incoming.Mcp, is"
+                + " reported. An empty selection passes.");
 
     // ---------------------------------------------------------------------------------------------
     // Helpers
@@ -307,19 +311,20 @@ public sealed class NamingRules : IDcaRuleSet
         name is "InputPort" or "IInputPort" or "UseCase" or "IUseCase";
 
     /// <summary>
-    /// Whether the class implements <c>IUseCase&lt;,&gt;</c> - by reflection on the runtime type when the assembly
-    /// is loaded, by the ArchUnitNET interface list (generic name prefix) otherwise.
+    /// Whether the class carries the configured use-case role - by reflection on the runtime type when the
+    /// assembly is loaded, by the ArchUnitNET interface list (the role name as a prefix, which also matches the
+    /// generic arity suffix) otherwise.
     /// </summary>
     private static bool ImplementsUseCase(DcaArchitecture arch, Class c)
     {
+        var markers = arch.Layout.Markers;
         var runtime = arch.RuntimeType(c);
         if (runtime is not null)
         {
-            return runtime.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IUseCase<,>));
+            return runtime.GetInterfaces().Any(i => DcaMarkers.CarriesRole(i, markers.UseCase));
         }
 
-        var prefix = typeof(IUseCase<,>).FullName!.Split('`')[0];
-        return c.ImplementedInterfaces.Any(i => i.FullName.StartsWith(prefix, StringComparison.Ordinal));
+        return c.ImplementedInterfaces.Any(i => i.FullName.StartsWith(markers.UseCase, StringComparison.Ordinal));
     }
 
     private static bool InNamespace(IType type, string pattern) =>
@@ -355,15 +360,15 @@ public sealed class NamingRules : IDcaRuleSet
     /// Assignability via the ArchUnitNET model with a reflection fallback for interface closures the
     /// loader did not resolve (generic base interfaces such as IUseCase&lt;,&gt; → IInputPort).
     /// </summary>
-    private static bool IsAssignableTo(DcaArchitecture arch, IType type, Type marker)
+    private static bool IsAssignableTo(DcaArchitecture arch, IType type, string marker)
     {
-        var markerName = marker.FullName!;
+        var markerName = marker;
         if (type.FullName == markerName || type.ImplementsInterface(markerName) || type.IsAssignableTo(markerName))
         {
             return true;
         }
 
         var runtime = arch.RuntimeType(type);
-        return runtime is not null && marker.IsAssignableFrom(runtime);
+        return runtime is not null && DcaMarkers.IsAssignableToByName(runtime, marker);
     }
 }

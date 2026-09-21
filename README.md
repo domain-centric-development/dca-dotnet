@@ -10,7 +10,7 @@ same building blocks, same rule ids.
 | Package | What it is | Dependencies |
 |---------|------------|--------------|
 | `DomainCentric.BuildingBlocks` | The building blocks your code implements: DDD tactical markers (`IAggregateRoot`, `IEntity`, `IValue`, `IDomainEvent`, …), strategic attributes (`[BoundedContext]`, `[SharedKernel]`, `[Upstream]`, `[Partnership]`, …) and hexagonal port interfaces (`IUseCase`, `IRepository`, `IStore`, …) | none (`netstandard2.1`, `net8.0`, `net10.0`) |
-| `DomainCentric.ArchRules` | The governance rules: ~100 ArchUnitNET rules pinned to those building blocks, plus an executable context map | `DomainCentric.BuildingBlocks`, ArchUnitNET (`net8.0`, `net10.0`) |
+| `DomainCentric.ArchRules` | The governance rules: 127 ArchUnitNET rules pinned to those building blocks, plus an executable context map | `DomainCentric.BuildingBlocks`, ArchUnitNET (`net8.0`, `net10.0`) |
 | `DomainCentric.ArchRules.Xunit` | xUnit base class — one theory case per rule | `DomainCentric.ArchRules`, xunit.core |
 
 Versions are independent per package family; see [Versioning](#versioning).
@@ -125,7 +125,12 @@ dca.rules.warn              = DCA-TAC-009
 dca.rules.warn.sets         = naming
 dca.rule.DCA-STR-003.ignore = .*Legacy.*
 dca.rule.DCA-STR-003.ignore.1 = Generated.{1,3}Client
+dca.framework               = none
 ```
+
+`dca.framework` selects the framework preset by name — `aspnetcore` (the default) or `none`. An
+unknown name fails and lists the known ones. A layout that names its framework types in code with
+`WithFrameworkTypes(...)` always wins over the file.
 
 An unknown rule id or set name fails the run immediately — a typo must never leave a rule silently
 enforced. The value of an `.ignore` key is **one** regular expression, commas included; a second
@@ -135,15 +140,30 @@ Both sources combine: the file is the base, `AdditionalSelection` is merged on t
 wins per rule id. Override `AdditionalSelection`, not `Selection` — the latter *replaces* the file, so
 a `dca-archunit.properties` added later would be ignored without a word.
 
-**Three differences from the Java library.** There is no baseline dial (`frozen` /
-`dca.rules.freeze`): ArchUnitNET has no equivalent of ArchUnit's `FreezingArchRule`, and the properties
-key is rejected with a message saying so — lower those rules to a warning instead. Because xUnit v2
+**Four differences from the Java library.** There is no baseline dial yet (`frozen` /
+`dca.rules.freeze`). ArchUnitNET does ship a `FreezingArchRule`, but the rules of this library do not
+expose the ArchUnitNET rule behind them, so there is nothing to build a baseline from; the properties
+key is rejected with a message saying so. **On an existing code base, use `dca.rule.<id>.ignore`
+instead**: one regular expression over what is already broken, so the rule reports only what you break
+from now on. It works for every rule, not only the ones a baseline could bind to, and it means the
+same thing in both libraries. Because xUnit v2
 cannot skip a test dynamically, a rule at `WARN` or `OFF` is reported green rather than skipped. And
 only the **file** shapes the report: theory cases are built statically, before an instance exists, so a
 rule the file scopes out produces no case at all and one it lowers is named
 `naming / DCA-NAM-005 [OFF: no MVC controllers here]`. The same settings made in `AdditionalSelection`
 take effect but appear only in the test output — put them in the file when the report should carry the
-decision.
+decision. Finally, there is **no framework detection and no preset SPI**: `FrameworkTypes` ships two
+presets, `AspNetCore()` (the default) and `None()`, both selectable in code or with
+`dca.framework=aspnetcore|none`, while the Java library ships five, recognises the one on the test
+class path and lets a project register its own through `META-INF/services`. A project on a platform
+neither preset covers builds its own `FrameworkTypes` in code. Which preset and which marker
+vocabulary a run resolved is printed by the `LayoutDiagnostics` fact of `DcaArchitectureTest`, in the
+same wording the Java report uses:
+
+```
+framework annotations: aspnetcore (default)
+building block markers: dca (library default)
+```
 
 The older `ExcludedRuleIds` and `Rules` overrides keep working and feed the same selection.
 
@@ -165,7 +185,59 @@ builds Debug by default, so nothing changes for most projects; if you must analy
 opt in with `DcaArchitecture.Load(layout, allowOptimizedAssemblies: true, assemblies)` and accept the
 blind spot.
 
+## The smallest DCA
+
+Nothing in the catalog fires on a concept the project has not declared: a rule with an empty
+selection passes. So the first day needs seven building blocks, not thirty-one:
+
+- `IAggregateRoot<TSelf, TId>` and `IId` — one aggregate and its identifier
+- `IValue` — the attributes that have no lifecycle of their own
+- `IRepository<TAggregate, TId>` — how that aggregate is loaded and stored
+- `IInputPort` — what the outside may ask the application to do
+- `DomainException` — a broken rule of the model, named after the rule
+- `[BoundedContext]` on one marker class — so the rules know where the module begins
+
+That is enough for `DcaArchitectureTest` to say something useful. `IEntity`, `IDomainEvent`,
+`IIntegrationEvent`, `IDomainService`, `IFactory`, `ISpecification<T>`, `IStore`, the publishers and
+the context-map attributes each switch on the rules that govern them, when and only when the project
+introduces the concept.
+
+**Your own vocabulary instead of ours.** A code base that already has an aggregate base class keeps
+it and points the roles at it, rather than migrating types or excluding rule ids:
+
+```csharp
+var layout = DcaLayout.ForRootNamespace("Acme.Billing")
+    .WithMarkers(DcaMarkers.Dca() with
+    {
+        Name = "acme",
+        AggregateRoot = "Acme.Common.Aggregate",
+        Repository = "Acme.Common.Store",
+    });
+```
+
+Every rule then selects on those types, the vocabulary's own namespaces are excluded from the
+third-party checks, and the `LayoutDiagnostics` fact names the vocabulary it resolved. One caveat:
+`OutputPort` must be set as soon as any other port role is, because `DCA-HEX-009` measures every
+port against it.
+
+**Domain events are optional; the marker's API is not.** `IAggregateRoot<TSelf, TId>` declares
+`DomainEvents` and `ClearDomainEvents()`, so a project that models no events still inherits them.
+No rule requires an event to exist — every event rule passes on an empty selection — but if the two
+members are unwanted on the model, point the aggregate-root role at a type of your own; the rules
+follow the role, not the base class.
+
+**Your own names.** Where a rule finds something by name rather than by role — the use-case,
+controller, REST-controller, aggregate-root, repository, store, factory and specification suffixes,
+the segments of the namespace layout, and the types a domain event may store its occurrence time in
+(`WithTimestampTypes`) — `DcaLayout` has a `With…` for it. Configure the name; do not switch the
+rule off.
+
 ## Rule catalog
+
+**125 rule ids in 12 sets: 119 enforced, 5 informational, 1 not applicable in .NET.** Five further ids are retired and keep their meaning in the retirement list. The
+exact, current list is [RULES.md](RULES.md) and [rules.json](rules.json), both generated from the code
+by `dotnet run --project tools/RulesCatalog -- .` and verified in CI; every number in this README is
+taken from there. `rules.json` names the package version its texts belong to.
 
 Rule sets and identifier prefixes (identical to dca-java, so guide, catalog and tooling can speak of
 one rule across both languages):
@@ -183,11 +255,15 @@ one rule across both languages):
 | `naming` | `DCA-NAM` | naming conventions, forbidden technical suffixes and bucket namespaces |
 | `cycles` | `DCA-CYC` | no cycles between contexts, layers, use-case namespaces |
 | `errors` | `DCA-ERR` | domain and use-case exceptions: base types, their layer, no framework or transport vocabulary |
-| `dotnet` | `DCA-NET` | .NET only: synchronous domain, `Async` suffix on port methods, one `ExecuteAsync`, records for values and ids |
+| `dotnet` | `DCA-NET` | .NET only: synchronous domain, `Async` suffix on port methods, an awaitable and cancellable use-case contract, readonly structs for struct values and ids |
 
 The full list with rationale is in [RULES.md](RULES.md) (generated — `dotnet run --project tools/RulesCatalog -- .`).
-Java rules that have no .NET counterpart (they only check a Spring annotation) are listed there as
-*not applicable*; see [PORTING-LOG.md](PORTING-LOG.md) for the reasoning per rule.
+One Java rule has no .NET counterpart and is listed there as *not applicable*: `DCA-NAM-002`, a
+diagnostic over the container stereotype, which .NET has no attribute for. Two ids that used to be
+listed that way — `DCA-USE-013` and `DCA-MAP-006` — are carried here under the same id and select
+nothing until the project configures the role they read, exactly as their Java twins select nothing
+where the framework annotation is absent. See [PORTING-LOG.md](PORTING-LOG.md) for the reasoning per
+rule.
 
 ## Beyond rules: executable context map
 
@@ -206,16 +282,70 @@ public void RenderContextMap() =>
 
 Because the rules guarantee declarations match the code, the rendered map cannot drift.
 
+## Compatibility
+
+| Runs on | Version | Tested against |
+|---|---|---|
+| .NET | 8.0 and 10.0 | both |
+| `DomainCentric.BuildingBlocks` | also `netstandard2.1` | — |
+| ArchUnitNET | 0.13.4 | 0.13.4 |
+| `DomainCentric.ArchRules.Xunit` | **xUnit v2 only** (`xunit.core` 2.x) | 2.9.3 |
+| Build configuration | **Debug** | see *Run against Debug builds* |
+
+**xUnit v3 is not supported by `DomainCentric.ArchRules.Xunit`.** The package compiles and restores
+against a v3 project without a warning, and then the runner discovers nothing from it: `dotnet test`
+exits 0, no architecture rule runs and the build stays green while nothing is checked. Since 0.5.0 the
+package refuses that combination with build error `DCA0001` rather than letting it pass silently.
+
+A v3 project runs the whole catalog without this package — reference `DomainCentric.ArchRules` alone
+and call the catalog from a test of your own:
+
+```csharp
+[Fact]
+public void ArchitectureRulesHold()
+{
+    var layout = DcaLayout.ForRootNamespace("Acme.Shop");
+    var architecture = DcaArchitecture.Load(layout, typeof(ArchitectureTests).Assembly);
+    DcaRules.CheckAll(architecture, DcaRuleSelection.All());
+}
+```
+
+That works on any test framework. What it does not give you is one test per rule in the report, which
+is the only thing the `.Xunit` package adds.
+
+## Public API
+
+What a consumer may rely on, and what may change in a patch:
+
+| Public — covered by the versioning promise | Internal — may change without notice |
+|---|---|
+| The **rule ids** and their meaning, `rules.json` and `RULES.md` | The rule-set classes (`TacticalPatternRules`, `UseCaseRules`, …) and their factory methods |
+| `DcaLayout`, `DcaMarkers`, `FrameworkTypes` and the preset SPI | The `Rules` namespace as a whole, and every helper in it |
+| `DcaArchitecture`, `DcaRules`, `DcaRuleSelection`, `DcaRuleExecution`, `DcaRuleOutcome`, `DcaSeverity` | The wording of a violation message, beyond the `[DCA-XXX-nnn]` prefix every line carries |
+| `IDcaRule` as a type to read — `Id`, `Title`, `Rationale`, `Selects`, `Checks` | The retired rules' implementations, which exist only so an old reference still compiles |
+| `DomainCentric.BuildingBlocks` — every marker and port type | Test fixtures, and anything under an `Internal` namespace |
+| The xUnit base class `DcaArchitectureTest` (xUnit v2 — see *Compatibility*) | |
+
+The rule-set classes are `public` because the catalog tool and the xUnit integration live outside
+their namespace, not because they are meant to be called directly. Build a run through `DcaRules` and
+a `DcaRuleSelection`; that is the supported entry point, and the one that applies severities and
+tolerated violations.
+
 ## Versioning
 
 Semantic versioning, independent per package family:
 
 - `DomainCentric.BuildingBlocks` — rarely changes; a new marker is a minor bump, a removed or renamed
   one a major bump.
-- `DomainCentric.ArchRules` (+ `.Xunit`, released together) — a new rule is a minor bump (it can fail
-  your build — pin versions), a tightened rule is a major bump, a relaxed rule or fixed false positive
-  a patch. **Before 1.0** a minor version may add and tighten rules as well; every such change is listed
-  under *Changed — breaking* in the changelog, with a migration note at the top of the release.
+- `DomainCentric.ArchRules` (+ `.Xunit`, released together) — **from 1.0 on, a new or tightened rule is
+  a major bump.** Adding a rule can turn a green build red, and SemVer calls that breaking however small
+  the change is. A relaxed rule, a fixed false positive and a clearer message are patches. **Before 1.0**
+  a minor version may add and tighten rules, which is what 0.x is for: every such change is listed under
+  *What can turn a green build red* in the changelog, with a migration note at the top of the release.
+  Either way, pin the version.
+- **Rule ids are the stable contract.** An id is never reused for a different check and never
+  renumbered. A withdrawn rule keeps its id in the retirement list of `rules.json` with the reason and
+  its replacement, so a `dca.rules.off` entry or a catalog reference never silently means something else.
 
 Tags: `building-blocks/vX.Y.Z`, `archrules/vX.Y.Z`; the release procedure is in [RELEASING.md](RELEASING.md). Changelogs: [src/DomainCentric.BuildingBlocks/CHANGELOG.md](src/DomainCentric.BuildingBlocks/CHANGELOG.md), [src/DomainCentric.ArchRules/CHANGELOG.md](src/DomainCentric.ArchRules/CHANGELOG.md).
 

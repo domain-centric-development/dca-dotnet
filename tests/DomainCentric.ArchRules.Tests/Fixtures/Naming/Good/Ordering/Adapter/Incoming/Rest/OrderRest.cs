@@ -5,11 +5,11 @@ using DomainCentric.ArchRules.Tests.Fixtures.Naming.Good.Ordering.Application.Pl
 namespace DomainCentric.ArchRules.Tests.Fixtures.Naming.Good.Ordering.Adapter.Incoming.Rest;
 
 [ApiController]
-public sealed class OrderController : ControllerBase
+public sealed class OrderResource : ControllerBase
 {
     private readonly IPlaceOrderInputPort _placeOrder;
 
-    public OrderController(IPlaceOrderInputPort placeOrder)
+    public OrderResource(IPlaceOrderInputPort placeOrder)
     {
         _placeOrder = placeOrder;
     }

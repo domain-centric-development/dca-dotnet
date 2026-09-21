@@ -22,12 +22,6 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
 {
     private static readonly string[] SchemaFields = { "schemaVersion", "eventVersion", "contractVersion" };
 
-    private static readonly string[] TimestampTypes =
-    {
-        typeof(DateTimeOffset).FullName!,
-        typeof(DateTime).FullName!,
-    };
-
     /// <summary>Java rules of this set that have no .NET counterpart (id → reason). None.</summary>
     public static readonly IReadOnlyDictionary<string, string> NotApplicable = new Dictionary<string, string>();
 
@@ -44,7 +38,6 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
             IntegrationEventsHaveNoVersionField(),
             DomainOnlyEventsHaveNoVersionField(),
             DomainEventsHaveTimestampField(),
-            DomainServicesResideInDomainService(),
             DomainServicesResideInDomain(),
             DomainServicesHaveNoFrameworkAttributes(),
             DomainServicesAreStateless(),
@@ -78,7 +71,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 "Domain Events must have immutable instance state:",
                 Violations(
                     arch,
-                    t => t is not Interface && IsDomainEvent(t),
+                    t => t is not Interface && IsDomainEvent(t, arch.Layout.Markers),
                     t => !TacticalPatternRules.IsImmutableShape(t),
                     t => $"{t.FullName} implements IDomainEvent but has mutable shape")))
             .Selecting(
@@ -94,7 +87,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
             "Domain events are part of the domain layer (named in past tense)",
             arch => Types()
                 .That()
-                .AreAssignableTo(typeof(IDomainEvent))
+                .FollowCustomPredicate(t => t.IsAssignableTo(arch.Layout.Markers.DomainEvent), "are domain events")
                 .And()
                 .FollowCustomPredicate(t => t is not Interface, "are not interfaces")
                 .Should()
@@ -104,25 +97,6 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
             .Checking(
                 "Each resides in a domain namespace of some module root (<module>.Domain or below). An "
                 + "event in an application, adapter or infrastructure namespace is reported. An empty "
-                + "selection passes.");
-
-    public IDcaRule DomainEventsAreImmutable() =>
-        DcaRule.Check(
-            "DCA-ADV-003",
-            "Domain Events should be immutable (sealed or records)",
-            "Domain events should be immutable (sealed classes or records)",
-            arch => DcaRule.Fail(
-                "Domain Events that are not records must be sealed:",
-                Violations(
-                    arch,
-                    t => t is Class c && c.IsRecord != true && InDomain(arch, t) && IsDomainEvent(t),
-                    t => ((Class)t).IsSealed != true,
-                    t => $"{t.FullName} is neither a record nor sealed")))
-            .Selecting(
-                "Non-record classes in <module>.Domain of every module root that are assignable to "
-                + "IDomainEvent. Records, structs and interfaces are not selected.")
-            .Checking(
-                "The class is sealed. A record event is not selected, so it always passes here. An empty "
                 + "selection passes.");
 
     public IDcaRule DomainEventsHaveNoFrameworkAttributes() =>
@@ -143,7 +117,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 "Integration Events must be annotated with [IntegrationEventType]:",
                 Violations(
                     arch,
-                    t => t is not Interface && IsIntegrationEvent(t),
+                    t => t is not Interface && IsIntegrationEvent(t, arch.Layout.Markers),
                     t => !t.HasAttribute(typeof(IntegrationEventTypeAttribute).FullName!),
                     t => $"{t.FullName} is not annotated with [IntegrationEventType]")))
             .Selecting(
@@ -165,13 +139,13 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                     + " single source of truth:",
                 Violations(
                     arch,
-                    t => t is not Interface && IsIntegrationEvent(t),
+                    t => t is not Interface && IsIntegrationEvent(t, arch.Layout.Markers),
                     t => HasVersionField(arch, t),
                     t => $"{t.FullName} carries an explicit schema-version field — declare the version in"
                         + " [IntegrationEventType] instead")))
             .Selecting(
                 "Non-interface types anywhere under scan that are assignable to IIntegrationEvent.")
-            .Checking("Name heuristic: schemaVersion, eventVersion and contractVersion fields (case-insensitive), declared or inherited, including auto-property backing fields and record parameters, are reported. A business revision named version is allowed, whatever its type. The heuristic cannot infer business meaning; an empty selection passes.");
+            .Checking("Name heuristic: schemaVersion, eventVersion and contractVersion fields (case-insensitive), declared or inherited, including auto-property backing fields and record parameters, are reported. A business revision named version is allowed, whatever its type. A type the loader cannot resolve is read through the ArchUnitNET member model instead, which does not carry the backing fields of auto-properties. The heuristic cannot infer business meaning; an empty selection passes.");
 
     public IDcaRule DomainOnlyEventsHaveNoVersionField() =>
         DcaRule.Check(
@@ -184,14 +158,14 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                     + " only for IIntegrationEvents:",
                 Violations(
                     arch,
-                    t => t is not Interface && IsDomainEvent(t) && !IsIntegrationEvent(t),
+                    t => t is not Interface && IsDomainEvent(t, arch.Layout.Markers) && !IsIntegrationEvent(t, arch.Layout.Markers),
                     t => HasVersionField(arch, t),
                     t => $"{t.FullName} has an explicit schema-version field but is not an IIntegrationEvent — only"
                         + " IIntegrationEvents need schema versioning")))
             .Selecting(
                 "Non-interface types anywhere under scan that are assignable to IDomainEvent but not to "
                 + "IIntegrationEvent. A type assignable to both is not selected.")
-            .Checking("Name heuristic: schemaVersion, eventVersion and contractVersion fields (case-insensitive), declared or inherited, including auto-property backing fields and record parameters, are reported. A business revision named version is allowed, whatever its type. The heuristic cannot infer business meaning; an empty selection passes.");
+            .Checking("Name heuristic: schemaVersion, eventVersion and contractVersion fields (case-insensitive), declared or inherited, including auto-property backing fields and record parameters, are reported. A business revision named version is allowed, whatever its type. A type the loader cannot resolve is read through the ArchUnitNET member model instead, which does not carry the backing fields of auto-properties. The heuristic cannot infer business meaning; an empty selection passes.");
 
     public IDcaRule DomainEventsHaveTimestampField() =>
         DcaRule.Check(
@@ -203,7 +177,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 "Domain Events must have a timestamp field (when did the event occur?):",
                 Violations(
                     arch,
-                    t => t is not Interface && IsDomainEvent(t),
+                    t => t is not Interface && IsDomainEvent(t, arch.Layout.Markers),
                     t => !HasTimestampField(arch, t),
                     t => $"{t.FullName} does not have a timestamp field")))
             .Selecting(
@@ -212,36 +186,21 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 + "when it also implements IDomainEvent.")
             .Checking(
                 "At least one field - declared by the type or inherited from a base type, static or not, "
-                + "of any name - has the type System.DateTimeOffset or System.DateTime; an auto-property or "
+                + "of any name - has one of the configured timestamp types, by default System.DateTimeOffset "
+                + "or System.DateTime; an auto-property or "
                 + "positional record parameter of one of these types counts through its backing field. "
                 + "DateOnly, TimeSpan, long or string fields do not satisfy it, and a computed property "
-                + "without a backing field does not either. Every offender is reported in one violation; an "
-                + "empty selection passes.");
+                + "without a backing field does not either - which is what the rule is for, because the "
+                + "marker already forces the accessor; a project whose own event vocabulary wraps the "
+                + "timestamp in a value type names that type with WithTimestampTypes. A type the loader "
+                + "cannot resolve is read "
+                + "through the ArchUnitNET member model instead, which does not carry the backing fields "
+                + "of auto-properties. Every offender is reported in one violation; an empty selection "
+                + "passes.");
 
     // ============================================================================
     // DOMAIN SERVICES PATTERN
     // ============================================================================
-
-    public IDcaRule DomainServicesResideInDomainService() =>
-        DcaRule.Of(
-            "DCA-ADV-009",
-            "Marked domain services reside in the configured domain service segment",
-            "Domain services implement IDomainService marker and reside in Domain.Service namespaces"
-                + " (named descriptively, e.g., PricingService, CartTotalCalculator)",
-            arch => Types()
-                .That()
-                .AreAssignableTo(typeof(IDomainService))
-                .And()
-                .FollowCustomPredicate(t => t is not Interface, "are not interfaces")
-                .Should()
-                .ResideInNamespaceMatching(DomainServicePattern()))
-            .Selecting(
-                "Non-interface types anywhere under scan that are assignable to IDomainService.")
-            .Checking(
-                "Each resides in a namespace matching .<domain segment>.Service or below - the configured "
-                + "domain segment followed by Service, anywhere in the namespace path, not tied to a module "
-                + "root. A domain service directly in Domain or in Domain.Model is reported. An empty "
-                + "selection passes.");
 
     public IDcaRule DomainServicesResideInDomain() =>
         DcaRule.Of(
@@ -250,7 +209,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
             "Domain services are part of the domain layer, not application layer",
             arch => Types()
                 .That()
-                .AreAssignableTo(typeof(IDomainService))
+                .FollowCustomPredicate(t => t.IsAssignableTo(arch.Layout.Markers.DomainService), "are domain services")
                 .And()
                 .FollowCustomPredicate(t => t is not Interface, "are not interfaces")
                 .Should()
@@ -277,7 +236,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 "Domain Services must have only readonly fields:",
                 NonReadonlyFieldViolations(
                     arch,
-                    t => t is not Interface && InDomain(arch, t) && t.IsAssignableTo(typeof(IDomainService).FullName!))))
+                    t => t is not Interface && InDomain(arch, t) && t.IsAssignableTo(arch.Layout.Markers.DomainService))))
             .Selecting(
                 "Non-interface types in <module>.Domain of every module root that are assignable to "
                 + "IDomainService.")
@@ -285,7 +244,9 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 "Every field - declared by the type or inherited from a base type, static fields included "
                 + "- is readonly or const. A settable auto-property is reported through its backing field; "
                 + "a get-only one passes. Field types are not inspected, so a readonly field holding "
-                + "mutable state passes. An empty selection passes.");
+                + "mutable state passes. A type the loader cannot resolve is read through the "
+                + "ArchUnitNET member model instead, and a field whose writability neither model states "
+                + "is not reported. An empty selection passes.");
 
     // ============================================================================
     // FACTORIES PATTERN
@@ -294,15 +255,16 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
     public IDcaRule FactoriesAreNamedFactory() =>
         DcaRule.Of(
             "DCA-ADV-013",
-            "Factories should implement IFactory Marker Interface",
-            "Classes implementing IFactory marker should have 'Factory' in their name",
+            "Types carrying the factory role are named *Factory",
+            "A factory is found by its role, and read by its name: a type that creates aggregates and is"
+                + " not called one makes the creation site hard to find in review and in a search",
             arch => Types()
                 .That()
-                .AreAssignableTo(typeof(IFactory))
+                .FollowCustomPredicate(t => t.IsAssignableTo(arch.Layout.Markers.Factory), "are factories")
                 .And()
                 .FollowCustomPredicate(t => t is not Interface, "are not interfaces")
                 .Should()
-                .HaveNameEndingWith("Factory"))
+                .HaveNameEndingWith(arch.Layout.FactorySuffix))
             .Selecting(
                 "Non-interface types anywhere under scan that are assignable to IFactory.")
             .Checking(
@@ -316,7 +278,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
             "Factories are part of the domain layer (complex aggregate creation logic)",
             arch => Types()
                 .That()
-                .AreAssignableTo(typeof(IFactory))
+                .FollowCustomPredicate(t => t.IsAssignableTo(arch.Layout.Markers.Factory), "are factories")
                 .And()
                 .FollowCustomPredicate(t => t is not Interface, "are not interfaces")
                 .Should()
@@ -343,14 +305,16 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 "Factories must have only readonly fields:",
                 NonReadonlyFieldViolations(
                     arch,
-                    t => t is not Interface && InDomain(arch, t) && t.IsAssignableTo(typeof(IFactory).FullName!))))
+                    t => t is not Interface && InDomain(arch, t) && t.IsAssignableTo(arch.Layout.Markers.Factory))))
             .Selecting(
                 "Non-interface types in <module>.Domain of every module root that are assignable to "
                 + "IFactory.")
             .Checking(
                 "Every field - declared by the type or inherited from a base type, static fields included "
                 + "- is readonly or const. A settable auto-property is reported through its backing field. "
-                + "Field types are not inspected. An empty selection passes.");
+                + "Field types are not inspected. A type the loader cannot resolve is read through the "
+                + "ArchUnitNET member model instead, and a field whose writability neither model states is "
+                + "not reported. An empty selection passes.");
 
     // ============================================================================
     // SPECIFICATION PATTERN
@@ -359,21 +323,25 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
     public IDcaRule SpecificationsResideInDomain() =>
         DcaRule.Of(
             "DCA-ADV-017",
-            "Specifications must end with 'Specification'",
-            "Specification implementations are part of the domain layer",
+            "Specifications reside in the domain layer",
+            "A specification is a rule of the model expressed as a predicate; it belongs where the model"
+                + " is, not in the layer that happens to ask the question",
             arch => Types()
                 .That()
-                .HaveNameEndingWith("Specification")
-                .And()
-                .FollowCustomPredicate(t => t is not Interface, "are not interfaces")
-                .And()
-                .DoNotHaveName("Specification")
+                .FollowCustomPredicate(
+                    t => t is not Interface
+                        && t.Name != arch.Layout.SpecificationSuffix
+                        && t.FullName != arch.Layout.Markers.Specification
+                        && (IsSpecificationRole(arch, t)
+                            || t.Name.EndsWith(arch.Layout.SpecificationSuffix, StringComparison.Ordinal)),
+                    "are specifications")
                 .Should()
                 .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns())))
             .Selecting(
-                "Non-interface types anywhere under scan whose simple name ends with Specification, "
-                + "excluding a type named exactly Specification. No marker is involved - only the name "
-                + "selects.")
+                "Non-interface types anywhere under scan that are assignable to the configured "
+                + "specification role or whose simple name ends with Specification, the role's own type "
+                + "and a type named exactly Specification excluded. The marker and the name both select, "
+                + "so a specification named after the predicate it expresses is governed too.")
             .Checking(
                 "Each resides in a domain namespace of some module root (<module>.Domain or below). An "
                 + "empty selection passes.");
@@ -382,44 +350,87 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
         DcaRule.Check("DCA-ADV-018", "Specifications must not carry prohibited framework metadata",
             "Domain objects carry no metadata for container management, persistence or transaction coordination",
             arch => DomainMetadata.Check(arch, "DCA-ADV-018"))
-        .Selecting("Non-interface specifications in domain namespaces. Exclusive ownership: events, services, factories, specifications, then domain-model types.")
+        .Selecting("Non-interface types in domain namespaces that are assignable to the configured specification role or whose simple name ends with Specification. Exclusive ownership: events, services, factories, specifications, then domain-model types.")
         .Checking("Configured attribute namespaces classify the attribute type or any base type: types prohibit container, persistence and transaction roles; fields and properties prohibit injection and persistence; methods prohibit transaction and, except on events, injection; constructors prohibit injection. There is no default event-listener attribute role. Unclassified attributes are allowed; runtime types that cannot load are skipped.");
 
     // ============================================================================
     // HELPERS
     // ============================================================================
 
-    private string DomainServicePattern() =>
-        $"^.*\\.{Regex.Escape(Layout.DomainSegment)}\\.Service(\\..*)?$";
+    /// <summary>
+    /// Whether the type carries the configured specification role. Read through the runtime type when
+    /// it loads, because the role names the marker without its arity (<c>ISpecification</c>) while a
+    /// reflected generic interface carries it (<c>ISpecification`1</c>).
+    /// </summary>
+    internal static bool IsSpecificationRole(DcaArchitecture arch, IType type)
+    {
+        if (type.IsGenericParameter)
+        {
+            return false;
+        }
+
+        var runtime = arch.RuntimeType(type);
+        return runtime is not null
+            ? DcaMarkers.CarriesRole(runtime, arch.Layout.Markers.Specification)
+            : type.IsAssignableTo(arch.Layout.Markers.Specification)
+                || type.ImplementsInterface(arch.Layout.Markers.Specification);
+    }
 
     private static bool InDomain(DcaArchitecture arch, IType type) =>
         type.Namespace is not null && Regex.IsMatch(type.Namespace.FullName, DcaLayout.AnyOf(arch.AllDomainPatterns()));
 
-    private static bool IsDomainEvent(IType type) => type.IsAssignableTo(typeof(IDomainEvent).FullName!);
+    private static bool IsDomainEvent(IType type, DcaMarkers markers) => type.IsAssignableTo(markers.DomainEvent);
 
-    private static bool IsIntegrationEvent(IType type) => type.IsAssignableTo(typeof(IIntegrationEvent).FullName!);
+    private static bool IsIntegrationEvent(IType type, DcaMarkers markers) => type.IsAssignableTo(markers.IntegrationEvent);
 
     /// <summary>A C# record (<c>record class</c>) or a struct (<c>record struct</c>s are structs to ArchUnitNET).</summary>
     private static bool IsRecordLike(IType type) => type is Struct || (type is Class c && c.IsRecord == true);
 
-    /// <summary>All instance and static fields declared on the type or an ancestor (Java <c>getAllFields</c>).</summary>
-    private static IEnumerable<FieldInfo> AllFields(DcaArchitecture arch, IType type)
+    /// <summary>
+    /// One field, as the rules need it, from whichever model can see it. <see cref="Writable"/> is
+    /// <c>null</c> when neither model says — an unknown is never reported.
+    /// </summary>
+    private readonly record struct FieldFact(string Name, string? TypeFullName, bool? Writable);
+
+    /// <summary>
+    /// All instance and static fields declared on the type or an ancestor (Java <c>getAllFields</c>).
+    /// Read through the CLR when the type loads, because reflection sees the compiler-generated
+    /// backing fields of auto-properties; through the ArchUnitNET member model when it does not, so a
+    /// type the loader cannot resolve still changes the verdict it should change.
+    /// </summary>
+    private static IEnumerable<FieldFact> AllFields(DcaArchitecture arch, IType type)
     {
-        const BindingFlags flags =
-            BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
-        for (var runtime = arch.RuntimeType(type); runtime is not null && runtime != typeof(object); runtime = runtime.BaseType)
+        var runtime = arch.RuntimeType(type);
+        if (runtime is not null)
         {
-            foreach (var field in runtime.GetFields(flags))
+            const BindingFlags flags =
+                BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+            for (var current = runtime; current is not null && current != typeof(object); current = current.BaseType)
             {
-                yield return field;
+                foreach (var field in current.GetFields(flags))
+                {
+                    yield return new FieldFact(LogicalName(field.Name), field.FieldType.FullName, !field.IsInitOnly && !field.IsLiteral);
+                }
+            }
+
+            yield break;
+        }
+
+        for (IType? current = type; current is not null; current = (current as Class)?.BaseClass)
+        {
+            foreach (var field in current.Members.OfType<FieldMember>())
+            {
+                yield return new FieldFact(
+                    LogicalName(field.Name),
+                    field.Type?.FullName,
+                    field.Writability is { } writability ? writability == Writability.Writable : null);
             }
         }
     }
 
     /// <summary>Plain field name — an auto-property backing field <c>&lt;Version&gt;k__BackingField</c> counts as <c>Version</c>.</summary>
-    private static string LogicalName(FieldInfo field)
+    private static string LogicalName(string name)
     {
-        var name = field.Name;
         if (name.StartsWith("<", StringComparison.Ordinal))
         {
             var end = name.IndexOf('>', StringComparison.Ordinal);
@@ -433,19 +444,20 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
     }
 
     private static bool HasVersionField(DcaArchitecture arch, IType type) =>
-        AllFields(arch, type).Any(f => SchemaFields.Contains(LogicalName(f), StringComparer.OrdinalIgnoreCase));
+        AllFields(arch, type).Any(f => SchemaFields.Contains(f.Name, StringComparer.OrdinalIgnoreCase));
 
     private static bool HasTimestampField(DcaArchitecture arch, IType type) =>
-        AllFields(arch, type).Any(f => TimestampTypes.Contains(f.FieldType.FullName));
+        AllFields(arch, type).Any(f =>
+            f.TypeFullName is not null && arch.Layout.TimestampTypes.Contains(f.TypeFullName));
 
     private static List<string> NonReadonlyFieldViolations(DcaArchitecture arch, Func<IType, bool> candidate)
     {
         var violations = new List<string>();
         foreach (var type in arch.Types.Where(candidate))
         {
-            foreach (var field in AllFields(arch, type).Where(f => !f.IsInitOnly && !f.IsLiteral))
+            foreach (var field in AllFields(arch, type).Where(f => f.Writable == true))
             {
-                violations.Add($"{type.FullName} has non-readonly field '{LogicalName(field)}' — a stateless service/factory"
+                violations.Add($"{type.FullName} has non-readonly field '{field.Name}' — a stateless service/factory"
                     + " holds only readonly dependencies");
             }
         }

@@ -12,19 +12,23 @@ namespace DomainCentric.ArchRules.Rules;
 /// <summary>Exclusive ownership and configurable role-by-target domain metadata policy.</summary>
 internal static class DomainMetadata
 {
-    internal static string Owner(IType type)
+    internal static string Owner(DcaArchitecture arch, IType type)
     {
-        if (type.IsAssignableTo(typeof(IDomainEvent).FullName!)) return "DCA-ADV-004";
-        if (type.IsAssignableTo(typeof(IDomainService).FullName!)) return "DCA-ADV-011";
-        if (type.IsAssignableTo(typeof(IFactory).FullName!)) return "DCA-ADV-015";
-        return type.Name.EndsWith("Specification", StringComparison.Ordinal) ? "DCA-ADV-018" : "DCA-ONI-003";
+        var markers = arch.Layout.Markers;
+        if (type.IsAssignableTo(markers.DomainEvent)) return "DCA-ADV-004";
+        if (type.IsAssignableTo(markers.DomainService)) return "DCA-ADV-011";
+        if (type.IsAssignableTo(markers.Factory)) return "DCA-ADV-015";
+        return AdvancedPatternRules.IsSpecificationRole(arch, type)
+            || type.Name.EndsWith(arch.Layout.SpecificationSuffix, StringComparison.Ordinal)
+            ? "DCA-ADV-018"
+            : "DCA-ONI-003";
     }
 
     internal static void Check(DcaArchitecture arch, string id)
     {
         var roles = arch.Layout.FrameworkTypes;
         var violations = new List<string>();
-        foreach (var type in arch.Types.Where(t => t is not Interface && Owner(t) == id
+        foreach (var type in arch.Types.Where(t => t is not Interface && Owner(arch, t) == id
             && Regex.IsMatch(t.Namespace?.FullName ?? "", DcaLayout.AnyOf(arch.AllDomainPatterns()))))
         {
             if (id == "DCA-ONI-003" && !Regex.IsMatch(type.Namespace?.FullName ?? "", DcaLayout.AnyOf(arch.AllDomainModelPatterns()))) continue;

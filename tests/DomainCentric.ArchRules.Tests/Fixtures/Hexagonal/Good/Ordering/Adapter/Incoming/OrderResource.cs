@@ -7,11 +7,11 @@ using DomainCentric.ArchRules.Tests.Fixtures.Hexagonal.Good.SharedKernel.Domain.
 namespace DomainCentric.ArchRules.Tests.Fixtures.Hexagonal.Good.Ordering.Adapter.Incoming;
 
 [ApiController]
-public sealed class OrderController : ControllerBase
+public sealed class OrderResource : ControllerBase
 {
     private readonly IPlaceOrderInputPort _placeOrder;
 
-    public OrderController(IPlaceOrderInputPort placeOrder)
+    public OrderResource(IPlaceOrderInputPort placeOrder)
     {
         _placeOrder = placeOrder;
     }

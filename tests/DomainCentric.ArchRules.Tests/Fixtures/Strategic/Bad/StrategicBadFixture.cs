@@ -101,12 +101,3 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Strategic.Bad.Cart.Adapter.Outg
         public Bad.Catalog.Domain.Model.Product? Find(Guid id) => _useCase.Execute(id);
     }
 }
-
-namespace DomainCentric.ArchRules.Tests.Fixtures.Strategic.Bad.Cart.Adapter.Incoming.Event
-{
-    // DCA-STR-009: ACL component outside an Acl namespace
-    public sealed class ProductEventTranslator
-    {
-        public Guid Translate(Bad.Catalog.Events.ProductRemovedEvent e) => e.EventId;
-    }
-}

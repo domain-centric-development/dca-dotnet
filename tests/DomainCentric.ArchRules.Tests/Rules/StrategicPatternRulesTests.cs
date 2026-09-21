@@ -11,11 +11,14 @@ public sealed class StrategicPatternRulesTests
     private const string Bad = "DomainCentric.ArchRules.Tests.Fixtures.Strategic.Bad";
     private const string Undeclared = "DomainCentric.ArchRules.Tests.Fixtures.Strategic.Undeclared";
 
+    /// <summary>A declared context whose layers carry names the layout does not know.</summary>
+    private const string NoModuleRoot = "DomainCentric.ArchRules.Tests.Fixtures.NoModuleRoot";
+
     private static readonly string[] ExpectedIds =
     {
         "DCA-STR-001", "DCA-STR-002", "DCA-STR-003", "DCA-STR-004", "DCA-STR-005",
-        "DCA-STR-006", "DCA-STR-007", "DCA-STR-008", "DCA-STR-009", "DCA-STR-010",
-        "DCA-STR-011",
+        "DCA-STR-006", "DCA-STR-007", "DCA-STR-008", "DCA-STR-010",
+        "DCA-STR-011", "DCA-STR-012",
     };
 
     private static readonly IReadOnlyDictionary<string, string> NoNegativeFixture = new Dictionary<string, string>
@@ -23,6 +26,7 @@ public sealed class StrategicPatternRulesTests
         ["DCA-STR-001"] = "diagnostic rule — prints the discovered contexts, never fails",
         ["DCA-STR-010"] = "documentation-only rule — verified by code review, never fails",
         ["DCA-STR-011"] = "the bad fixture declares its contexts; absence has its own fixture",
+        ["DCA-STR-012"] = "the bad fixture owns layers; their absence has its own fixture",
     };
 
     private static DcaArchitecture Arch(string ns) =>
@@ -72,5 +76,23 @@ public sealed class StrategicPatternRulesTests
         var set = Set(Bad);
         var ex = Assert.Throws<DcaRuleViolationException>(() => set.Rules.Single(r => r.Id == id).Check(Arch(Bad)));
         Assert.False(string.IsNullOrWhiteSpace(ex.Message));
+    }
+
+    /// <summary>
+    /// The third guard of the same kind as an empty import and an undeclared context: a layout that
+    /// discovers no module root leaves every layer-selecting rule with nothing to look at, and the suite
+    /// was green. This is the most likely first run of a brownfield code base.
+    /// </summary>
+    [Fact]
+    public void CodeBaseWhoseLayersTheLayoutDoesNotKnowFails()
+    {
+        var layout = DcaLayout.ForRootNamespace(NoModuleRoot);
+        var arch = DcaArchitecture.Load(layout, typeof(StrategicPatternRulesTests).Assembly);
+
+        var violation = Assert.Throws<DcaRuleViolationException>(
+            () => new StrategicPatternRules(layout).Rules.Single(r => r.Id == "DCA-STR-012").Check(arch));
+
+        Assert.Contains("no module root was discovered", violation.Message, System.StringComparison.Ordinal);
+        Assert.Contains("WithDomainSegment", violation.Message, System.StringComparison.Ordinal);
     }
 }

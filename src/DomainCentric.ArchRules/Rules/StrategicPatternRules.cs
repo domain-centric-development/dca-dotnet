@@ -6,6 +6,7 @@ using DomainCentric.BuildingBlocks.Ddd.Tactical;
 using static ArchUnitNET.Fluent.ArchRuleDefinition;
 
 using ArchUnitNET.Domain;
+using ArchUnitNET.Domain.Extensions;
 using ArchUnitNET.Fluent;
 
 namespace DomainCentric.ArchRules.Rules;
@@ -33,9 +34,9 @@ public sealed class StrategicPatternRules : IDcaRuleSet
             OutgoingAdaptersOnlyUseOpenHostServices(),
             IntegrationEventsResideInEventsNamespaces(),
             IntegrationEventsAreRecords(),
-            AntiCorruptionLayerComponentsResideInAclNamespaces(),
             EventListenersUseAntiCorruptionLayer(),
             AtLeastOneBoundedContextIsDeclared(),
+            AtLeastOneModuleOwnsALayer(),
         };
     }
 
@@ -294,7 +295,7 @@ public sealed class StrategicPatternRules : IDcaRuleSet
             "Integration event contracts reside in the configured Events segment",
             "Integration contracts are published separately from translators and transport adapters",
             arch =>
-                Types().That().ImplementInterface(typeof(IIntegrationEvent)).And().AreNot(Interfaces())
+                Types().That().FollowCustomPredicate(t => t.IsAssignableTo(arch.Layout.Markers.IntegrationEvent), "are integration events").And().AreNot(Interfaces())
                     .Should().ResideInNamespaceMatching(AnySegment(Layout.EventsSegment)))
         .Selecting(
             "Non-interface types below the root namespace whose implemented interfaces include"
@@ -307,12 +308,12 @@ public sealed class StrategicPatternRules : IDcaRuleSet
         DcaRule.Check(
             "DCA-STR-008",
             "Integration Events should have immutable shape",
-            "Integration Events must be immutable to ensure event integrity across contexts (Event Sourcing best practice)",
+            "An integration event is a published contract: once another context has read it, its shape may only grow, never change under an existing reader. A mutable event cannot make that promise - any holder can rewrite what a second consumer will read",
             arch =>
             {
                 var violations = arch.Types
                     .Where(t => t is not Interface && !t.IsCompilerGenerated)
-                    .Where(t => t.ImplementedInterfaces.Any(i => i.FullName == typeof(IIntegrationEvent).FullName))
+                    .Where(t => t.ImplementedInterfaces.Any(i => i.FullName == arch.Layout.Markers.IntegrationEvent))
                     .Where(t => !TacticalPatternRules.IsImmutableShape(t))
                     .Select(t => "Integration event " + t.FullName + " has mutable shape")
                     .ToList();
@@ -328,23 +329,6 @@ public sealed class StrategicPatternRules : IDcaRuleSet
         .Checking(
             "Classes are sealed or records; structs are allowed. Every inherited instance field is readonly, every property is get-only or init-only and no instance Set*(x): void method exists. Referenced objects and collection contents are not inspected." );
 
-    /// <summary>DCA-STR-009.</summary>
-    public static IDcaRule AntiCorruptionLayerComponentsResideInAclNamespaces() =>
-        DcaRule.Of(
-            "DCA-STR-009",
-            "Anti-Corruption Layer components must be in Acl namespaces",
-            "Anti-Corruption Layer components must be in 'Acl' namespaces for clear architectural intent (DDD Strategic Pattern)",
-            arch =>
-                Types().That().HaveNameMatching("(EventTranslator|ACL|AntiCorruptionLayer)$")
-                    .Should().ResideInNamespaceMatching(AnySegment("Acl")))
-        .Selecting(
-            "Types anywhere below the root namespace whose name ends with"
-                + " EventTranslator, ACL or AntiCorruptionLayer - selected by name alone, no marker"
-                + " or attribute is read.")
-        .Checking(
-            "Each resides in a namespace whose path contains an Acl segment, at any depth."
-                + " A translation class named otherwise is neither selected nor checked.");
-
     /// <summary>DCA-STR-010 — documentation only, never fails.</summary>
     public static IDcaRule EventListenersUseAntiCorruptionLayer() =>
         DcaRule.Informational(
@@ -358,6 +342,56 @@ public sealed class StrategicPatternRules : IDcaRuleSet
             "Nothing is asserted. Whether a consumed integration event is translated into the"
                 + " consuming context's own language before it reaches the domain is a code-review"
                 + " check.");
+
+    /// <summary>DCA-STR-012.</summary>
+    public static IDcaRule AtLeastOneModuleOwnsALayer() =>
+        DcaRule.Check(
+            "DCA-STR-012",
+            "At least one module owns a DCA layer",
+            "Without a discovered module root every rule that selects over the layers matches nothing and"
+                + " reports success over an empty model",
+            arch =>
+            {
+                if (arch.ModuleRoots().Count > 0)
+                {
+                    return;
+                }
+
+                var segments = arch.LayerSegments().OrderBy(x => x, StringComparer.Ordinal).ToList();
+                var observed = arch.Types
+                    .Where(t => t.Namespace is not null)
+                    .Select(t => t.Namespace!.FullName)
+                    .Distinct(StringComparer.Ordinal)
+                    .OrderBy(x => x, StringComparer.Ordinal)
+                    .Take(10)
+                    .ToList();
+
+                throw DcaRuleViolationException.Of(
+                    $"No namespace below the root namespace '{arch.Layout.RootNamespace}' carries one of the "
+                        + $"configured layer segments [{string.Join(", ", segments)}], so no module root was "
+                        + "discovered and every rule that selects over the layers - the whole use-case set among "
+                        + "them - passes without having looked at anything. Namespaces seen"
+                        + (observed.Count < 10 ? "" : " (first ten)")
+                        + $": [{string.Join(", ", observed)}].",
+                    new[]
+                    {
+                        "Name the segments this code base uses on the layout: WithDomainSegment(...), "
+                            + "WithApplicationSegment(...) and WithAdapterSegment(...).",
+                        "Check that the root namespace passed to DcaLayout.ForRootNamespace is the one the modules "
+                            + "live under, and that every assembly holding them is passed to Load.",
+                        "A code base that deliberately has no layered module switches this rule off with a recorded "
+                            + "reason.",
+                    });
+            })
+        .Selecting(
+            "The namespaces of the imported types, as a whole - no individual type is reported. A module root is"
+                + " any namespace that has a child namespace named after one of the configured layer segments, at"
+                + " any depth below the root namespace.")
+        .Checking(
+            "At least one module root was discovered. The rule says nothing about how many modules there should be"
+                + " or how they are cut; it only establishes that the layer-selecting rules have something to look"
+                + " at. It is the third guard of the same kind as an empty import and an undeclared bounded"
+                + " context.");
 
     /// <summary>DCA-STR-011.</summary>
     public static IDcaRule AtLeastOneBoundedContextIsDeclared() =>

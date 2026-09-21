@@ -4,6 +4,7 @@ using DomainCentric.ArchRules.Tests.Fixtures.Naming.Bad.Ordering.Application.Pla
 
 namespace DomainCentric.ArchRules.Tests.Fixtures.Naming.Bad.Ordering.Adapter.Incoming.Rest;
 
+// DCA-NAM-006: an [ApiController] whose name does not end with the REST controller suffix ('Resource').
 [ApiController]
 public sealed class OrderController : ControllerBase
 {

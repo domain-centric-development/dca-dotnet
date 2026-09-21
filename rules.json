@@ -1,4 +1,6 @@
 {
+  "library": "DomainCentric.ArchRules",
+  "version": "0.5.0",
   "rules": [
     {
       "set": "layered",
@@ -35,8 +37,8 @@
       "id": "DCA-LAY-004",
       "title": "Transaction boundaries belong to the application layer",
       "rationale": "Transactions are an application-layer concern - domain and incoming adapters must not manage them",
-      "selects": "Two selections. Transaction use: types under scan that depend on a configured transaction-API type - TransactionScope (by default System.Transactions.TransactionScope) or one of the TransactionApiTypes (by default CommittableTransaction, IDbTransaction, DbTransaction and the persistence library's IDbContextTransaction), the types code runs a transaction with. Wiring: types under scan that depend on one of the TransactionManagerTypes (empty by default) or on ITransactionBoundary. A field, a local, a method call or a using block all count; implementations of ITransactionBoundary itself are never selected. With no transaction type configured only ITransactionBoundary dependencies are selected.",
-      "checks": "Transaction use: the type resides in an application namespace of some module root (<module>.Application or below) or in an outgoing adapter namespace of some module root (<module>.Adapter.Outgoing or below) - a domain, incoming-adapter or infrastructure namespace is reported, the global one included. Wiring: additionally allowed in the global infrastructure namespace (<Root>.Infrastructure, the composition root that declares the manager) and in the shared kernel's infrastructure namespace (<Root>.SharedKernel.Infrastructure, plumbing that hooks into the boundary); a domain, incoming-adapter or module-infrastructure namespace is reported. One finding per type and transaction type, all collected into one violation. The check is per type, not per method. Where manager and boundary dependencies are allowed the rule cannot tell wiring from a call: a type in the global or shared-kernel infrastructure namespace that obtains the manager and begins a transaction itself passes. Which transaction a boundary opens is not checked.",
+      "selects": "Three selections. Declarative: types under scan that carry the configured transactional attribute, and types that declare a method carrying it - empty by default, because neither .NET preset configures one. Transaction use: types under scan that depend on a configured transaction-API type - TransactionScope (by default System.Transactions.TransactionScope) or one of the TransactionApiTypes (by default CommittableTransaction, IDbTransaction, DbTransaction and the persistence library's IDbContextTransaction), the types code runs a transaction with. Wiring: types under scan that depend on one of the TransactionManagerTypes (empty by default) or on ITransactionBoundary. A field, a local, a method call or a using block all count; implementations of ITransactionBoundary itself are never selected. With no transaction type configured only ITransactionBoundary dependencies are selected.",
+      "checks": "Declarative: the type resides in an application namespace of some module root or in an outgoing adapter namespace of some module root - the same places the transaction API is allowed, as in the Java twin. With no transactional attribute configured this selection is empty and the rule checks the other two only. Transaction use: the type resides in an application namespace of some module root (<module>.Application or below) or in an outgoing adapter namespace of some module root (<module>.Adapter.Outgoing or below) - a domain, incoming-adapter or infrastructure namespace is reported, the global one included. Wiring: additionally allowed in the global infrastructure namespace (<Root>.Infrastructure, the composition root that declares the manager) and in the shared kernel's infrastructure namespace (<Root>.SharedKernel.Infrastructure, plumbing that hooks into the boundary); a domain, incoming-adapter or module-infrastructure namespace is reported. One finding per type and transaction type, all collected into one violation. The check is per type, not per method. Where manager and boundary dependencies are allowed the rule cannot tell wiring from a call: a type in the global or shared-kernel infrastructure namespace that obtains the manager and begins a transaction itself passes. Which transaction a boundary opens is not checked.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -66,7 +68,7 @@
       "title": "The Domain Model should be framework independent and should not use 3rd party libraries when possible",
       "rationale": "Domain should be framework-independent (Dependency Inversion Principle)",
       "selects": "Types below the root namespace whose namespace lies under <Module>.Domain of every module root; the building-blocks types themselves are not selected.",
-      "checks": "Every dependency whose target has a namespace points into one of those same domain namespaces or below an allowed prefix: the layout's third-party allow-list (by default System and Microsoft.Extensions.Logging.Abstractions, plus whatever the layout adds) and, of the building blocks, only Ddd.Tactical and Hexagonal.Ports.Out - a building-blocks entry in the allow-list is ignored here, so the strategic annotations and the input ports are not allowed in the domain. The shared kernel is not on the list either, unless it is a module root with a Domain layer of its own. A dependency on any other namespace is reported, each distinct pair once.",
+      "checks": "Every dependency whose target has a namespace points into one of those same domain namespaces or below an allowed prefix: the layout's third-party allow-list (by default System only - a logging, validation or utility library is a project decision, added with WithThirdPartyNamespacesAllowedInDomain) and the namespaces the configured marker vocabulary declares its domain-facing roles in - the tactical roles and the outgoing ports, which for the default vocabulary are Ddd.Tactical and Hexagonal.Ports.Out. The vocabulary's own namespaces are on the list because they are derived from the roles, so pointing a role at another library's type does not make that library a reported dependency. A building-blocks entry in the allow-list is ignored here, so the strategic attributes, the application-layer roles and the input ports are not allowed in the domain. The shared kernel is not on the list either, unless it is a module root with a Domain layer of its own. A dependency on any other namespace is reported, each distinct pair once.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -76,7 +78,7 @@
       "title": "Domain models must not carry prohibited framework metadata",
       "rationale": "Domain metadata does not configure infrastructure concerns",
       "selects": "Domain.Model types except events, services, factories and specifications, which have exclusive ADV ownership.",
-      "checks": "Configured attribute namespaces (and the explicit persistence attribute type names) classify an attribute or any base attribute type. Types prohibit container, persistence and transaction roles; fields and properties prohibit injection and persistence; methods prohibit transaction and injection; constructors prohibit injection. Unclassified metadata is allowed by this check, not proven harmless: the default preset classifies its configured persistence namespaces, the key/timestamp/concurrency attribute types and keyed-service injection; mappings of other persistence libraries need a preset extension. Missing runtime types are skipped; wiring is not established.",
+      "checks": "Configured attribute namespaces (and the explicit persistence attribute type names) classify an attribute or any base attribute type. Types prohibit container, persistence and transaction roles; fields and properties prohibit injection and persistence; methods prohibit transaction and injection; constructors prohibit injection. Unclassified metadata is allowed by this check, not proven harmless: the default preset classifies its configured persistence namespaces, the key/timestamp/concurrency attribute types and keyed-service injection; mappings of other persistence libraries need a preset extension. The container role is empty in both shipped presets: .NET registers services in code, not through an attribute, so the half of this rule that does the most work in Java - a container stereotype on a domain type - selects nothing here until a project names its own. Missing runtime types are skipped; wiring is not established.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -166,7 +168,7 @@
       "title": "Output Ports in Application.Shared must extend IOutputPort",
       "rationale": "Top-level interfaces in Application.Shared are output ports and must extend IOutputPort to be part of the port hierarchy. Nested interfaces (e.g. IIdentityProvider.Identity) are part of their enclosing port's contract, not ports themselves",
       "selects": "Top-level interfaces in <module>.Application.Shared of every module root. Nested interfaces are not selected - they belong to their enclosing port's contract.",
-      "checks": "The interface is assignable to IOutputPort, directly or through IRepository, IStore, IDomainEventPublisher, IIntegrationEventPublisher or another IOutputPort sub-interface. Classes, records and enums in Application.Shared are not checked. An empty selection passes.",
+      "checks": "The interface is assignable to IOutputPort, directly or through IRepository, IStore, IDomainEventPublisher, IIntegrationEventPublisher or another IOutputPort sub-interface. Classes, records and enums in Application.Shared are not checked. An empty selection passes. The rule presumes the vocabulary has a common port root: OutputPort must be set whenever any port role is, because every port of the project is measured against it. A vocabulary that has no such root has nothing this rule can assert - switch the id off rather than pointing the role at an unrelated type.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -224,7 +226,7 @@
       "set": "tactical",
       "id": "DCA-TAC-003",
       "title": "Aggregate Roots must not have fields with other Aggregate Root types",
-      "rationale": "Vernon's Aggregate Design Rule #2: reference other Aggregates by identity to keep aggregate boundaries and transactional consistency intact",
+      "rationale": "Vernon's Aggregate Design Rule #3: reference other Aggregates by identity to keep aggregate boundaries and transactional consistency intact",
       "selects": "Non-interface types below the root namespace assignable to IAggregateRoot, abstract ones included.",
       "checks": "No instance field or property - inherited ones included, static ones excluded - involves IAggregateRoot through its type, arrays or nested generic arguments. Same-type references and interfaces extending the marker are included. Interfaces that do not extend the marker are invisible; references by id are valid.",
       "implementation": "dotnet",
@@ -346,7 +348,7 @@
       "title": "Repository Implementations must reside in the Adapter.Outgoing namespace",
       "rationale": "Repository implementations are outgoing adapters in bounded contexts",
       "selects": "Non-interface types below the root namespace assignable to IRepository, abstract base classes included.",
-      "checks": "The type resides in <module>.Adapter.Outgoing of some module root. An implementation anywhere else below the root - a test double, say - is reported; an empty selection passes.",
+      "checks": "The type resides in <module>.Adapter.Outgoing of some module root. An implementation anywhere else below the root - a test double, say - is reported; an empty selection passes. An implementation that carries the repository role and is also named *Repository is reported by DCA-HEX-008 as well: that rule finds unmarked implementations by name, and the two populations overlap where a project does both.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -356,7 +358,7 @@
       "title": "Repositories must only exist for Aggregate Roots",
       "rationale": "A repository is the collection of one aggregate type; a repository for an entity would let callers bypass the root that guards the aggregate's invariants",
       "selects": "Interfaces below the root namespace assignable to IRepository whose name ends with Repository; an interface named exactly Repository excluded.",
-      "checks": "The aggregate name is the interface's name minus a leading I followed by an upper-case letter and minus 'Repository'. Among all non-interface types below the root with exactly that name and in the same context - the nearest enclosing namespace carrying a [BoundedContext] or [SharedKernel] marker class, falling back to the first segment below the root namespace - at least one must exist and every one must be assignable to IAggregateRoot. No such type and a type that is not an aggregate root are both reported; the interface's methods play no role.",
+      "checks": "The aggregate is read from the type argument the interface binds: the first argument of the generic repository role it implements. That type must be assignable to IAggregateRoot, and the interface's name - minus a leading I followed by an upper-case letter - must be that type's name plus 'Repository', so a repository bound to one aggregate and named after another is reported. An unresolved type argument is skipped: a generic intermediate port such as IAuditedRepository<TAggregate, TId> binds no aggregate of its own. When the role is not generic, is used raw, or the runtime type cannot be resolved, the aggregate is resolved by name instead: among all non-interface types below the root with the interface's name minus 'Repository' and in the same context - the nearest enclosing namespace carrying a [BoundedContext] or [SharedKernel] marker class, falling back to the first segment below the root namespace - at least one must exist and every one must be assignable to IAggregateRoot. The interface's methods play no role.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -406,7 +408,7 @@
       "title": "Store interfaces must not declare Save or Delete methods",
       "rationale": "Save/Delete are Repository semantics; a Store that has them is a Repository wearing the wrong name, and the stored object should then be an Aggregate Root",
       "selects": "Interfaces below the root namespace assignable to IStore; an interface named exactly Store excluded.",
-      "checks": "No method declared on the interface itself is named SaveAsync, DeleteByIdAsync or DeleteAsync, nor their synchronous forms Save, DeleteById and Delete, nor the camel-cased save, deleteById and delete - matched by name alone, parameters and return type disregarded. Inherited methods are not inspected, and no particular vocabulary (Record, Count, Exists) is required.",
+      "checks": "No method declared on the interface itself is named Save, DeleteById, Delete or one of their asynchronous forms SaveAsync, DeleteByIdAsync, DeleteAsync - matched by name alone, parameters and return type disregarded and case ignored, so both languages match the same six names. Inherited methods are not inspected, and no particular vocabulary (Record, Count, Exists) is required. The six names are fixed and are not part of the marker roles: a vocabulary that writes under another name is selected and then found to declare no write.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -484,19 +486,9 @@
       "set": "strategic",
       "id": "DCA-STR-008",
       "title": "Integration Events should have immutable shape",
-      "rationale": "Integration Events must be immutable to ensure event integrity across contexts (Event Sourcing best practice)",
+      "rationale": "An integration event is a published contract: once another context has read it, its shape may only grow, never change under an existing reader. A mutable event cannot make that promise - any holder can rewrite what a second consumer will read",
       "selects": "Non-interface types below the root namespace whose implemented interfaces include IIntegrationEvent - directly or through a derived interface; classes, records and structs alike, compiler-generated types excluded.",
       "checks": "Classes are sealed or records; structs are allowed. Every inherited instance field is readonly, every property is get-only or init-only and no instance Set*(x): void method exists. Referenced objects and collection contents are not inspected.",
-      "implementation": "dotnet",
-      "status": "enforced"
-    },
-    {
-      "set": "strategic",
-      "id": "DCA-STR-009",
-      "title": "Anti-Corruption Layer components must be in Acl namespaces",
-      "rationale": "Anti-Corruption Layer components must be in 'Acl' namespaces for clear architectural intent (DDD Strategic Pattern)",
-      "selects": "Types anywhere below the root namespace whose name ends with EventTranslator, ACL or AntiCorruptionLayer - selected by name alone, no marker or attribute is read.",
-      "checks": "Each resides in a namespace whose path contains an Acl segment, at any depth. A translation class named otherwise is neither selected nor checked.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -517,6 +509,16 @@
       "rationale": "Without a declared context the context-map and isolation rules select nothing and report success over an empty model",
       "selects": "The declared bounded contexts of the imported types — every namespace carrying a [BoundedContext] marker class, at any depth below the root namespace. No individual type is reported.",
       "checks": "At least one such namespace exists. The rule says nothing about how many contexts there should be, about their boundaries, or about modules that own a layer without declaring a context — those are governed structurally and are not a substitute for the declaration.",
+      "implementation": "dotnet",
+      "status": "enforced"
+    },
+    {
+      "set": "strategic",
+      "id": "DCA-STR-012",
+      "title": "At least one module owns a DCA layer",
+      "rationale": "Without a discovered module root every rule that selects over the layers matches nothing and reports success over an empty model",
+      "selects": "The namespaces of the imported types, as a whole - no individual type is reported. A module root is any namespace that has a child namespace named after one of the configured layer segments, at any depth below the root namespace.",
+      "checks": "At least one module root was discovered. The rule says nothing about how many modules there should be or how they are cut; it only establishes that the layer-selecting rules have something to look at. It is the third guard of the same kind as an empty import and an undeclared bounded context.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -563,8 +565,12 @@
     {
       "set": "contextmap",
       "id": "DCA-MAP-006",
-      "status": "n/a",
-      "reason": "Upstream declarations and the module declaration's allowed dependencies must agree — .NET has no module-declaration attribute; project boundaries take that role"
+      "title": "Upstream declarations and the module declaration's allowed dependencies must agree",
+      "rationale": "Neither the context map nor the module boundary may know more than the other — an edge that exists only on one side is stale",
+      "selects": "Every namespace carrying [BoundedContext], provided the layout configures at least one module declaration attribute (a module system's per-module declaration) that is in the loaded assemblies; reads its [Upstream] declarations (Context, Via; Planned included) and, reflectively, the AllowedDependencies property of every configured module declaration the marker class carries. Without a configured and loadable module declaration the rule selects nothing and passes - which is the default here, because .NET draws module boundaries with projects and no preset names an attribute.",
+      "checks": "The set of declared edges 'context :: channel' equals the set of AllowedDependencies entries of the form 'module :: named-interface' whose module is a bounded context, whitespace around '::' normalized. Entries without '::' and entries naming a non-context module are ignored. A context that declares [Upstream] edges but whose marker class carries none of the configured module declaration attributes is reported once, as a missing module declaration with unknown allowed dependencies - its edges are not compared; a context without [Upstream] declarations and without a module declaration has nothing to compare and passes.",
+      "implementation": "dotnet",
+      "status": "enforced"
     },
     {
       "set": "contextmap",
@@ -682,7 +688,7 @@
       "title": "Integration events carry the schema version in their type metadata, not in the payload",
       "rationale": "The schema version is a class property ([IntegrationEventType]), never per-instance payload data — an explicit schema-version data field duplicates the attribute and can drift from it",
       "selects": "Non-interface types anywhere under scan that are assignable to IIntegrationEvent.",
-      "checks": "Name heuristic: schemaVersion, eventVersion and contractVersion fields (case-insensitive), declared or inherited, including auto-property backing fields and record parameters, are reported. A business revision named version is allowed, whatever its type. The heuristic cannot infer business meaning; an empty selection passes.",
+      "checks": "Name heuristic: schemaVersion, eventVersion and contractVersion fields (case-insensitive), declared or inherited, including auto-property backing fields and record parameters, are reported. A business revision named version is allowed, whatever its type. A type the loader cannot resolve is read through the ArchUnitNET member model instead, which does not carry the backing fields of auto-properties. The heuristic cannot infer business meaning; an empty selection passes.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -692,7 +698,7 @@
       "title": "Domain events that are not integration events carry no schema version",
       "rationale": "Versioning is a contract concern of integration events — a purely internal domain event has no wire contract to version",
       "selects": "Non-interface types anywhere under scan that are assignable to IDomainEvent but not to IIntegrationEvent. A type assignable to both is not selected.",
-      "checks": "Name heuristic: schemaVersion, eventVersion and contractVersion fields (case-insensitive), declared or inherited, including auto-property backing fields and record parameters, are reported. A business revision named version is allowed, whatever its type. The heuristic cannot infer business meaning; an empty selection passes.",
+      "checks": "Name heuristic: schemaVersion, eventVersion and contractVersion fields (case-insensitive), declared or inherited, including auto-property backing fields and record parameters, are reported. A business revision named version is allowed, whatever its type. A type the loader cannot resolve is read through the ArchUnitNET member model instead, which does not carry the backing fields of auto-properties. The heuristic cannot infer business meaning; an empty selection passes.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -702,17 +708,7 @@
       "title": "Domain Events must have a timestamp field",
       "rationale": "An event records something that happened — without a timestamp the fact cannot be ordered, replayed or audited",
       "selects": "Non-interface types anywhere under scan that are assignable to IDomainEvent. IIntegrationEvent does not extend IDomainEvent, so an integration event is selected only when it also implements IDomainEvent.",
-      "checks": "At least one field - declared by the type or inherited from a base type, static or not, of any name - has the type System.DateTimeOffset or System.DateTime; an auto-property or positional record parameter of one of these types counts through its backing field. DateOnly, TimeSpan, long or string fields do not satisfy it, and a computed property without a backing field does not either. Every offender is reported in one violation; an empty selection passes.",
-      "implementation": "dotnet",
-      "status": "enforced"
-    },
-    {
-      "set": "advanced",
-      "id": "DCA-ADV-009",
-      "title": "Marked domain services reside in the configured domain service segment",
-      "rationale": "Domain services implement IDomainService marker and reside in Domain.Service namespaces (named descriptively, e.g., PricingService, CartTotalCalculator)",
-      "selects": "Non-interface types anywhere under scan that are assignable to IDomainService.",
-      "checks": "Each resides in a namespace matching .<domain segment>.Service or below - the configured domain segment followed by Service, anywhere in the namespace path, not tied to a module root. A domain service directly in Domain or in Domain.Model is reported. An empty selection passes.",
+      "checks": "At least one field - declared by the type or inherited from a base type, static or not, of any name - has one of the configured timestamp types, by default System.DateTimeOffset or System.DateTime; an auto-property or positional record parameter of one of these types counts through its backing field. DateOnly, TimeSpan, long or string fields do not satisfy it, and a computed property without a backing field does not either - which is what the rule is for, because the marker already forces the accessor; a project whose own event vocabulary wraps the timestamp in a value type names that type with WithTimestampTypes. A type the loader cannot resolve is read through the ArchUnitNET member model instead, which does not carry the backing fields of auto-properties. Every offender is reported in one violation; an empty selection passes.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -742,15 +738,15 @@
       "title": "Domain Services should be stateless (only readonly fields for dependencies)",
       "rationale": "Domain services should be stateless (only readonly fields for dependencies)",
       "selects": "Non-interface types in <module>.Domain of every module root that are assignable to IDomainService.",
-      "checks": "Every field - declared by the type or inherited from a base type, static fields included - is readonly or const. A settable auto-property is reported through its backing field; a get-only one passes. Field types are not inspected, so a readonly field holding mutable state passes. An empty selection passes.",
+      "checks": "Every field - declared by the type or inherited from a base type, static fields included - is readonly or const. A settable auto-property is reported through its backing field; a get-only one passes. Field types are not inspected, so a readonly field holding mutable state passes. A type the loader cannot resolve is read through the ArchUnitNET member model instead, and a field whose writability neither model states is not reported. An empty selection passes.",
       "implementation": "dotnet",
       "status": "enforced"
     },
     {
       "set": "advanced",
       "id": "DCA-ADV-013",
-      "title": "Factories should implement IFactory Marker Interface",
-      "rationale": "Classes implementing IFactory marker should have 'Factory' in their name",
+      "title": "Types carrying the factory role are named *Factory",
+      "rationale": "A factory is found by its role, and read by its name: a type that creates aggregates and is not called one makes the creation site hard to find in review and in a search",
       "selects": "Non-interface types anywhere under scan that are assignable to IFactory.",
       "checks": "The simple name ends with Factory. Only the suffix is checked. An empty selection passes.",
       "implementation": "dotnet",
@@ -782,16 +778,16 @@
       "title": "Factories should be stateless (only readonly fields for dependencies)",
       "rationale": "Factories should be stateless (only readonly fields for dependencies)",
       "selects": "Non-interface types in <module>.Domain of every module root that are assignable to IFactory.",
-      "checks": "Every field - declared by the type or inherited from a base type, static fields included - is readonly or const. A settable auto-property is reported through its backing field. Field types are not inspected. An empty selection passes.",
+      "checks": "Every field - declared by the type or inherited from a base type, static fields included - is readonly or const. A settable auto-property is reported through its backing field. Field types are not inspected. A type the loader cannot resolve is read through the ArchUnitNET member model instead, and a field whose writability neither model states is not reported. An empty selection passes.",
       "implementation": "dotnet",
       "status": "enforced"
     },
     {
       "set": "advanced",
       "id": "DCA-ADV-017",
-      "title": "Specifications must end with 'Specification'",
-      "rationale": "Specification implementations are part of the domain layer",
-      "selects": "Non-interface types anywhere under scan whose simple name ends with Specification, excluding a type named exactly Specification. No marker is involved - only the name selects.",
+      "title": "Specifications reside in the domain layer",
+      "rationale": "A specification is a rule of the model expressed as a predicate; it belongs where the model is, not in the layer that happens to ask the question",
+      "selects": "Non-interface types anywhere under scan that are assignable to the configured specification role or whose simple name ends with Specification, the role's own type and a type named exactly Specification excluded. The marker and the name both select, so a specification named after the predicate it expresses is governed too.",
       "checks": "Each resides in a domain namespace of some module root (<module>.Domain or below). An empty selection passes.",
       "implementation": "dotnet",
       "status": "enforced"
@@ -801,7 +797,7 @@
       "id": "DCA-ADV-018",
       "title": "Specifications must not carry prohibited framework metadata",
       "rationale": "Domain objects carry no metadata for container management, persistence or transaction coordination",
-      "selects": "Non-interface specifications in domain namespaces. Exclusive ownership: events, services, factories, specifications, then domain-model types.",
+      "selects": "Non-interface types in domain namespaces that are assignable to the configured specification role or whose simple name ends with Specification. Exclusive ownership: events, services, factories, specifications, then domain-model types.",
       "checks": "Configured attribute namespaces classify the attribute type or any base type: types prohibit container, persistence and transaction roles; fields and properties prohibit injection and persistence; methods prohibit transaction and, except on events, injection; constructors prohibit injection. There is no default event-listener attribute role. Unclassified attributes are allowed; runtime types that cannot load are skipped.",
       "implementation": "dotnet",
       "status": "enforced"
@@ -819,7 +815,7 @@
     {
       "set": "usecase",
       "id": "DCA-USE-002",
-      "title": "Use Case Commands must end with 'Command' and reside in application namespace",
+      "title": "Types named *Command reside in the application layer",
       "rationale": "Use case commands should be in application layer (CQRS pattern)",
       "selects": "Types under the root namespace whose name ends with Command.",
       "checks": "Each resides in an application namespace of some module root (<module>.Application). A Command in a domain, adapter or infrastructure namespace is reported.",
@@ -829,7 +825,7 @@
     {
       "set": "usecase",
       "id": "DCA-USE-003",
-      "title": "Use Case Queries must end with 'Query' and reside in application namespace",
+      "title": "Types named *Query reside in the application layer",
       "rationale": "Use case queries should be in application layer (CQRS pattern)",
       "selects": "Types under the root namespace whose name ends with Query.",
       "checks": "Each resides in an application namespace of some module root (<module>.Application).",
@@ -859,7 +855,7 @@
     {
       "set": "usecase",
       "id": "DCA-USE-006",
-      "title": "Use Case Result Models must end with 'Result' and reside in application namespace",
+      "title": "Types named *Result reside in the application layer",
       "rationale": "Use case result models should be in application layer. Domain Value Objects with 'Result' in name are allowed in domain layer.",
       "selects": "Types under the root namespace whose name ends with Result and that do not implement IValue.",
       "checks": "Each resides in an application namespace of some module root (<module>.Application). A domain value object named *Result is exempt because it implements IValue.",
@@ -879,7 +875,7 @@
     {
       "set": "usecase",
       "id": "DCA-USE-008",
-      "title": "HTTP Response Models must end with 'Response' and reside in adapter namespace",
+      "title": "Types named *Response reside in an adapter",
       "rationale": "HTTP response models should be in adapter layer",
       "selects": "Types under the root namespace whose name ends with Response.",
       "checks": "Each resides in an adapter namespace (incoming or outgoing) of some module root (<module>.Adapter or below), the shared kernel's included.",
@@ -892,7 +888,7 @@
       "title": "Use cases that save an aggregate must publish its domain events",
       "rationale": "A saved aggregate must not keep its events: unpublished, they are lost, and stored on the instance they may later be published out of context. Publishing belongs after the save, in the use case that owns the unit of work - unless the aggregate is proven never to register an event. Checked per entry path, following calls within the use case class: every entry point that reaches a save - a method callable from outside the class, or one nothing in the class calls - must also reach a publication; a wrapper that publishes does not cover a direct call of the public method it wraps, and a helper two methods share does not connect them. That the publication follows the save and concerns the same aggregate is not established statically. Only IDomainEventPublisher.PublishAndClearEventsAsync counts as a publication: iterating DomainEvents and calling PublishAsync(event), even followed by ClearDomainEvents(), separates dispatch from acknowledgement and is not accepted",
       "selects": "Classes in <module>.Application of every module root selected by IInputPort assignability or the configured use-case suffix, whose runtime type is in the loaded assemblies.",
-      "checks": "Only a resolved IRepository<T,ID> aggregate with its complete non-building-block hierarchy under scan and no registration call, including helpers, is exempt. Unresolved arguments, partial scans and undecidable external helpers are not exempt. For every non-exempt method calling IRepository.SaveAsync, every entry point reaching it (a method callable from outside the class, or one nothing in the class calls) also reaches, through calls within the class, a call of IDomainEventPublisher.PublishAndClearEventsAsync. Calls are read from the IL of the class and its nested state-machine and closure types, so async methods and lambdas are followed. Only PublishAndClearEventsAsync counts - PublishAsync(event), even followed by ClearDomainEvents(), does not. A use case without a save (a query, a bulk delete) is selected but has nothing to check and passes.",
+      "checks": "Only a resolved IRepository<T,ID> aggregate is exempt, and only when its complete hierarchy is under scan and nothing registers an event on it: neither the hierarchy itself nor a type outside it. The walk stops at the platform and at the namespaces the configured marker roles live in, so a project's own vocabulary stops it where the library's does. Unresolved arguments and partial scans are not exempt. For every non-exempt method calling IRepository.SaveAsync, every entry point reaching it (a method callable from outside the class, or one nothing in the class calls) also reaches, through calls within the class, a call of IDomainEventPublisher.PublishAndClearEventsAsync. Calls are read from the IL of the class and its nested state-machine and closure types, so async methods and lambdas are followed. Only PublishAndClearEventsAsync counts - PublishAsync(event), even followed by ClearDomainEvents(), does not. A use case without a save (a query, a bulk delete) is selected but has nothing to check and passes. The method names are fixed and are not part of the marker roles: a vocabulary whose repository writes under another name is selected and then found to save nothing, so this rule passes over it.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -922,15 +918,19 @@
       "title": "Use cases that save an aggregate or publish domain events must have a transaction boundary",
       "rationale": "The use case owns the unit of work. Saving an aggregate is one business fact, yet the repository may write it as several statements - an aggregate of entities and value objects often spans several tables - and a repository adapter draws no boundary of its own; without one, a failure between the statements leaves half an aggregate behind. Publishing adds a second effect that must fall with the save: integration-event capture joins the modeled transaction, and publication outside a transaction cannot rely on commit semantics. The boundary is either the configured transactional attribute (on the class or the executing method) or an explicit ITransactionBoundary.InTransactionAsync(...) around load, mutate, save and publish. Checked per entry path, following calls within the class: from every entry point - a method callable from outside the class, or one nothing in the class calls - no route down to the saving, deleting or publishing method may be free of an attribute or a boundary; a covered caller does not cover another route to the same helper, and a boundary on one route does not cover a second route",
       "selects": "Concrete application operations selected by IInputPort marker or suffix with loadable runtime types, including closure and async units.",
-      "checks": "Every entry path to a unit calling IRepository.SaveAsync, IRepository.DeleteByIdAsync or an IDomainEventPublisher crosses a unit calling ITransactionBoundary.InTransactionAsync (including its extension overloads) or carrying the configured TransactionalAttribute; a type-level attribute covers all paths. A use case that neither saves, deletes nor publishes (a query, a Store write) is selected but has nothing to check and passes. Static limit: a boundary call in the same unit passes even when the save or publication follows an empty boundary block. Runtime rollback containment must be tested separately.",
+      "checks": "Every entry path to a unit calling IRepository.SaveAsync, IRepository.DeleteByIdAsync or an IDomainEventPublisher crosses a unit calling ITransactionBoundary.InTransactionAsync (including its extension overloads) or carrying the configured TransactionalAttribute; a type-level attribute covers all paths. The declarative path is empty by default in .NET - AspNetCore() and None() both leave TransactionalAttribute unset, because ASP.NET Core has no ambient transaction attribute - so out of the box only the explicit boundary satisfies the rule, while the Java twin also accepts the framework's transactional annotation. A use case that neither saves, deletes nor publishes (a query, a Store write) is selected but has nothing to check and passes. Static limit: a boundary call in the same unit passes even when the save or publication follows an empty boundary block. Runtime rollback containment must be tested separately. The method names are fixed and are not part of the marker roles: a vocabulary whose repository writes under another name is selected and then found to save nothing, so this rule passes over it.",
       "implementation": "dotnet",
       "status": "enforced"
     },
     {
       "set": "usecase",
       "id": "DCA-USE-013",
-      "status": "n/a",
-      "reason": "Remote-call containment in explicit delegate boundaries cannot be established by this declaration-anchored rule. USE-012 checks publication entry-path coverage, not runtime block containment; review remote effects manually"
+      "title": "Declaratively transactional use cases must not call remote-capable output ports",
+      "rationale": "A declaratively transactional use case holds a database connection for its whole run. Calling an output port that may leave the process (another context's API, a payment provider, a mail gateway) inside it blocks that connection for the remote round trip; under load the pool runs dry, and a rollback cannot undo the remote effect. Awaiting the call does not help: the thread is released, the transaction and its connection are not. Only transactional resources belong inside the boundary: IRepository, IStore, IDomainEventPublisher, IIntegrationEventPublisher. Everything else is called before the transaction - draw the boundary by hand with ITransactionBoundary.InTransactionAsync(...) - or after it, as a reaction to an integration event",
+      "selects": "Concrete application operations selected by IInputPort marker or configured use-case suffix, with loadable runtime types. Nothing at all while no transactional attribute is configured, which is the default: neither .NET preset names one, because ASP.NET Core has no ambient transaction attribute.",
+      "checks": "Every code unit that runs under the configured transactional attribute - on the class, on itself, or on an entry point that reaches it within the class - calls no output port other than IRepository, IStore, IDomainEventPublisher or IIntegrationEventPublisher. A use case without such an attribute (an explicit ITransactionBoundary, or none) is selected but never reported, and with no attribute configured nothing is ever reported - the rule then carries the id without checking anything, as the Java twin does where no framework annotation is on the class path. What happens inside an InTransactionAsync block is not inspected; the explicit boundary is the developer's own and its extent is visible at the call site.",
+      "implementation": "dotnet",
+      "status": "enforced"
     },
     {
       "set": "usecase",
@@ -948,7 +948,7 @@
       "title": "Use Case Result Models must not expose aggregate roots or entities",
       "rationale": "A result is the use case's answer, not a handle on the model: identity and behaviour stay behind the port; values, enriched models and read models may cross. Checked transitively through nested records, part records anywhere in the application layer (Application.Shared included), arrays and generic type arguments (IReadOnlyList<T>, T?, IReadOnlyDictionary<K,V>)",
       "selects": "Top-level classes and structs in each module application namespace ending in Result, excluding IValue types.",
-      "checks": "No public instance result member transitively through application part records and generic wrappers exposes IAggregateRoot or IEntity; classes and structs are checked. Domain values and read models are not traversed.",
+      "checks": "No instance result member of any visibility - the walk binds public and non-public members - transitively through application part records and generic wrappers exposes IAggregateRoot or IEntity; classes and structs are checked. Domain values and read models are not traversed. A type the loader cannot resolve is not walked.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -994,7 +994,7 @@
       "title": "InputPort interfaces must end with 'InputPort'",
       "rationale": "Input port interfaces should follow consistent naming conventions (Hexagonal Architecture)",
       "selects": "Interfaces in <module>.Application of every module root that are assignable to IInputPort, except those named exactly InputPort, IInputPort, UseCase or IUseCase.",
-      "checks": "The name starts with I and ends with InputPort (IPlaceOrderInputPort). Classes and records are not selected, and an interface extending IInputPort outside an application namespace is not checked. An empty selection passes.",
+      "checks": "The name starts with I and ends with InputPort (IPlaceOrderInputPort). The I prefix is the platform convention and is checked here only: the Java twin requires the suffix and nothing else, because Java interfaces carry no prefix. Classes and records are not selected, and an interface extending IInputPort outside an application namespace is not checked. An empty selection passes.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -1021,8 +1021,8 @@
     {
       "set": "naming",
       "id": "DCA-NAM-006",
-      "title": "REST Controllers must end with 'Controller' (REST best practice)",
-      "rationale": "[ApiController] classes should end with 'Controller' following RESTful naming conventions",
+      "title": "REST Controllers must end with 'Resource' (REST best practice)",
+      "rationale": "[ApiController] classes should end with 'Resource' following RESTful naming conventions",
       "selects": "Classes in <module>.Adapter.Incoming of every module root that carry the configured API-controller attribute ([ApiController] by default).",
       "checks": "The name ends with the configured REST-controller suffix. Controllers without the attribute are not selected, and an API controller outside an incoming-adapter namespace is not checked. An empty selection passes.",
       "implementation": "dotnet",
@@ -1071,10 +1071,10 @@
     {
       "set": "naming",
       "id": "DCA-NAM-011",
-      "title": "ViewModels must reside in Adapter.Incoming.Web namespaces",
-      "rationale": "ViewModels are presentation concerns and must reside in incoming web adapter namespaces",
+      "title": "ViewModels must reside in the configured web adapter namespace",
+      "rationale": "A ViewModel is shaped for the protocol of one incoming adapter and belongs in it. It has no reading in the domain or the application layer, and none in a second adapter",
       "selects": "Types under the root namespace whose name ends with ViewModel.",
-      "checks": "Each resides in <module>.Adapter.Incoming.Web of some module root - the adapter and incoming segments are the configured ones, the Web segment is fixed. A ViewModel in a domain or application namespace, or in a non-web incoming adapter such as Adapter.Incoming.Mcp, is reported. An empty selection passes.",
+      "checks": "Each resides in <module>.Adapter.Incoming.<Web> of some module root - all three segments are the configured ones (WithWebSegment changes the last). A ViewModel in a domain or application namespace, or in an incoming adapter other than the configured web one, such as Adapter.Incoming.Mcp, is reported. An empty selection passes.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -1134,7 +1134,7 @@
       "title": "Domain layer must stay synchronous",
       "rationale": "Async is an I/O concern of ports and adapters; a synchronous domain model stays testable, deterministic and free of sync-over-async hazards",
       "selects": "Types in <module>.Domain of every module root.",
-      "checks": "No dependency on Task, Task<T>, ValueTask, ValueTask<T> or CancellationToken - in a signature, a field or a method body. Other awaitables and IAsyncEnumerable<T> are not checked. An empty selection passes.",
+      "checks": "No dependency on Task, Task<T>, ValueTask, ValueTask<T> or CancellationToken - in a signature, a field or a method body. Other awaitables and IAsyncEnumerable<T> are not checked. An empty selection passes. The statement is language-neutral, but it is carried under a dotnet id: Java has no twin, and CompletableFuture or Flow.Publisher in a domain model is reported by no rule there.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -1151,10 +1151,10 @@
     {
       "set": "dotnet",
       "id": "DCA-NET-003",
-      "title": "Use cases implement IUseCase<TIn,TOut>.ExecuteAsync(input, CancellationToken) returning Task<T>",
-      "rationale": "The generic asynchronous input contract supports host cancellation",
-      "selects": "Concrete classes under scan implementing IUseCase<TIn,TOut> (directly, inherited or explicitly), plus application operations (marker or suffix) that declare a public ExecuteAsync without the generic contract, with loadable runtime types. A marker-only IInputPort implementation without ExecuteAsync is not selected.",
-      "checks": "Every IUseCase<TIn,TOut> interface map supplies ExecuteAsync(input, CancellationToken) returning Task<T>; explicit, inherited and ordinary implementations pass. An ExecuteAsync declared without the generic contract (plain Task, own signature) fails. Other public members are checked by USE-017, not counted here.",
+      "title": "The use-case contract takes an input and a CancellationToken and answers with a Task",
+      "rationale": "A use case orchestrates output ports — persistence, messaging, remote systems — which are I/O-bound in .NET, so its contract is awaitable; and a host that shuts down, a cancelled request or an expired deadline must be able to stop the work, which needs a CancellationToken on the contract itself. A synchronous or non-cancellable use-case contract blocks a thread pool thread and cannot be stopped",
+      "selects": "Concrete classes under scan with loadable runtime types that implement the configured use-case role, directly, inherited or explicitly. A class that implements no such contract is not selected — which name it gives its own operations is not this rule's subject.",
+      "checks": "Every operation the use-case contract maps onto takes the input and a CancellationToken and returns Task<T>; explicit, inherited and ordinary implementations pass. With the library's own vocabulary the C# compiler already enforces the signature of IUseCase<TIn,TOut>, so the rule has something to report only where a project points the use-case role at a contract of its own. Whether a class exposes public members beyond the contract is DCA-USE-017's subject, not this one's.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -1162,7 +1162,7 @@
       "set": "dotnet",
       "id": "DCA-NET-004",
       "title": "Struct value objects must be readonly",
-      "rationale": "Records give attribute-based equality, immutability by default and with-expressions — the C# way to write a Value Object",
+      "rationale": "A struct is copied by value but its fields stay assignable unless the struct is declared readonly, so a mutating method silently changes a copy and leaves the original behind. readonly makes the compiler enforce what a Value Object promises. Whether a value object is a record, a class or a struct is not prescribed here - DCA-TAC-012 accepts any immutable type with value equality",
       "selects": "Non-interface, non-abstract types in <module>.Domain of every module root that are assignable to IValue and whose runtime type is in the loaded assemblies.",
       "checks": "Struct values must carry the readonly modifier. Classes are governed by TAC-009/010/012; equality is checked by TAC-012. An IValue outside a domain namespace is not selected.",
       "implementation": "dotnet",
@@ -1184,7 +1184,7 @@
       "title": "Application layer must not use persistence or transaction frameworks",
       "rationale": "The transaction boundary of a use case is drawn by a decorator around IUseCase or by ITransactionBoundary (an application-layer execution abstraction implemented in infrastructure), never by DbContext, SaveChanges, TransactionScope or IDbTransaction in the use case itself. Framework types in the application layer bind use cases to one persistence technology and hide where the boundary is; the ITransactionBoundary implementation is the single place that knows how to open and commit a transaction",
       "selects": "Types in <module>.Application of every module root.",
-      "checks": "No dependency on a type whose full name starts with Microsoft.EntityFrameworkCore, System.Transactions, System.Data, Dapper, NHibernate or MongoDB.Driver. Only these six namespace prefixes are checked - another persistence library is not reported, and the domain and adapter layers are not selected. An empty selection passes.",
+      "checks": "No dependency on a type whose full name starts with Microsoft.EntityFrameworkCore, System.Transactions, System.Data, Dapper, NHibernate or MongoDB.Driver. Only these six namespace prefixes are checked - another persistence library is not reported, and the domain and adapter layers are not selected. An empty selection passes. The statement is language-neutral, but it is carried under a dotnet id: Java has no twin, where DCA-LAY-003 forbids the infrastructure packages and not the persistence API itself.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -1213,8 +1213,8 @@
       "id": "DCA-ERR-003",
       "title": "Exceptions declared in the application layer must extend UseCaseException",
       "rationale": "A use case that cannot serve a request reports why through its type, so that one incoming adapter can map each outcome onto its protocol and another adapter can map the same outcome onto a different one",
-      "selects": "Types under <Module>.Application of every module root that are assignable to Exception - the exception types the application layer declares itself. The base type UseCaseException lives in the building blocks and is not selected.",
-      "checks": "Each derives from UseCaseException, directly or through an intermediate base class. A subtype of DomainException declared in an application namespace is reported here as well: a failure of the model belongs to the model. An empty selection passes.",
+      "selects": "Types under <Module>.Application of every module root that are assignable to Exception and not to DomainException - the exception types the application layer declares itself. The base type UseCaseException lives in the building blocks and is not selected. A subtype of DomainException declared in an application namespace is not selected either: it is misplaced rather than mis-based, and DCA-ERR-002 owns that case with the remedy that fits it - move the failure to the domain, do not change its base type.",
+      "checks": "Each derives from UseCaseException, directly or through an intermediate base class. An empty selection passes.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -1222,9 +1222,9 @@
       "set": "errors",
       "id": "DCA-ERR-004",
       "title": "Domain and use-case exceptions must not carry prohibited framework metadata",
-      "rationale": "An exception of an inner layer that carries container, persistence or protocol metadata has decided how the outside answers it, which is the incoming adapter's decision and only its",
-      "selects": "Types anywhere under the root namespace that are assignable to DomainException or to UseCaseException, the building-blocks namespace excluded.",
-      "checks": "The type carries no attribute the layout classifies into the container, persistence or transaction role, neither directly nor through a base attribute type. Fields, properties and methods are not inspected, and an attribute the layout classifies into no role is allowed. A type whose runtime reflection is unavailable is skipped. With those roles empty the rule selects no metadata and passes.",
+      "rationale": "An exception of an inner layer that carries container, persistence or protocol metadata has decided how the outside answers it, which is the incoming adapter's decision and only its; an attribute that fixes the answer's status decides it for every protocol at once, including the ones the exception knows nothing about",
+      "selects": "Types anywhere under the root namespace that are assignable to the domain-exception or the use-case-exception role, the vocabulary's own code excluded: the namespaces the configured role types live in are not selected, so a project's own base type is not reported as residing outside a layer it never claimed.",
+      "checks": "The type carries no attribute the layout classifies into the container, persistence, transaction, transport-status, web-controller, REST-controller or event-listener role, neither directly nor through a base attribute type - the same seven roles the Java twin forbids. Four of them are empty in every preset: the platform has no container stereotype, no controller attribute a failure could carry and no event-listener attribute, and it answers a failure through a mapper type rather than through an attribute on it. They exist so the id has one contract in both languages and a project whose framework does have such an attribute names it. Fields, properties and methods are not inspected, and an attribute the layout classifies into no role is allowed. A type whose runtime reflection is unavailable is not inspected; it is counted and named on standard output rather than passing silently. With the roles empty the rule selects no metadata and passes.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -1233,8 +1233,8 @@
       "id": "DCA-ERR-005",
       "title": "Domain and use-case exception names must stay in the language of their layer",
       "rationale": "A failure named after a transport concept is a decision about the answer, taken in a layer that does not know the protocol; the name should say what went wrong, not what the caller should be told",
-      "selects": "Types anywhere under the root namespace that are assignable to DomainException or to UseCaseException, the building-blocks namespace excluded.",
-      "checks": "The type name ends with none of Error, Fault, Failure and contains none of Http, Status, Response. Whether the remaining name is a term of the Ubiquitous Language is not decidable here and stays with review. An empty selection passes.",
+      "selects": "Types anywhere under the root namespace that are assignable to the domain-exception or the use-case-exception role, the vocabulary's own code excluded: the namespaces the configured role types live in are not selected, so a project's own base type is not reported as residing outside a layer it never claimed.",
+      "checks": "The type name ends with none of Error, Fault, Failure and contains none of Http, StatusCode, ResponseStatus, ResponseEntity. The bare words Status and Response are not matched: they are transport words and domain words, and the name alone does not tell them apart, so OrderStatusInvalidException passes. Whether the remaining name is a term of the Ubiquitous Language is not decidable here and stays with review. An empty selection passes.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -1257,14 +1257,26 @@
       "since": "0.4.0"
     },
     {
+      "id": "DCA-ADV-009",
+      "reason": "Where a domain service sits inside the domain layer is the team's decision; DCA-ADV-010 keeps the layer itself",
+      "replacement": "DCA-ADV-010",
+      "since": "0.5.0"
+    },
+    {
       "id": "DCA-MAP-003",
       "reason": "Renderer disambiguates normalized external-system identifiers",
       "replacement": "ContextMapRenderer",
       "since": "0.4.0"
     },
     {
+      "id": "DCA-STR-009",
+      "reason": "A separate segment for the anti-corruption layer is a filing decision, and the selection named three suffixes a project cannot change; the pattern stays guide and catalog guidance",
+      "replacement": "none",
+      "since": "0.5.0"
+    },
+    {
       "id": "DCA-TAC-022",
-      "reason": "Value model already covered; enrichment remains guide and catalog guidance",
+      "reason": "Selected on the sample's own pattern name (Enriched*), which a general rule may not carry; value models are covered by DCA-TAC-008..012 and naming one enriched remains guide and catalog guidance",
       "replacement": "DCA-TAC-008..012",
       "since": "0.4.0"
     }

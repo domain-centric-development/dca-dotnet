@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -136,11 +137,15 @@ public sealed class LayeredRules : IDcaRuleSet
                     .Where(t => !IsBoundary(t))
                     .SelectMany(t => t.Dependencies.Select(d => d.Target).Where(programmatic).Select(target => target.FullName).Distinct()
                         .Select(target => $"{t.FullName} uses {target} outside the application layer"));
-                var violations = Findings(allowed, UsesApi).Concat(Findings(wiringAllowed, ManagerOrBoundary)).ToList();
+                var violations = Findings(allowed, UsesApi).Concat(Findings(wiringAllowed, ManagerOrBoundary))
+                    .Concat(DeclarativeFindings(arch, allowed, types.TransactionalAttribute))
+                    .ToList();
                 DcaRule.Fail($"Transaction boundaries belong to the application layer\nbecause {rationale}", violations);
             })
             .Selecting(
-                "Two selections. Transaction use: types under scan that depend on a configured transaction-API "
+                "Three selections. Declarative: types under scan that carry the configured transactional "
+                + "attribute, and types that declare a method carrying it - empty by default, because neither "
+                + ".NET preset configures one. Transaction use: types under scan that depend on a configured transaction-API "
                 + "type - TransactionScope (by default System.Transactions.TransactionScope) or one of the "
                 + "TransactionApiTypes (by default CommittableTransaction, IDbTransaction, DbTransaction and the "
                 + "persistence library's IDbContextTransaction), the types code runs a transaction with. Wiring: "
@@ -149,7 +154,10 @@ public sealed class LayeredRules : IDcaRuleSet
                 + "implementations of ITransactionBoundary itself are never selected. With no transaction type "
                 + "configured only ITransactionBoundary dependencies are selected.")
             .Checking(
-                "Transaction use: the type resides in an application namespace of some module root "
+                "Declarative: the type resides in an application namespace of some module root or in an "
+                + "outgoing adapter namespace of some module root - the same places the transaction API is "
+                + "allowed, as in the Java twin. With no transactional attribute configured this selection is "
+                + "empty and the rule checks the other two only. Transaction use: the type resides in an application namespace of some module root "
                 + "(<module>.Application or below) or in an outgoing adapter namespace of some module root "
                 + "(<module>.Adapter.Outgoing or below) - a domain, incoming-adapter or infrastructure namespace "
                 + "is reported, the global one included. Wiring: additionally allowed in the global "
@@ -162,6 +170,57 @@ public sealed class LayeredRules : IDcaRuleSet
                 + "infrastructure namespace that obtains the manager and begins a transaction itself passes. "
                 + "Which transaction a boundary opens is not checked.");
     }
+
+    /// <summary>
+    /// The declarative branch of <c>DCA-LAY-004</c>, the counterpart of the two annotation selections the
+    /// Java twin has always had: a type or a method carrying the configured transactional attribute draws a
+    /// boundary, so it belongs where the transaction API belongs. Empty until a project configures an
+    /// attribute — neither shipped preset does, because ASP.NET Core has no ambient transaction attribute.
+    /// </summary>
+    private static IEnumerable<string> DeclarativeFindings(DcaArchitecture arch, Regex allowed, string attributeName)
+    {
+        if (!FrameworkTypes.IsSet(attributeName))
+        {
+            yield break;
+        }
+
+        foreach (var type in arch.Types.Where(t => t.Namespace is null || !allowed.IsMatch(t.Namespace.FullName)))
+        {
+            var runtime = arch.RuntimeType(type);
+            if (runtime is null)
+            {
+                continue;
+            }
+
+            if (Carries(runtime, attributeName))
+            {
+                yield return $"{type.FullName} carries {attributeName} outside the application layer";
+                continue;
+            }
+
+            const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance
+                | BindingFlags.Static | BindingFlags.DeclaredOnly;
+            foreach (var method in runtime.GetMethods(flags).Where(m => Carries(m, attributeName)))
+            {
+                yield return $"{type.FullName}.{method.Name} carries {attributeName} outside the application layer";
+            }
+        }
+    }
+
+    /// <summary>Whether the member carries the named attribute, a base attribute type included.</summary>
+    private static bool Carries(MemberInfo target, string attributeName) =>
+        target.GetCustomAttributesData().Any(a =>
+        {
+            for (var type = a.AttributeType; type is not null; type = type.BaseType)
+            {
+                if (type.FullName == attributeName)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        });
 
     /// <summary>
     /// Checked by reflection on the building-blocks assembly: the outbound-port markers are not part of the

@@ -1,0 +1,20 @@
+<Project>
+
+  <!--
+    DomainCentric.ArchRules.Xunit builds on xUnit v2. Under xUnit v3 the runner discovers no test
+    from this package: the run exits 0, the report is empty and the architecture rules never
+    execute, so the build stays green while nothing is checked. That failure mode is the one
+    DCA-STR-011, DCA-STR-012 and the loaders' empty-import refusal exist to prevent, and it must
+    not come back through the packaging. So the build stops here instead.
+  -->
+  <Target Name="DcaArchRulesXunitRequiresXunitV2"
+          BeforeTargets="Build;CoreCompile"
+          Condition="'$(DcaArchRulesXunitSkipVersionGuard)' != 'true'">
+    <Error Condition="'%(PackageReference.Identity)' == 'xunit.v3'
+                      or '%(PackageReference.Identity)' == 'xunit.v3.core'
+                      or '%(PackageReference.Identity)' == 'xunit.v3.extensibility.core'"
+           Code="DCA0001"
+           Text="DomainCentric.ArchRules.Xunit targets xUnit v2 (xunit.core 2.x), and this project references %(PackageReference.Identity). Under xUnit v3 no test from DcaArchitectureTest is discovered, the run exits 0 and no architecture rule executes - a green build that checked nothing. Either keep the architecture test project on xUnit v2, or drop this package and call DcaRules.CheckAll(architecture, selection) from DomainCentric.ArchRules in a test of your own, which works on any framework. Set DcaArchRulesXunitSkipVersionGuard=true to build anyway, knowing the rules will not run." />
+  </Target>
+
+</Project>

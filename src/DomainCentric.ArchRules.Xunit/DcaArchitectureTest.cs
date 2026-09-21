@@ -43,6 +43,13 @@ public abstract class DcaArchitectureTest
     protected abstract IEnumerable<System.Reflection.Assembly> Assemblies { get; }
 
     /// <summary>
+    /// <see cref="Layout"/> with <c>dca.framework=&lt;name&gt;</c> from <c>dca-archunit.properties</c>
+    /// applied — unless the layout names its framework types in code, which always wins. The same key
+    /// and the same precedence as in <c>dca-archunit</c>.
+    /// </summary>
+    protected DcaLayout EffectiveLayout => DcaLayout.ApplyConfiguredFramework(Layout, FileProperties);
+
+    /// <summary>
     /// Which rules run and how strictly: <c>dca-archunit.properties</c> next to the test assembly,
     /// with <see cref="AdditionalSelection"/> applied on top.
     /// </summary>
@@ -69,7 +76,7 @@ public abstract class DcaArchitectureTest
     protected virtual ISet<string> ExcludedRuleIds => new HashSet<string>();
 
     /// <summary>The rules to run. Default: whatever <see cref="Selection"/> asks for.</summary>
-    protected virtual IReadOnlyList<IDcaRule> Rules => DcaRules.SelectFlat(Layout, Selection);
+    protected virtual IReadOnlyList<IDcaRule> Rules => DcaRules.SelectFlat(EffectiveLayout, Selection);
 
     /// <summary>The imported architecture; loaded once per test class.</summary>
     protected DcaArchitecture Architecture
@@ -80,7 +87,7 @@ public abstract class DcaArchitectureTest
             {
                 if (!Cache.TryGetValue(GetType(), out var arch))
                 {
-                    arch = DcaArchitecture.Load(Layout, Assemblies.ToArray());
+                    arch = DcaArchitecture.Load(EffectiveLayout, Assemblies.ToArray());
                     Cache[GetType()] = arch;
                 }
 
@@ -94,6 +101,10 @@ public abstract class DcaArchitectureTest
     /// be named as such in the theory's display name.
     /// </summary>
     private static readonly DcaRuleSelection FileSelection = DcaRuleSelection.FromDirectory(AppContext.BaseDirectory);
+
+    /// <summary>The raw key/value pairs of the same file, for the settings outside the rule selection.</summary>
+    private static readonly IReadOnlyDictionary<string, string> FileProperties =
+        DcaRuleSelection.PropertiesFrom(AppContext.BaseDirectory);
 
     /// <summary>
     /// The rules the properties file selects, prefixed by their set and annotated with their
@@ -116,6 +127,19 @@ public abstract class DcaArchitectureTest
         var reason = FileSelection.ReasonFor(ruleId);
         var label = severity == DcaSeverity.Warn ? "WARN" : "OFF";
         return reason is null ? $" [{label}]" : $" [{label}: {reason}]";
+    }
+
+    /// <summary>
+    /// The two facts of the layout worth seeing in the report: the framework preset the rules
+    /// resolved their attributes with, and the vocabulary they resolved their building blocks with.
+    /// The wording matches the <c>layout</c> container of the Java carrier, so a run is
+    /// self-describing on both stacks.
+    /// </summary>
+    [Fact]
+    public void LayoutDiagnostics() {
+        var layout = EffectiveLayout;
+        Console.Out.WriteLine($"framework annotations: {layout.FrameworkTypesReport()}");
+        Console.Out.WriteLine($"building block markers: {layout.MarkersReport()}");
     }
 
     [Fact]

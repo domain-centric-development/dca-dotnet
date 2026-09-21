@@ -10,12 +10,12 @@ public interface ICustomerRepository
     Task<Customer?> FindByIdAsync(CustomerId id);
 }
 
-/// <summary>DCA-TAC-016: there is no class named Phantom in this context — must fail, not pass silently.</summary>
+/// <summary>DCA-TAC-016: binds Order but is named after Phantom — must fail, not pass silently.</summary>
 public interface IPhantomRepository : IRepository<Order, OrderId>
 {
 }
 
-/// <summary>DCA-TAC-016: named after Shipment, which is an entity, not an aggregate root.</summary>
+/// <summary>DCA-TAC-016: binds Order but is named after Shipment.</summary>
 public interface IShipmentRepository : IRepository<Order, OrderId>
 {
 }

@@ -129,6 +129,8 @@ This package is a port of the Java library `dev.domaincentric:dca-building-block
 | `ddd.tactical.DomainGateway` | `Ddd.Tactical.IDomainGateway` |
 | `ddd.tactical.Factory` | `Ddd.Tactical.IFactory` |
 | `ddd.tactical.Specification<T>` | `Ddd.Tactical.ISpecification<T>` |
+| `ddd.tactical.DomainException` (business rule, domain layer) | `Ddd.Tactical.DomainException` |
+| `ddd.tactical.Specification<T>` | `Ddd.Tactical.ISpecification<T>` |
 | `@BoundedContext(name, description)` on `package-info` | `[BoundedContext(name, Description = …)]` on a context marker class |
 | `@SharedKernel(description)` on `package-info` | `[SharedKernel(Description = …)]` on a marker class |
 | `@OpenHostService(context, description)` | `[OpenHostService(context, Description = …)]` |
@@ -149,9 +151,15 @@ This package is a port of the Java library `dev.domaincentric:dca-building-block
 | `hexagonal.port.out.Store` | `Hexagonal.Ports.Out.IStore` |
 | `hexagonal.port.out.DomainEventPublisher` | `Hexagonal.Ports.Out.IDomainEventPublisher` (`PublishAsync`, `PublishAndClearEventsAsync`) |
 | `hexagonal.port.out.IntegrationEventPublisher` | `Hexagonal.Ports.Out.IIntegrationEventPublisher` (`PublishAsync`) |
+| `application.UseCaseException` (use-case failure, application layer) | `Application.UseCaseException` — the same word in both, because the platform occupies `System.ApplicationException` |
 | `application.TransactionBoundary` (`inTransaction`) | `Application.Transactions.ITransactionBoundary` (`InTransactionAsync<T>`, `InTransactionAsync`) |
 | `java.util.UUID` / `java.time.Instant` | `System.Guid` / `System.DateTimeOffset` |
 | `Optional<T>` | nullable reference `T?` |
+
+The rules do not read these type names directly: each is a **role** of `DcaMarkers`, and a project
+that already has its own vocabulary points the roles at its own types instead of migrating.
+`DcaMarkers.dca()` / `DcaMarkers.Dca()` is the default; `withEntity("…")` in Java and
+`with { Entity = "…" }` in C# change one role.
 
 ## License
 
