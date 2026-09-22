@@ -88,7 +88,13 @@ artifacts in the run's summary.
 Order for a first release: `building-blocks` first, wait until the run is green and the package is
 listed, then `archrules`.
 
-Afterwards: bump `<Version>` in the released projects on `main` and start an `[Unreleased]` section.
+Afterwards: open an `[Unreleased]` section in the family's `CHANGELOG.md`. `<Version>` keeps the
+**released** number until the first change after the release lands — only then does it become the
+next `X.Y.Z-SNAPSHOT`, so that a locally built package is never mistaken for the released one of
+the same number. Same rule as `gradle.properties` in `dca-java`, and the knowledge catalog depends
+on it: its release gate proves every rule id against a released library, and a snapshot version is
+no proof — with the rule packages on a snapshot, the six `dotnet`-set ids belong to no released
+library and the gate refuses the bundle.
 
 **What was waiting for this release.** While a rule exists only in a snapshot version, two things cannot
 follow it, and both come loose now:
