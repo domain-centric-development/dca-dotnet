@@ -267,11 +267,29 @@ public sealed class ContextMapRenderer
     // Declarations (filtered by options)
     // ---------------------------------------------------------------------------------------------
 
+    /// <summary>
+    /// Declarations of one context, sorted by target, first channel and translation. The order of the
+    /// attributes in the source must not reach the rendered map: two code bases that declare the same
+    /// relationships differently ordered would otherwise render two documents that cannot be compared.
+    /// </summary>
     private IReadOnlyList<UpstreamAttribute> Upstreams(string ns) =>
-        _arch.NamespaceAttributes<UpstreamAttribute>(ns).Where(u => _includePlanned || u.Status != UpstreamStatus.Planned).ToList();
+        _arch.NamespaceAttributes<UpstreamAttribute>(ns)
+            .Where(u => _includePlanned || u.Status != UpstreamStatus.Planned)
+            .OrderBy(u => u.Context, StringComparer.Ordinal)
+            .ThenBy(FirstChannel, StringComparer.Ordinal)
+            .ThenBy(u => u.Translation.ToString(), StringComparer.Ordinal)
+            .ToList();
+
+    private static string FirstChannel(UpstreamAttribute u) =>
+        u.Via.Count == 0 ? string.Empty : u.Via[0].ToString();
 
     private IReadOnlyList<ExternalUpstreamAttribute> ExternalUpstreams(string ns) =>
-        _arch.NamespaceAttributes<ExternalUpstreamAttribute>(ns).Where(e => _includePlanned || e.Status != UpstreamStatus.Planned).ToList();
+        _arch.NamespaceAttributes<ExternalUpstreamAttribute>(ns)
+            .Where(e => _includePlanned || e.Status != UpstreamStatus.Planned)
+            .OrderBy(e => e.Name, StringComparer.Ordinal)
+            .ThenBy(e => e.Interaction.ToString(), StringComparer.Ordinal)
+            .ThenBy(e => e.Translation.ToString(), StringComparer.Ordinal)
+            .ToList();
 
     /// <summary>Deduplicated symmetric pairs (sorted) with the distinct rationales of both sides, in encounter order.</summary>
     private List<((string First, string Second) Pair, List<string> Rationales)> PartnershipPairs(List<string> namespaces)

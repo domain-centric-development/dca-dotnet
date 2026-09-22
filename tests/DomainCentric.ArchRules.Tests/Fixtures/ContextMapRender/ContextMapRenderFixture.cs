@@ -43,6 +43,9 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.ContextMapRender.Catalog.Domain
 namespace DomainCentric.ArchRules.Tests.Fixtures.ContextMapRender.Shipping
 {
     [BoundedContext("Shipping", Description = "Parcel dispatch")]
+    // Declared out of order on purpose: the renderer sorts, so "Cart" must come out before "Catalog"
+    // however these two are written down. Same fixture shape in the Java twin.
+    [Upstream("Catalog", Translation.AntiCorruptionLayer, Consumes.Api, Rationale = "Dimensions and weight of the articles to dispatch")]
     [Upstream("Cart", Translation.Conformist, Consumes.Events, Status = UpstreamStatus.Planned, Rationale = "Ship what was ordered")]
     [ExternalUpstream("Carrier API", Translation.AntiCorruptionLayer, Interaction.Outbound,
         Protocol = "REST", Exchanges = "Shipment labels", Rationale = "Labels are printed by the carrier")]

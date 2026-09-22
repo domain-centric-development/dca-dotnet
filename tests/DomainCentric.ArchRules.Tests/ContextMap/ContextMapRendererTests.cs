@@ -39,6 +39,20 @@ public sealed class ContextMapRendererTests
     }
 
     [Fact]
+    public void SortsDeclarationsSoTheOrderInTheSourceDoesNotReachTheMap()
+    {
+        var lines = Lines(ContextMapRenderer.Of(Arch).Render());
+        // Shipping declares Catalog first, Cart second; the map lists Cart first in both the table
+        // and the diagram. Two code bases with the same relationships render comparable documents.
+        var cart = Array.IndexOf(lines, "| Shipping | Cart | events | Conformist | planned | Ship what was ordered |");
+        var catalog = Array.IndexOf(lines, "| Shipping | Catalog | api | ACL | implemented | Dimensions and weight of the articles to dispatch |");
+        Assert.True(cart > 0 && catalog > cart, string.Join("\n", lines));
+        var cartEdge = Array.IndexOf(lines, "  Shipping -.->|\"Conformist / events / planned\"| Cart");
+        var catalogEdge = Array.IndexOf(lines, "  Shipping -->|\"ACL / api\"| Catalog");
+        Assert.True(cartEdge > 0 && catalogEdge > cartEdge, string.Join("\n", lines));
+    }
+
+    [Fact]
     public void RendersMermaidDiagram()
     {
         var md = ContextMapRenderer.Of(Arch).Render();
