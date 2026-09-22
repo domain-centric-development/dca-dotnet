@@ -46,6 +46,23 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Advanced.Bad.Order.Domain.Model
 
     public readonly record struct OrderId(Guid Value) : IId;
 
+    // DCA-ADV-019: the aggregate reaches for a domain service and constructs one itself.
+    public sealed class SelfPricingOrder : AggregateRootBase<SelfPricingOrder, OrderId>
+    {
+        private readonly Money _net;
+
+        public SelfPricingOrder(OrderId id, Money net)
+        {
+            Id = id;
+            _net = net;
+        }
+
+        public override OrderId Id { get; }
+
+        public decimal Total() =>
+            new Service.OrderTotalCalculator().WithTax(_net.Amount);
+    }
+
     public sealed class Order : AggregateRootBase<Order, OrderId>
     {
         public Order(OrderId id, Money total)
@@ -146,6 +163,12 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Advanced.Bad.Order.Domain.Servi
     [Service]
     public sealed class TaxService : IDomainService
     {
+    }
+
+    // DCA-ADV-020: an operation that takes only values.
+    public sealed class OrderTotalCalculator : IDomainService
+    {
+        public decimal WithTax(decimal net) => net * 1.19m;
     }
 }
 

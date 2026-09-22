@@ -803,6 +803,26 @@
       "status": "enforced"
     },
     {
+      "set": "advanced",
+      "id": "DCA-ADV-019",
+      "title": "Aggregates, entities and value objects must not use domain services",
+      "rationale": "A domain service exists for logic that spans several aggregates, so the application calls it; a model type that reaches for one would drive another aggregate from inside its own",
+      "selects": "Types anywhere under scan that carry the aggregate-root, entity or value role.",
+      "checks": "None of them calls a method of, or constructs, a type carrying the domain-service role. Holding one as a parameter or a field type is not a call and is not reported. A domain service calling another domain service is outside this selection. An empty selection passes.",
+      "implementation": "dotnet",
+      "status": "enforced"
+    },
+    {
+      "set": "advanced",
+      "id": "DCA-ADV-020",
+      "title": "Domain service operations take an aggregate or an entity",
+      "rationale": "A domain service works on the model itself; an operation that only takes extracted values moves the decision out of the domain and into its caller",
+      "selects": "Public methods declared on non-interface types carrying the domain-service role, except the methods every object has (Equals, GetHashCode, ToString) and compiler generated ones.",
+      "checks": "At least one parameter of the method carries the aggregate-root or the entity role. Value objects and foreign facts may be passed alongside but do not satisfy the check on their own: a calculation that needs no aggregate is behaviour of the value object or the aggregate, not a domain service. An empty selection passes.",
+      "implementation": "dotnet",
+      "status": "enforced"
+    },
+    {
       "set": "usecase",
       "id": "DCA-USE-001",
       "title": "The base InputPort contract is not redeclared in the project",

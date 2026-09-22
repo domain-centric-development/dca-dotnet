@@ -74,6 +74,7 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Advanced.Good.Order.Domain.Mode
 
 namespace DomainCentric.ArchRules.Tests.Fixtures.Advanced.Good.Order.Domain.Service
 {
+    using DomainCentric.ArchRules.Tests.Fixtures.Advanced.Good.Order.Domain.Model;
     using DomainCentric.ArchRules.Tests.Fixtures.Advanced.Good.SharedKernel.Domain.Model;
 
     public sealed class OrderTotalCalculator : IDomainService
@@ -85,7 +86,8 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Advanced.Good.Order.Domain.Serv
             _taxRate = taxRate;
         }
 
-        public Money WithTax(Money net) => new Money(net.Amount * (1 + _taxRate));
+        // DCA-ADV-020: takes the aggregate, not extracted values.
+        public Money TotalWithTax(Order order) => new Money(order.Total.Amount * (1 + _taxRate));
     }
 }
 

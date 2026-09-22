@@ -16,6 +16,7 @@ public sealed class AdvancedPatternRulesTests
         "DCA-ADV-001", "DCA-ADV-002", "DCA-ADV-004", "DCA-ADV-005", "DCA-ADV-006",
         "DCA-ADV-007", "DCA-ADV-008", "DCA-ADV-010", "DCA-ADV-011", "DCA-ADV-012",
         "DCA-ADV-013", "DCA-ADV-014", "DCA-ADV-015", "DCA-ADV-016", "DCA-ADV-017", "DCA-ADV-018",
+        "DCA-ADV-019", "DCA-ADV-020",
     };
 
     private static readonly IReadOnlyDictionary<string, string> NoNegativeFixture = new Dictionary<string, string>();

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using ArchUnitNET.Domain;
+using ArchUnitNET.Domain.Dependencies;
 using ArchUnitNET.Domain.Extensions;
 using DomainCentric.BuildingBlocks.Ddd.Tactical;
 using static ArchUnitNET.Fluent.ArchRuleDefinition;
@@ -47,8 +48,86 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
             FactoriesAreStateless(),
             SpecificationsResideInDomain(),
             SpecificationsHaveNoFrameworkAttributes(),
+            ModelTypesDoNotUseDomainServices(),
+            DomainServiceOperationsTakeAModelObject(),
         };
     }
+
+    /// <summary>DCA-ADV-019 — the model does not reach for a domain service.</summary>
+    public IDcaRule ModelTypesDoNotUseDomainServices() =>
+        DcaRule.Check(
+            "DCA-ADV-019",
+            "Aggregates, entities and value objects must not use domain services",
+            "A domain service exists for logic that spans several aggregates, so the application calls it; "
+                + "a model type that reaches for one would drive another aggregate from inside its own",
+            arch =>
+            {
+                var violations = new List<string>();
+                foreach (var type in arch.Types.Where(t => IsModelType(arch, t)))
+                {
+                    foreach (var target in type.Dependencies
+                        .Where(d => d is MethodCallDependency)
+                        .Select(d => d.Target)
+                        .Distinct())
+                    {
+                        if (target.IsAssignableTo(arch.Layout.Markers.DomainService))
+                        {
+                            violations.Add($"{type.FullName} uses {target.FullName}");
+                        }
+                    }
+                }
+
+                DcaRule.Fail("A model type reaches for a domain service", violations.Distinct().ToList(),
+                    "let the use case call the domain service and hand the model the result");
+            })
+            .Selecting("Types anywhere under scan that carry the aggregate-root, entity or value role.")
+            .Checking(
+                "None of them calls a method of, or constructs, a type carrying the domain-service role. "
+                + "Holding one as a parameter or a field type is not a call and is not reported. A domain "
+                + "service calling another domain service is outside this selection. An empty selection passes.");
+
+    /// <summary>DCA-ADV-020 — a domain service works on the model, not on extracted values.</summary>
+    public IDcaRule DomainServiceOperationsTakeAModelObject() =>
+        DcaRule.Check(
+            "DCA-ADV-020",
+            "Domain service operations take an aggregate or an entity",
+            "A domain service works on the model itself; an operation that only takes extracted values "
+                + "moves the decision out of the domain and into its caller",
+            arch =>
+            {
+                var violations = new List<string>();
+                foreach (var service in arch.Types.Where(t =>
+                    t is not Interface && t.IsAssignableTo(arch.Layout.Markers.DomainService)))
+                {
+                    foreach (var method in service.GetMethodMembers()
+                        .Where(m => m.MethodForm == MethodForm.Normal && m.Visibility == Visibility.Public))
+                    {
+                        if (ObjectMethods.Contains(SimpleName(method)))
+                        {
+                            continue;
+                        }
+
+                        var takesModelObject = method.Parameters.Any(parameter =>
+                            parameter.IsAssignableTo(arch.Layout.Markers.AggregateRoot)
+                            || parameter.IsAssignableTo(arch.Layout.Markers.Entity));
+                        if (!takesModelObject)
+                        {
+                            violations.Add($"{service.FullName}.{SimpleName(method)} takes no aggregate and no entity");
+                        }
+                    }
+                }
+
+                DcaRule.Fail("A domain service operation takes at least one aggregate or entity", violations,
+                    "pass the aggregate itself, or move the operation onto the value object it computes on");
+            })
+            .Selecting(
+                "Public methods declared on non-interface types carrying the domain-service role, except the "
+                + "methods every object has (Equals, GetHashCode, ToString) and compiler generated ones.")
+            .Checking(
+                "At least one parameter of the method carries the aggregate-root or the entity role. Value "
+                + "objects and foreign facts may be passed alongside but do not satisfy the check on their "
+                + "own: a calculation that needs no aggregate is behaviour of the value object or the "
+                + "aggregate, not a domain service. An empty selection passes.");
 
     public string Name => "advanced";
 
@@ -56,6 +135,21 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
 
     /// <summary>The layout this rule set was built for.</summary>
     public DcaLayout Layout { get; }
+
+    private static readonly HashSet<string> ObjectMethods =
+        new(StringComparer.Ordinal) { "Equals", "GetHashCode", "ToString" };
+
+    /// <summary>ArchUnitNET member names carry the parameter list; this strips it.</summary>
+    private static string SimpleName(MethodMember method)
+    {
+        var paren = method.Name.IndexOf('(', StringComparison.Ordinal);
+        return paren < 0 ? method.Name : method.Name.Substring(0, paren);
+    }
+
+    private static bool IsModelType(DcaArchitecture arch, IType type) =>
+        type.IsAssignableTo(arch.Layout.Markers.AggregateRoot)
+        || type.IsAssignableTo(arch.Layout.Markers.Entity)
+        || type.IsAssignableTo(arch.Layout.Markers.Value);
 
     // ============================================================================
     // DOMAIN EVENTS PATTERN

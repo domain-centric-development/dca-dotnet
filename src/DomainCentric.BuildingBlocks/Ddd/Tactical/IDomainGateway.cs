@@ -6,9 +6,18 @@ namespace DomainCentric.BuildingBlocks.Ddd.Tactical;
 /// <remarks>
 /// <para>
 /// A Domain Gateway is an interface declared in the <b>domain layer</b> that the domain itself uses
-/// to consult external facts or delegate technology-bound operations, without coupling the domain
-/// to framework or infrastructure types. The implementation lives outside the domain (typically in
-/// an outgoing adapter), but the contract is owned by the domain and expressed in domain language.
+/// to obtain facts it does not hold, or to delegate a technology-bound computation, without coupling
+/// the domain to framework or infrastructure types. The implementation lives outside the domain
+/// (typically in an outgoing adapter), but the contract is owned by the domain and expressed in
+/// domain language.
+/// </para>
+/// <para>
+/// <b>It never writes to the outside.</b> A gateway enriches the model with information so that the
+/// model can decide; it does not change the state of any external system. Persisting, sending,
+/// publishing and calling a remote operation that has an effect are the application's business,
+/// through an output port. A computation that touches nothing outside the process — hashing a
+/// password, converting a currency with a supplied rate — is a gateway, because no external state
+/// changes.
 /// </para>
 /// <para><b>How it differs from related concepts:</b></para>
 /// <list type="bullet">
@@ -27,7 +36,7 @@ namespace DomainCentric.BuildingBlocks.Ddd.Tactical;
 ///   <item><description>No framework dependencies in the interface</description></item>
 ///   <item><description>Implementation in the outgoing adapter layer</description></item>
 ///   <item><description>Typically called by aggregates, entities, or domain services</description></item>
-///   <item><description>Side-effect-free or read-only operations are the typical case</description></item>
+///   <item><description>Read-only towards the outside: no external state is created, changed or removed</description></item>
 /// </list>
 /// <para><b>Example use cases:</b></para>
 /// <list type="bullet">
