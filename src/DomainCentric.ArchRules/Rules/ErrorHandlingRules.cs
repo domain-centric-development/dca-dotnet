@@ -221,7 +221,7 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                 + "whose framework does have such an attribute names it. Fields, properties and methods "
                 + "are not inspected, and an attribute the layout classifies into no role is allowed. A "
                 + "type whose runtime reflection is unavailable is not inspected; it is counted and named "
-                + "on standard output rather than passing silently. With the roles empty the rule selects "
+                + "in the rule's own outcome rather than passing silently. With the roles empty the rule selects "
                 + "no metadata and passes.");
 
     public IDcaRule ExceptionsNameNoTransportConcept() =>
@@ -271,6 +271,7 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                 + " way; whether it does is not visible in the type model",
             arch =>
             {
+                var observed = new List<string>();
                 var incoming = new Regex(DcaLayout.AnyOf(arch.AllIncomingAdapterPatterns()));
                 var driving = new SortedDictionary<string, List<string>>(StringComparer.Ordinal);
                 var namespacesThatName = new HashSet<string>(StringComparer.Ordinal);
@@ -308,9 +309,11 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                     }
 
                     names.Sort(StringComparer.Ordinal);
-                    Console.WriteLine(
-                        $"[DCA-ERR-006] {ns}: drives an input port and names no failure type of the inner layers ({string.Join(", ", names)})");
+                    observed.Add(
+                        $"{ns}: drives an input port and names no failure type of the inner layers ({string.Join(", ", names)})");
                 }
+
+                return observed;
             })
             .Selecting(
                 "Incoming adapter namespaces of every module root (<Module>.Adapter.Incoming) that hold at "

@@ -31,6 +31,18 @@ public static class DcaRuleExecution
                 selection.ReasonFor(rule.Id) ?? "switched off, no reason recorded");
         }
 
+        // A diagnostic asserts nothing: it observes and hands back what it saw, so it never fails and its
+        // lines travel in the outcome instead of going to the console, where no report and no pipeline
+        // stage would see them.
+        if (rule.Kind == DcaRuleKind.Informational)
+        {
+            var observed = rule.Observe(architecture);
+            return new DcaRuleOutcome(
+                rule.Id,
+                DcaRuleStatus.Passed,
+                observed.Count == 0 ? null : WithRuleId(string.Join("\n", observed), rule.Id));
+        }
+
         var ignored = selection.IgnoredViolationPatterns(rule.Id).Select(p => new Regex(p, RegexOptions.Singleline)).ToList();
         var violations = Evaluate(rule, architecture, ignored);
         if (violations is null)

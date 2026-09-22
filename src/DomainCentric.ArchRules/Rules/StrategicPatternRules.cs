@@ -55,26 +55,23 @@ public sealed class StrategicPatternRules : IDcaRuleSet
             "Making the discovered contexts visible shows which namespaces the strategic rules govern",
             arch =>
             {
-                Console.WriteLine("=== Discovered Bounded Contexts ===");
+                var observed = new List<string>();
                 foreach (var e in arch.BoundedContexts)
                 {
-                    Console.WriteLine("  " + e.Value.Name + ": " + e.Key);
-                    if (e.Value.Description.Length > 0)
-                    {
-                        Console.WriteLine("    Description: " + e.Value.Description);
-                    }
+                    var description = e.Value.Description.Length > 0 ? " - " + e.Value.Description : "";
+                    observed.Add(e.Value.Name + ": " + e.Key + description);
                 }
-                Console.WriteLine("=== Shared Kernel ===");
-                Console.WriteLine("  Namespace: " + (arch.SharedKernelNamespace ?? "<none>"));
-                Console.WriteLine("==================================");
+
+                observed.Add("shared kernel: " + (arch.SharedKernelNamespace ?? "<none>"));
+                return observed;
             })
         .Selecting(
             "Every namespace whose marker class carries [BoundedContext], at any depth below the root"
                 + " namespace, plus the namespace whose marker class carries [SharedKernel] if there is one."
                 + " Modules that own layers without declaring [BoundedContext] are not listed.")
         .Checking(
-            "Diagnostic - prints each discovered context's name, namespace and description and the"
-                + " shared kernel namespace to standard output. It asserts nothing and never fails.");
+            "Diagnostic - reports each discovered context's name, namespace and description and the"
+                + " shared kernel namespace in the rule's own outcome. It asserts nothing and never fails.");
 
     /// <summary>DCA-STR-002.</summary>
     public static IDcaRule SharedKernelMustNotDependOnBoundedContexts()
@@ -336,7 +333,7 @@ public sealed class StrategicPatternRules : IDcaRuleSet
             "Diagnostic: Event Listeners consuming integration events should use Anti-Corruption Layer",
             "Consumed integration events are translated into the consuming context's own language before they reach"
                 + " its domain — verified by code review, not statically",
-            arch => { })
+            arch => Array.Empty<string>())
         .Selecting("Informational - selects nothing and never fails; it carries doctrine only.")
         .Checking(
             "Nothing is asserted. Whether a consumed integration event is translated into the"

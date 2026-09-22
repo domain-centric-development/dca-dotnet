@@ -178,6 +178,15 @@ public abstract class DcaArchitectureTest
                 Console.Out.WriteLine($"[{ruleId}] switched off — {outcome.Message}");
                 break;
             default:
+                // A diagnostic that observed something passes and carries its lines; report them the
+                // way a warning is reported. xUnit v2 cannot turn a running test into a skipped one,
+                // so this stays on the test output — but the lines are in the outcome, where a report
+                // or a pipeline stage can read them. The Java twin aborts the test instead.
+                if (outcome.Message is not null)
+                {
+                    Console.Out.WriteLine($"[{ruleId}] INFO — {outcome.Message}");
+                }
+
                 break;
         }
     }

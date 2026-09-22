@@ -666,7 +666,7 @@ public sealed class ContextMapRules : IDcaRuleSet
             "Printing the declared edges makes the executable context map reviewable at a glance",
             arch =>
             {
-                Console.WriteLine("=== Context Map (declared) ===");
+                var observed = new List<string>();
                 foreach (var ns in arch.BoundedContextNamespaces)
                 {
                     var source = ShortName(arch, ns);
@@ -674,26 +674,26 @@ public sealed class ContextMapRules : IDcaRuleSet
                     {
                         foreach (var channel in u.Via)
                         {
-                            Console.WriteLine("  " + source + " --[" + u.Translation + " / " + ChannelName(arch, channel) + "]--> " + u.Context);
+                            observed.Add(source + " --[" + u.Translation + " / " + ChannelName(arch, channel) + "]--> " + u.Context);
                         }
                     }
                     foreach (var e in arch.NamespaceAttributes<ExternalUpstreamAttribute>(ns))
                     {
-                        Console.WriteLine("  " + source + " --[" + e.Translation + " / " + e.Interaction + "]--> (external) " + e.Name);
+                        observed.Add(source + " --[" + e.Translation + " / " + e.Interaction + "]--> (external) " + e.Name);
                     }
                     foreach (var p in arch.NamespaceAttributes<PartnershipAttribute>(ns))
                     {
-                        Console.WriteLine("  " + source + " <--[Partnership]--> " + p.Context);
+                        observed.Add(source + " <--[Partnership]--> " + p.Context);
                     }
                 }
-                Console.WriteLine("==============================");
+                return observed;
             })
         .Selecting(
             "Every [Upstream], [ExternalUpstream] and [Partnership] declaration on the"
                 + " marker class of every namespace carrying [BoundedContext], reading Context"
                 + " or Name, Translation, and Via or Interaction.")
         .Checking(
-            "Informational - prints every declared edge to standard output and never"
+            "Informational - reports every declared edge in the rule's own outcome and never"
                 + " fails; it carries no assertion. Status is not printed, so a Planned edge"
                 + " is listed like an implemented one.");
 

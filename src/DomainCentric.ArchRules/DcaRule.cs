@@ -31,8 +31,16 @@ public static class DcaRule
         new Undescribed(id, title, rationale, check ?? throw new ArgumentNullException(nameof(check)));
 
     /// <summary>A diagnostic entry, counted separately from enforced rules.</summary>
-    public static Undescribed Informational(string id, string title, string rationale, Action<DcaArchitecture> diagnostic) =>
-        new(id, title, rationale, diagnostic, DcaRuleKind.Informational);
+    /// <summary>
+    /// A diagnostic entry, counted separately from enforced rules. It asserts nothing, so it does not
+    /// throw: what it observes it returns, and <see cref="DcaRuleExecution"/> carries the lines in the
+    /// rule's outcome. An empty list means there was nothing to observe.
+    /// </summary>
+    public static Undescribed Informational(string id, string title, string rationale, Func<DcaArchitecture, IReadOnlyList<string>> report)
+    {
+        ArgumentNullException.ThrowIfNull(report);
+        return new Undescribed(id, title, rationale, _ => { }, DcaRuleKind.Informational, report);
+    }
 
     /// <summary>A rule whose mechanics are not yet described; not an <see cref="IDcaRule"/> until they are.</summary>
     public sealed class Undescribed
@@ -42,10 +50,12 @@ public static class DcaRule
         private readonly string _title;
         private readonly string _rationale;
         private readonly Action<DcaArchitecture> _check;
+        private readonly Func<DcaArchitecture, IReadOnlyList<string>>? _report;
 
-        internal Undescribed(string id, string title, string rationale, Action<DcaArchitecture> check, DcaRuleKind kind = DcaRuleKind.Enforced)
+        internal Undescribed(string id, string title, string rationale, Action<DcaArchitecture> check, DcaRuleKind kind = DcaRuleKind.Enforced, Func<DcaArchitecture, IReadOnlyList<string>>? report = null)
         {
             _kind = kind;
+            _report = report;
             _id = id ?? throw new ArgumentNullException(nameof(id));
             _title = title ?? throw new ArgumentNullException(nameof(title));
             _rationale = rationale ?? throw new ArgumentNullException(nameof(rationale));
@@ -56,7 +66,7 @@ public static class DcaRule
         public Selected Selecting(string selects) => new(this, RequireText(selects, "selects", _id));
 
         internal IDcaRule Complete(string selects, string checks) =>
-            new SimpleRule(_id, _title, _rationale, selects, RequireText(checks, "checks", _id), _check, _kind);
+            new SimpleRule(_id, _title, _rationale, selects, RequireText(checks, "checks", _id), _check, _kind, _report);
     }
 
     /// <summary>A rule with its selection described; <see cref="Checking"/> completes it.</summary>
@@ -147,10 +157,12 @@ public static class DcaRule
     private sealed class SimpleRule : IDcaRule
     {
         private readonly Action<DcaArchitecture> _check;
+        private readonly Func<DcaArchitecture, IReadOnlyList<string>>? _report;
 
-        internal SimpleRule(string id, string title, string rationale, string selects, string checks, Action<DcaArchitecture> check, DcaRuleKind kind)
+        internal SimpleRule(string id, string title, string rationale, string selects, string checks, Action<DcaArchitecture> check, DcaRuleKind kind, Func<DcaArchitecture, IReadOnlyList<string>>? report = null)
         {
             Kind = kind;
+            _report = report;
             Id = id ?? throw new ArgumentNullException(nameof(id));
             Title = title ?? throw new ArgumentNullException(nameof(title));
             Rationale = rationale ?? throw new ArgumentNullException(nameof(rationale));
@@ -158,6 +170,9 @@ public static class DcaRule
             Checks = checks ?? throw new ArgumentNullException(nameof(checks));
             _check = check ?? throw new ArgumentNullException(nameof(check));
         }
+
+        public IReadOnlyList<string> Observe(DcaArchitecture architecture) =>
+            _report is null ? Array.Empty<string>() : _report(architecture);
 
         public DcaRuleKind Kind { get; }
 

@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System;
 namespace DomainCentric.ArchRules;
 
 /// <summary>
@@ -42,4 +44,11 @@ public interface IDcaRule
 
     /// <summary>Runs the rule; throws <see cref="DcaRuleViolationException"/> on violation.</summary>
     void Check(DcaArchitecture architecture);
+
+    /// <summary>
+    /// What an informational rule observed, in reading order — empty for every enforced rule and for a
+    /// diagnostic that found nothing. It asserts nothing, so this never fails a build;
+    /// <see cref="DcaRuleExecution"/> carries the lines in the rule's outcome.
+    /// </summary>
+    IReadOnlyList<string> Observe(DcaArchitecture architecture) => Array.Empty<string>();
 }

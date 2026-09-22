@@ -418,7 +418,7 @@
       "title": "Diagnostic: Display discovered bounded contexts",
       "rationale": "Making the discovered contexts visible shows which namespaces the strategic rules govern",
       "selects": "Every namespace whose marker class carries [BoundedContext], at any depth below the root namespace, plus the namespace whose marker class carries [SharedKernel] if there is one. Modules that own layers without declaring [BoundedContext] are not listed.",
-      "checks": "Diagnostic - prints each discovered context's name, namespace and description and the shared kernel namespace to standard output. It asserts nothing and never fails.",
+      "checks": "Diagnostic - reports each discovered context's name, namespace and description and the shared kernel namespace in the rule's own outcome. It asserts nothing and never fails.",
       "implementation": "dotnet",
       "status": "informational"
     },
@@ -638,7 +638,7 @@
       "title": "Diagnostic: Display declared context map",
       "rationale": "Printing the declared edges makes the executable context map reviewable at a glance",
       "selects": "Every [Upstream], [ExternalUpstream] and [Partnership] declaration on the marker class of every namespace carrying [BoundedContext], reading Context or Name, Translation, and Via or Interaction.",
-      "checks": "Informational - prints every declared edge to standard output and never fails; it carries no assertion. Status is not printed, so a Planned edge is listed like an implemented one.",
+      "checks": "Informational - reports every declared edge in the rule's own outcome and never fails; it carries no assertion. Status is not printed, so a Planned edge is listed like an implemented one.",
       "implementation": "dotnet",
       "status": "informational"
     },
@@ -1244,7 +1244,7 @@
       "title": "Domain and use-case exceptions must not carry prohibited framework metadata",
       "rationale": "An exception of an inner layer that carries container, persistence or protocol metadata has decided how the outside answers it, which is the incoming adapter's decision and only its; an attribute that fixes the answer's status decides it for every protocol at once, including the ones the exception knows nothing about",
       "selects": "Types anywhere under the root namespace that are assignable to the domain-exception or the use-case-exception role, the vocabulary's own code excluded: the namespaces the configured role types live in are not selected, so a project's own base type is not reported as residing outside a layer it never claimed.",
-      "checks": "The type carries no attribute the layout classifies into the container, persistence, transaction, transport-status, web-controller, REST-controller or event-listener role, neither directly nor through a base attribute type - the same seven roles the Java twin forbids. Four of them are empty in every preset: the platform has no container stereotype, no controller attribute a failure could carry and no event-listener attribute, and it answers a failure through a mapper type rather than through an attribute on it. They exist so the id has one contract in both languages and a project whose framework does have such an attribute names it. Fields, properties and methods are not inspected, and an attribute the layout classifies into no role is allowed. A type whose runtime reflection is unavailable is not inspected; it is counted and named on standard output rather than passing silently. With the roles empty the rule selects no metadata and passes.",
+      "checks": "The type carries no attribute the layout classifies into the container, persistence, transaction, transport-status, web-controller, REST-controller or event-listener role, neither directly nor through a base attribute type - the same seven roles the Java twin forbids. Four of them are empty in every preset: the platform has no container stereotype, no controller attribute a failure could carry and no event-listener attribute, and it answers a failure through a mapper type rather than through an attribute on it. They exist so the id has one contract in both languages and a project whose framework does have such an attribute names it. Fields, properties and methods are not inspected, and an attribute the layout classifies into no role is allowed. A type whose runtime reflection is unavailable is not inspected; it is counted and named in the rule's own outcome rather than passing silently. With the roles empty the rule selects no metadata and passes.",
       "implementation": "dotnet",
       "status": "enforced"
     },
