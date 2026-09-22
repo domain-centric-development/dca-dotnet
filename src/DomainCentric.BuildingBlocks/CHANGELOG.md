@@ -4,6 +4,22 @@ All notable changes to this package. Format: [Keep a Changelog](https://keepacha
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-22
+
+Documentation-only release: no type, signature or behaviour changed, binary-compatible with 0.2.0.
+The XML docs that ship in the package are what the knowledge catalog renders, so a doctrine written
+into a marker's contract reaches readers only once the package is published.
+
+### Changed — documentation
+
+- `IDomainGateway` states that it never writes to the outside — the twin of the `DomainGateway`
+  change in `dca-building-blocks` 0.3.1, same wording. A gateway obtains facts the domain does not
+  hold, or delegates a technology-bound computation, so that the model can decide; it changes the
+  state of no external system. Persisting, sending, publishing and calling a remote operation that
+  has an effect are the application's business, through an output port. A computation that touches
+  nothing outside the process — hashing a password, converting a currency with a supplied rate — is
+  a gateway, because no external state changes. Recorded as a decision on 2026-09-22.
+
 ## [0.2.0] - 2026-09-21
 
 ### Added

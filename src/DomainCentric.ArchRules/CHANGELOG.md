@@ -4,6 +4,47 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-22
+
+**Migration from 0.5.0.** Two new rules, `DCA-ADV-019` and `DCA-ADV-020`, can turn a suite red that
+was green — a model type that reaches for a domain service, and a domain service whose operation
+takes no aggregate. Both are `error`. Anyone who builds their own informational rule has one
+signature to change: the factory takes a `Func` where it took an `Action`. The retired
+`DCA-MAP-003` loses its last public factory. Everything else is a fix or a rendering change.
+
+### Changed — breaking
+
+**A domain service works on the model, and the model does not reach for it.** The .NET twins of
+`DCA-ADV-019` and `DCA-ADV-020`, same ids and same texts as `dca-archunit`: a model type neither
+calls nor constructs a domain service, and every public operation of a domain service takes at least
+one aggregate or entity. One reading differs and says so in the `checks` text — Java reports every
+call site, .NET reports each (model type, domain service) pair, because ArchUnitNET's dependency
+model carries the target type rather than the instruction.
+
+**A diagnostic reports into its outcome, not to the console.** `DCA-LAY-001`, `DCA-STR-001`,
+`DCA-MAP-013` and `DCA-ERR-006` wrote their findings with `Console.WriteLine`, where no report and no
+pipeline stage sees them. An informational rule returns what it observed through
+`IDcaRule.Observe(architecture)`, the execution wrapper puts the lines into the outcome with the rule
+id, and the rule passes because it asserts nothing. One reading differs and says so in the carrier:
+xUnit v2 cannot turn a running test into a skipped one, so `DcaArchitectureTest` writes the lines to
+the test output the way it already writes warnings, while the Java twin aborts the test. The outcome
+is identical on both sides — which is what a report or a pipeline stage reads. Breaking for anyone
+building their own informational rule: the factory takes a
+`Func<DcaArchitecture, IReadOnlyList<string>>` instead of an `Action`.
+
+**The last public factory for a retired id is gone.** `DCA-MAP-003` was retired in 0.4.0, but
+`ContextMapRules.ExternalSystemNamesDistinctAfterNormalization()` was still public and still produced
+that id — the same defect the `DCA-ADV-003` and `DCA-TAC-022` factories were removed for, in the one
+place that was missed. Found by the cross-checkout rule-id check.
+
+### Fixed
+
+**`DCA-STR-010` says that it is a diagnostic.** It asserts nothing, but its title read like an
+enforced rule while the other four informational ids carry the `Diagnostic:` prefix. A test holds the
+convention in both directions now, as in `dca-archunit`.
+
+### Changed
+
 **The rendered context map is sorted.** `ContextMapRenderer` iterated the `[Upstream]` and
 `[ExternalUpstream]` attributes in declaration order, so two code bases that declare the same
 relationships in a different order rendered two documents that could not be compared line by line.
