@@ -277,7 +277,7 @@ public void RenderContextMap() =>
     ContextMapRenderer.Of(Architecture)
         .IncludeExternalSystems(true)
         .IncludePlanned(true)
-        .WriteTo("docs/context-map.md");
+        .WriteTo("docs/architecture/context-map.md");
 ```
 
 Because the rules guarantee declarations match the code, the rendered map cannot drift.

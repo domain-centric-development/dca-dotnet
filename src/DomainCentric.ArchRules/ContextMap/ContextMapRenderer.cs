@@ -15,10 +15,10 @@ namespace DomainCentric.ArchRules.ContextMap;
 /// <c>[Partnership]</c> attributes on the context marker classes.
 /// </summary>
 /// <remarks>
-/// <para>Opt-in, not a rule: typical use is a test that regenerates <c>docs/context-map.md</c> and
+/// <para>Opt-in, not a rule: typical use is a test that regenerates <c>docs/architecture/context-map.md</c> and
 /// fails when the committed file was stale.</para>
 /// <code>
-/// ContextMapRenderer.Of(arch).WithTitle("Context Map").WriteTo("docs/context-map.md");
+/// ContextMapRenderer.Of(arch).WithTitle("Context Map").WriteTo("docs/architecture/context-map.md");
 /// </code>
 /// <para>The document has the same structure as the one produced by the Java library
 /// (<c>dca-archunit</c>): headings, table columns, ordering and Mermaid syntax are identical, so an
