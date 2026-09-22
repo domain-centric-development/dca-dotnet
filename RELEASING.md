@@ -90,6 +90,18 @@ listed, then `archrules`.
 
 Afterwards: bump `<Version>` in the released projects on `main` and start an `[Unreleased]` section.
 
+**What was waiting for this release.** While a rule exists only in a snapshot version, two things cannot
+follow it, and both come loose now:
+
+- the **knowledge catalog** — its release gate refuses a bundle documenting an id no released library has,
+  and because the bundle is generated as a whole, that holds back every other catalog change with it. After
+  the release, regenerate it (`cd ../dca-knowledge-catalog && PYTHONPATH=src python3 -m dca_catalog.generate`)
+  and commit bundle and mirror.
+- the **sample's generated documents** — the sample consumes the released packages, so a renderer change
+  reaches `docs/architecture/context-map.md` only once it picks up the new version. Expect the architecture
+  test to report the committed map as stale on the first run afterwards; the fix is to commit the
+  regenerated file.
+
 ## Fallback: publishing from a machine
 
 ```bash
