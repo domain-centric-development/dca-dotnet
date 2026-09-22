@@ -495,7 +495,7 @@
     {
       "set": "strategic",
       "id": "DCA-STR-010",
-      "title": "Event Listeners consuming integration events should use Anti-Corruption Layer",
+      "title": "Diagnostic: Event Listeners consuming integration events should use Anti-Corruption Layer",
       "rationale": "Consumed integration events are translated into the consuming context's own language before they reach its domain — verified by code review, not statically",
       "selects": "Informational - selects nothing and never fails; it carries doctrine only.",
       "checks": "Nothing is asserted. Whether a consumed integration event is translated into the consuming context's own language before it reaches the domain is a code-review check.",

@@ -333,7 +333,7 @@ public sealed class StrategicPatternRules : IDcaRuleSet
     public static IDcaRule EventListenersUseAntiCorruptionLayer() =>
         DcaRule.Informational(
             "DCA-STR-010",
-            "Event Listeners consuming integration events should use Anti-Corruption Layer",
+            "Diagnostic: Event Listeners consuming integration events should use Anti-Corruption Layer",
             "Consumed integration events are translated into the consuming context's own language before they reach"
                 + " its domain — verified by code review, not statically",
             arch => { })

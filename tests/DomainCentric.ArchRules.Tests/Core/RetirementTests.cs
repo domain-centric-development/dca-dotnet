@@ -38,6 +38,10 @@ public class RetirementTests {
  [Fact] public void InformationalEntriesHaveExplicitKind() {
   Assert.Equal(new[]{"DCA-ERR-006","DCA-LAY-001","DCA-MAP-013","DCA-STR-001","DCA-STR-010"},DcaRules.All(DcaLayout.ForRootNamespace("Example")).Where(r=>r.Kind==DcaRuleKind.Informational).Select(r=>r.Id).OrderBy(x=>x));
  }
+ [Fact] public void OnlyInformationalTitlesCarryTheDiagnosticPrefix() {
+  foreach (var rule in DcaRules.All(DcaLayout.ForRootNamespace("Example")))
+   Assert.Equal(rule.Kind==DcaRuleKind.Informational,rule.Title.StartsWith("Diagnostic: ",StringComparison.Ordinal));
+ }
  [Fact] public void RendererDisambiguatesExternalNames() {
   var arch=DcaArchitecture.Load(DcaLayout.ForRootNamespace("DomainCentric.ArchRules.Tests.Fixtures.ContextMap.Bad"),typeof(RetirementTests).Assembly);
   var md=ContextMapRenderer.Of(arch).Render(); Assert.Contains("_2[[",md);
