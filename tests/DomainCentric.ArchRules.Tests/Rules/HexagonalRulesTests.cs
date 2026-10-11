@@ -16,7 +16,7 @@ public sealed class HexagonalRulesTests
 
     };
 
-    private static readonly string[] ExpectedIds = { "DCA-HEX-001", "DCA-HEX-002", "DCA-HEX-003", "DCA-HEX-004", "DCA-HEX-005", "DCA-HEX-006", "DCA-HEX-007", "DCA-HEX-008", "DCA-HEX-009", "DCA-HEX-010", "DCA-HEX-011", "DCA-HEX-012" };
+    private static readonly string[] ExpectedIds = { "DCA-HEX-001", "DCA-HEX-002", "DCA-HEX-003", "DCA-HEX-004", "DCA-HEX-005", "DCA-HEX-006", "DCA-HEX-007", "DCA-HEX-008", "DCA-HEX-009", "DCA-HEX-010", "DCA-HEX-011", "DCA-HEX-012", "DCA-HEX-013" };
 
     private static DcaArchitecture Arch(string ns) =>
         DcaArchitecture.Load(DcaLayout.ForRootNamespace(ns), typeof(HexagonalRulesTests).Assembly);
@@ -62,6 +62,13 @@ public sealed class HexagonalRulesTests
         var ex = Assert.Throws<DcaRuleViolationException>(() => Rules(Bad).Rules.Single(r => r.Id == "DCA-HEX-012").Check(Arch(Bad)));
         Assert.Contains("OrderController depends on the domain service", ex.Message);
         Assert.Contains("OrderQuoteController depends on the domain service", ex.Message);
+    }
+
+    [Fact]
+    public void InputPortRuleNamesTheOutgoingAdapter()
+    {
+        var ex = Assert.Throws<DcaRuleViolationException>(() => Rules(Bad).Rules.Single(r => r.Id == "DCA-HEX-013").Check(Arch(Bad)));
+        Assert.Contains("ReorderingAdapter depends on the input port", ex.Message);
     }
 
     private const string Infra = "DomainCentric.ArchRules.Tests.Fixtures.Layout.Infra";

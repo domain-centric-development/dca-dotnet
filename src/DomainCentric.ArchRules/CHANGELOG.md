@@ -4,6 +4,29 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+**Migration from 0.6.0.** Three new rules, all `error`, can turn a suite red that was green: an
+outgoing adapter that depends on an input port, an aggregate root with a public constructor, and an
+interface in a module's events namespace that does not extend the integration-event role.
+
+### Changed — breaking
+
+**Outgoing adapters do not drive the application.** `DCA-HEX-013`, same id and texts as
+`dca-archunit`: a class in `<module>.Adapter.Outgoing` depends on no type assignable to
+`IInputPort` — neither an input port interface nor a use case class. An adapter that calls an input
+port is an incoming adapter filed on the wrong side. Constructor parameters are read from the runtime
+type as well, as in `DCA-HEX-012`, so a port injected into an all-async adapter is still found.
+
+**An aggregate root names the ways it comes into being.** `DCA-TAC-023`: a concrete, non-record
+class assignable to `IAggregateRoot` declares no public instance constructor; creation and
+reconstitution go through static factory methods (`Create(...)`, `Reconstitute(...)`). Internal,
+protected and private protected constructors pass. Records are not selected — a positional record's
+primary constructor is public by the language — and neither are structs or abstract bases.
+
+**An interface in the events namespace is an integration event.** `DCA-STR-013`: every top-level
+interface in `<module>.Events` and below, the shared kernel's included, is assignable to
+`IIntegrationEvent`, so a consumer listening to its own contract interface still reads the event's
+identity and occurrence time. Nested interfaces are not selected.
+
 ## [0.6.0] - 2026-09-22
 
 **Migration from 0.5.0.** Two new rules, `DCA-ADV-019` and `DCA-ADV-020`, can turn a suite red that

@@ -8,11 +8,13 @@ public sealed class Order : AggregateRootBase<Order, OrderId>
 {
     private readonly List<LineItem> _lineItems = new();
 
-    public Order(OrderId id, CustomerId customerId)
+    private Order(OrderId id, CustomerId customerId)
     {
         Id = id;
         CustomerId = customerId;
     }
+
+    public static Order Create(OrderId id, CustomerId customerId) => new(id, customerId);
 
     public override OrderId Id { get; }
 

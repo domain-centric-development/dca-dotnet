@@ -63,7 +63,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
             StoreInterfacesResideInSharedOutputPorts(layout),
             StoreImplementationsResideInOutgoingAdapters(layout),
             StoreInterfacesHaveNoRepositorySemantics(),
-
+            AggregateRootsHaveNoPublicConstructors(),
         }.AsReadOnly();
     }
 
@@ -819,6 +819,48 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 + "The six names are fixed and are not part of the marker roles: a vocabulary that "
                 + "writes under another name is selected and then found to declare no write.");
 
+    /// <summary>
+    /// DCA-TAC-023. The aggregate's sibling of DCA-TAC-005: an entity is guarded by its root, the root guards
+    /// itself by naming the ways it comes into being.
+    /// </summary>
+    public static IDcaRule AggregateRootsHaveNoPublicConstructors() =>
+        DcaRule.Check(
+            "DCA-TAC-023",
+            "Aggregate Roots must not declare public constructors",
+            "An aggregate comes into being in two ways - created as a business fact or reconstituted"
+                + " from storage - and each is a named factory method. A public constructor is a"
+                + " third, unnamed way that skips the creation invariants and the event creation"
+                + " raises",
+            arch =>
+            {
+                var violations = new List<string>();
+                foreach (var root in AggregateRootClasses(arch))
+                {
+                    foreach (var constructor in PublicInstanceConstructors(arch, root))
+                    {
+                        violations.Add($"{root.FullName} declares public constructor {constructor}");
+                    }
+                }
+
+                DcaRule.Fail(
+                    "Aggregate Roots are created and reconstituted through named factory methods.",
+                    violations,
+                    "make the constructor private and add a static Create(...) for a new aggregate and a"
+                        + " static Reconstitute(...) for the outgoing adapter that loads one.");
+            })
+            .Selecting(
+                "Concrete, non-record classes below the root namespace assignable to IAggregateRoot."
+                + " Abstract base classes are not selected - their constructors are reachable only from a"
+                + " subclass. Records are not selected: a positional record's primary constructor is public"
+                + " by the language, so a record root guards its invariants in that constructor instead."
+                + " Structs are not selected either - a struct's parameterless constructor is always public.")
+            .Checking(
+                "No instance constructor declared by the class itself is public. Private, internal,"
+                + " protected and private protected constructors pass - a persistence framework that needs"
+                + " a parameterless constructor gets a non-public one. Static constructors are not"
+                + " constructors in this sense. Who calls the factory methods is not checked. An empty"
+                + " selection passes.");
+
     // ---------------------------------------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------------------------------------
@@ -829,6 +871,32 @@ public sealed class TacticalPatternRules : IDcaRuleSet
 
     private static IEnumerable<IType> ConcreteTypesAssignableTo(DcaArchitecture arch, string marker) =>
         NonInterfaceTypes(arch).Where(t => IsAssignableTo(arch, t, marker));
+
+    /// <summary>Concrete, non-record aggregate root classes (no interfaces, structs, abstract bases or records).</summary>
+    private static IEnumerable<Class> AggregateRootClasses(DcaArchitecture arch) =>
+        NonInterfaceTypes(arch).OfType<Class>()
+            .Where(c => c.IsAbstract != true && !IsRecord(c) && IsAssignableTo(arch, c, arch.Layout.Markers.AggregateRoot));
+
+    /// <summary>
+    /// The public instance constructors a class declares itself, read by reflection where the runtime type is
+    /// available (static constructors excluded) and from the ArchUnitNET members otherwise.
+    /// </summary>
+    private static IEnumerable<string> PublicInstanceConstructors(DcaArchitecture arch, Class type)
+    {
+        var runtime = arch.RuntimeType(type);
+        if (runtime is not null)
+        {
+            return runtime
+                .GetConstructors(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+                .Select(c => $"{runtime.Name}({string.Join(", ", c.GetParameters().Select(p => p.ParameterType.Name))})")
+                .ToList();
+        }
+
+        return type.GetMethodMembers()
+            .Where(m => m.MethodForm == MethodForm.Constructor && m.IsStatic != true && m.Visibility == Visibility.Public)
+            .Select(m => m.FullName)
+            .ToList();
+    }
 
     private static IEnumerable<IType> NonRootEntities(DcaArchitecture arch) =>
         ConcreteTypesAssignableTo(arch, arch.Layout.Markers.Entity).Where(t => !IsAssignableTo(arch, t, arch.Layout.Markers.AggregateRoot));

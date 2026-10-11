@@ -18,7 +18,7 @@ public sealed class StrategicPatternRulesTests
     {
         "DCA-STR-001", "DCA-STR-002", "DCA-STR-003", "DCA-STR-004", "DCA-STR-005",
         "DCA-STR-006", "DCA-STR-007", "DCA-STR-008", "DCA-STR-010",
-        "DCA-STR-011", "DCA-STR-012",
+        "DCA-STR-011", "DCA-STR-012", "DCA-STR-013",
     };
 
     private static readonly IReadOnlyDictionary<string, string> NoNegativeFixture = new Dictionary<string, string>
@@ -94,5 +94,13 @@ public sealed class StrategicPatternRulesTests
 
         Assert.Contains("no module root was discovered", violation.Message, System.StringComparison.Ordinal);
         Assert.Contains("WithDomainSegment", violation.Message, System.StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EventsInterfaceWithoutTheMarkerIsReported()
+    {
+        var violation = Assert.Throws<DcaRuleViolationException>(
+            () => Set(Bad).Rules.Single(r => r.Id == "DCA-STR-013").Check(Arch(Bad)));
+        Assert.Contains("Cart.Events.IProductRemovalTrigger", violation.Message, System.StringComparison.Ordinal);
     }
 }

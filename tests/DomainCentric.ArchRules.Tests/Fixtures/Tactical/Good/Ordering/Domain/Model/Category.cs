@@ -10,11 +10,13 @@ public readonly record struct CategoryId(string Value) : IId, IValue;
 /// </summary>
 public sealed class Category : AggregateRootBase<Category, CategoryId>
 {
-    public Category(CategoryId id, CategoryId? parent)
+    private Category(CategoryId id, CategoryId? parent)
     {
         Id = id;
         Parent = parent;
     }
+
+    public static Category Reconstitute(CategoryId id, CategoryId? parent) => new(id, parent);
 
     public override CategoryId Id { get; }
 

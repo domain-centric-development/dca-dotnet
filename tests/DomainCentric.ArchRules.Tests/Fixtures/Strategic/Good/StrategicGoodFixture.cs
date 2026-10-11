@@ -77,6 +77,21 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Strategic.Good.Cart
     }
 }
 
+// A consumer-defined trigger: the event identity comes with the contract (DCA-STR-013).
+namespace DomainCentric.ArchRules.Tests.Fixtures.Strategic.Good.Cart.Events
+{
+    public interface IProductAddedTrigger : IIntegrationEvent
+    {
+        Guid ProductId { get; }
+
+        /// <summary>Nested types belong to the enclosing contract and are not selected.</summary>
+        public interface ILine
+        {
+            int Quantity { get; }
+        }
+    }
+}
+
 namespace DomainCentric.ArchRules.Tests.Fixtures.Strategic.Good.Cart.Domain.Model
 {
     using SharedKernel.Domain.Model;

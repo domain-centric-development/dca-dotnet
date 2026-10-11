@@ -73,6 +73,15 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Strategic.Bad.Cart
     }
 }
 
+namespace DomainCentric.ArchRules.Tests.Fixtures.Strategic.Bad.Cart.Events
+{
+    // DCA-STR-013: a consumer-defined trigger without the event identity
+    public interface IProductRemovalTrigger
+    {
+        Guid ProductId { get; }
+    }
+}
+
 namespace DomainCentric.ArchRules.Tests.Fixtures.Strategic.Bad.Cart.Domain.Model
 {
     // DCA-STR-004: domain layer depends on another context

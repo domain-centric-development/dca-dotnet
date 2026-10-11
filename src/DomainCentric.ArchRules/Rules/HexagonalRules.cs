@@ -18,7 +18,8 @@ namespace DomainCentric.ArchRules.Rules;
 /// Hexagonal Architecture (Ports and Adapters) rules: separation between ports and adapters,
 /// incoming adapters drive the application through its input ports, outgoing adapters implement
 /// outbound ports, adapters never talk to each other directly, incoming adapters stay inside their
-/// own bounded context and obtain no domain collaborator of their own.
+/// own bounded context and obtain no domain collaborator of their own, and outgoing adapters never
+/// drive the application.
 /// </summary>
 public sealed class HexagonalRules : IDcaRuleSet
 {
@@ -42,6 +43,7 @@ public sealed class HexagonalRules : IDcaRuleSet
             OutputPortsMustNotResideInDomain(),
             IncomingAdaptersMustDependOnInputPortsNotUseCaseClasses(),
             IncomingAdaptersMustNotDependOnDomainServices(),
+            OutgoingAdaptersMustNotDependOnInputPorts(),
         }.AsReadOnly();
     }
 
@@ -365,6 +367,59 @@ public sealed class HexagonalRules : IDcaRuleSet
                 + " calling it or naming it in a signature all count as a dependency; constructor"
                 + " parameters are read from the runtime type as well, so a service injected into an"
                 + " adapter whose members are all async is still found. An empty selection passes.");
+
+    /// <summary>
+    /// DCA-HEX-013. The direction of an adapter is decided by who calls whom: an adapter that invokes an input port
+    /// drives the application and is incoming, whatever namespace it sits in. Constructor parameters are read from
+    /// the runtime type as well, because ArchUnitNET attributes the body of an async member to its state machine.
+    /// </summary>
+    public IDcaRule OutgoingAdaptersMustNotDependOnInputPorts() =>
+        DcaRule.Check(
+            "DCA-HEX-013",
+            "Outgoing Adapters must not depend on input ports",
+            "An outgoing adapter is driven: the application calls it through an output port. One that"
+                + " calls an input port drives the application instead - it is an incoming adapter"
+                + " filed on the wrong side, and the call it makes runs a second use case from inside"
+                + " the first one's outgoing edge",
+            arch =>
+            {
+                var outgoing = DcaLayout.AnyOf(arch.AllOutgoingAdapterPatterns());
+                var violations = new List<string>();
+                foreach (var adapter in arch.Classes.Where(c => InNamespace(c, outgoing)))
+                {
+                    var ports = adapter.Dependencies
+                        .Select(d => d.Target)
+                        .Where(t => !t.IsGenericParameter && IsAssignableTo(arch, t, arch.Layout.Markers.InputPort))
+                        .Select(t => t.FullName);
+                    var runtime = arch.RuntimeType(adapter);
+                    if (runtime is not null)
+                    {
+                        ports = ports.Concat(runtime
+                            .GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                            .SelectMany(c => c.GetParameters())
+                            .Select(p => p.ParameterType)
+                            .Where(t => DcaMarkers.IsAssignableToByName(t, arch.Layout.Markers.InputPort))
+                            .Select(t => t.FullName!));
+                    }
+
+                    violations.AddRange(ports.Distinct()
+                        .Select(p => $"{adapter.FullName} depends on the input port {p}"));
+                }
+
+                DcaRule.Fail(
+                    "Outgoing Adapters must not depend on input ports",
+                    violations.Distinct().OrderBy(v => v, StringComparer.Ordinal).ToList(),
+                    "move the class to the incoming adapter namespace, or let the use case reach the"
+                        + " capability through an output port");
+            })
+        .Selecting("Classes in <module>.Adapter.Outgoing of every module root.")
+        .Checking(
+            "No dependency on a type assignable to IInputPort - the input port interfaces and the use"
+                + " case classes implementing them, of any module. Calling another module's published"
+                + " api is not a dependency on an input port, even where that api delegates to one"
+                + " - only direct dependencies are read; constructor parameters are read from the"
+                + " runtime type as well, so a port injected into an adapter whose members are all"
+                + " async is still found. An empty selection passes.");
 
     /// <summary>A use case implementation: a class (never an interface) behind an <see cref="IInputPort"/>.</summary>
     private static bool IsUseCaseImplementation(DcaArchitecture arch, IType type) =>

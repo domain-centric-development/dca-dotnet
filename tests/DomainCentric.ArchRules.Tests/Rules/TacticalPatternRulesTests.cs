@@ -14,7 +14,7 @@ public sealed class TacticalPatternRulesTests
 
     private static readonly IReadOnlyDictionary<string, string> NoNegativeFixture = new Dictionary<string, string>();
 
-    private static readonly string[] ExpectedIds = Enumerable.Range(1, 21).Select(i => $"DCA-TAC-{i:000}").ToArray();
+    private static readonly string[] ExpectedIds = Enumerable.Range(1, 21).Select(i => $"DCA-TAC-{i:000}").Append("DCA-TAC-023").ToArray();
 
     public static IEnumerable<object[]> RuleIds() => ExpectedIds.Select(id => new object[] { id });
 
@@ -96,6 +96,14 @@ public sealed class TacticalPatternRulesTests
     /// bound to one aggregate and named after another is what name-only resolution could not see;
     /// a generic intermediate port binds a type variable and is skipped instead of misreported.
     /// </summary>
+    [Fact]
+    public void PublicConstructorsOfAggregateRootsAreReported()
+    {
+        var message = Assert.Throws<DcaRuleViolationException>(() => Rule(Bad, "DCA-TAC-023").Check(Arch(Bad))).Message;
+        Assert.Contains("Tactical.Bad.Ordering.Domain.Model.Order declares public constructor", message, StringComparison.Ordinal);
+        Assert.Contains("Reconstitute", message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void RepositoriesAreNamedAfterTheAggregateTheyBind()
     {

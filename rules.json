@@ -1,6 +1,6 @@
 {
   "library": "DomainCentric.ArchRules",
-  "version": "0.6.0",
+  "version": "0.7.0-SNAPSHOT",
   "rules": [
     {
       "set": "layered",
@@ -199,6 +199,16 @@
       "rationale": "An incoming adapter translates external input, calls an input port and formats its result. Injecting or invoking a domain service bypasses the application boundary; the use case owns that collaboration and puts its outcome into the result. Outgoing adapters are outside this rule - repositories and other driven adapters may construct or reconstitute domain objects while implementing output ports",
       "selects": "Classes in <module>.Adapter.Incoming of every module root, event consumers included. Outgoing adapters are not selected.",
       "checks": "No dependency on a type assignable to IDomainService - the building-block marker interface, any sub-interface of it and every class implementing one. A domain class without the marker is not a domain service by this rule. Injecting it, calling it or naming it in a signature all count as a dependency; constructor parameters are read from the runtime type as well, so a service injected into an adapter whose members are all async is still found. An empty selection passes.",
+      "implementation": "dotnet",
+      "status": "enforced"
+    },
+    {
+      "set": "hexagonal",
+      "id": "DCA-HEX-013",
+      "title": "Outgoing Adapters must not depend on input ports",
+      "rationale": "An outgoing adapter is driven: the application calls it through an output port. One that calls an input port drives the application instead - it is an incoming adapter filed on the wrong side, and the call it makes runs a second use case from inside the first one's outgoing edge",
+      "selects": "Classes in <module>.Adapter.Outgoing of every module root.",
+      "checks": "No dependency on a type assignable to IInputPort - the input port interfaces and the use case classes implementing them, of any module. Calling another module's published api is not a dependency on an input port, even where that api delegates to one - only direct dependencies are read; constructor parameters are read from the runtime type as well, so a port injected into an adapter whose members are all async is still found. An empty selection passes.",
       "implementation": "dotnet",
       "status": "enforced"
     },
@@ -413,6 +423,16 @@
       "status": "enforced"
     },
     {
+      "set": "tactical",
+      "id": "DCA-TAC-023",
+      "title": "Aggregate Roots must not declare public constructors",
+      "rationale": "An aggregate comes into being in two ways - created as a business fact or reconstituted from storage - and each is a named factory method. A public constructor is a third, unnamed way that skips the creation invariants and the event creation raises",
+      "selects": "Concrete, non-record classes below the root namespace assignable to IAggregateRoot. Abstract base classes are not selected - their constructors are reachable only from a subclass. Records are not selected: a positional record's primary constructor is public by the language, so a record root guards its invariants in that constructor instead. Structs are not selected either - a struct's parameterless constructor is always public.",
+      "checks": "No instance constructor declared by the class itself is public. Private, internal, protected and private protected constructors pass - a persistence framework that needs a parameterless constructor gets a non-public one. Static constructors are not constructors in this sense. Who calls the factory methods is not checked. An empty selection passes.",
+      "implementation": "dotnet",
+      "status": "enforced"
+    },
+    {
       "set": "strategic",
       "id": "DCA-STR-001",
       "title": "Diagnostic: Display discovered bounded contexts",
@@ -519,6 +539,16 @@
       "rationale": "Without a discovered module root every rule that selects over the layers matches nothing and reports success over an empty model",
       "selects": "The namespaces of the imported types, as a whole - no individual type is reported. A module root is any namespace that has a child namespace named after one of the configured layer segments, at any depth below the root namespace.",
       "checks": "At least one module root was discovered. The rule says nothing about how many modules there should be or how they are cut; it only establishes that the layer-selecting rules have something to look at. It is the third guard of the same kind as an empty import and an undeclared bounded context.",
+      "implementation": "dotnet",
+      "status": "enforced"
+    },
+    {
+      "set": "strategic",
+      "id": "DCA-STR-013",
+      "title": "Interfaces in a module's events namespace must extend IIntegrationEvent",
+      "rationale": "Everything in the events namespace is a published event contract. An interface there is one a producer's integration event implements and a consumer receives; delivery is at least once, so the consumer needs the event's identity and occurrence time through that interface, not only the payload",
+      "selects": "Top-level interfaces in <module>.Events and below (segment name from the layout) of every module root, the shared kernel's included. Nested interfaces are not selected - a nested interface belongs to its enclosing contract.",
+      "checks": "The interface is assignable to IIntegrationEvent, directly or through another interface. Which classes implement it and whether they live in another module are not checked; DCA-ADV-005 and DCA-STR-008 cover the implementing class. An empty selection passes.",
       "implementation": "dotnet",
       "status": "enforced"
     },

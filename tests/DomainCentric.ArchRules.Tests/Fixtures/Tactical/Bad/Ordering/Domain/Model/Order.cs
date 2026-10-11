@@ -3,7 +3,7 @@ using DomainCentric.BuildingBlocks.Ddd.Tactical;
 
 namespace DomainCentric.ArchRules.Tests.Fixtures.Tactical.Bad.Ordering.Domain.Model;
 
-/// <summary>DCA-TAC-002 (repository field), DCA-TAC-003 (field of another aggregate root).</summary>
+/// <summary>DCA-TAC-002 (repository field), DCA-TAC-003 (field of another aggregate root), DCA-TAC-023 (public constructor).</summary>
 public sealed class Order : AggregateRootBase<Order, OrderId>
 {
     public IOrderReference? LinkedOrder { get; }

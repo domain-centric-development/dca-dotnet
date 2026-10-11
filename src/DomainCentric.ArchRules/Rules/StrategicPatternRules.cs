@@ -37,6 +37,7 @@ public sealed class StrategicPatternRules : IDcaRuleSet
             EventListenersUseAntiCorruptionLayer(),
             AtLeastOneBoundedContextIsDeclared(),
             AtLeastOneModuleOwnsALayer(),
+            EventsContractInterfacesExtendIntegrationEvent(),
         };
     }
 
@@ -425,6 +426,66 @@ public sealed class StrategicPatternRules : IDcaRuleSet
             "At least one such namespace exists. The rule says nothing about how many contexts there should be,"
                 + " about their boundaries, or about modules that own a layer without declaring a context — those"
                 + " are governed structurally and are not a substitute for the declaration.");
+
+    /// <summary>
+    /// DCA-STR-013. A consumer may publish an interface in its own events namespace that a producer's
+    /// integration event implements (interface inversion); the consumer then listens to its own type.
+    /// Without the integration event contract on that interface, the consumer cannot read the identity
+    /// it needs to recognise a redelivered event.
+    /// </summary>
+    public IDcaRule EventsContractInterfacesExtendIntegrationEvent() =>
+        DcaRule.Check(
+            "DCA-STR-013",
+            "Interfaces in a module's events namespace must extend IIntegrationEvent",
+            "Everything in the events namespace is a published event contract. An interface there is"
+                + " one a producer's integration event implements and a consumer receives; delivery"
+                + " is at least once, so the consumer needs the event's identity and occurrence time"
+                + " through that interface, not only the payload",
+            arch =>
+            {
+                var violations = new List<string>();
+                var marker = arch.Layout.Markers.IntegrationEvent;
+                foreach (var root in arch.ModuleRoots())
+                {
+                    var events = root + "." + Layout.EventsSegment;
+                    foreach (var type in arch.Interfaces)
+                    {
+                        var ns = type.Namespace?.FullName ?? string.Empty;
+                        var inEvents = ns == events || ns.StartsWith(events + ".", StringComparison.Ordinal);
+                        if (inEvents && !type.IsNested && !type.IsCompilerGenerated && !IsAssignableTo(arch, type, marker))
+                        {
+                            violations.Add(type.FullName + " is an event contract without the integration event identity");
+                        }
+                    }
+                }
+
+                DcaRule.Fail(
+                    "Interfaces in the events namespace extend IIntegrationEvent, so a consumer reads"
+                        + " EventId and OccurredOn from the contract it listens to.",
+                    violations.Distinct().OrderBy(v => v, StringComparer.Ordinal).ToList(),
+                    "let the interface extend IIntegrationEvent");
+            })
+        .Selecting(
+            "Top-level interfaces in <module>.Events and below (segment name from the layout) of"
+                + " every module root, the shared kernel's included. Nested interfaces are not selected - a nested interface belongs to its"
+                + " enclosing contract.")
+        .Checking(
+            "The interface is assignable to IIntegrationEvent, directly or through another"
+                + " interface. Which classes implement it and whether they live in another module"
+                + " are not checked; DCA-ADV-005 and DCA-STR-008 cover the implementing class. An"
+                + " empty selection passes.");
+
+    /// <summary>Assignability by role name; reflection decides where the runtime type is available.</summary>
+    private static bool IsAssignableTo(DcaArchitecture arch, IType type, string marker)
+    {
+        var runtime = arch.RuntimeType(type);
+        if (runtime is not null)
+        {
+            return DcaMarkers.IsAssignableToByName(runtime, marker);
+        }
+
+        return type.FullName == marker || type.IsAssignableTo(marker) || type.ImplementsInterface(marker);
+    }
 
     // ---------------------------------------------------------------------------------------------
     // Pattern helpers (regular expressions over full namespace names)

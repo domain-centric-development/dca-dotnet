@@ -474,3 +474,35 @@ the exceptions of the domain and application layers.
 - **Type level only**, like the rest of ERR-004; a status annotation on a mapper method is the adapter's
   business and is not selected.
 
+
+## 2026-10-10 — DCA-HEX-013, DCA-TAC-023, DCA-STR-013
+
+Three rules join both libraries with the same ids, titles and rationales:
+
+- **`DCA-HEX-013` — Outgoing Adapters must not depend on input ports** (hexagonal). Classes in
+  `<module>.Adapter.Outgoing` of every module root; no dependency on a type assignable to the `InputPort` role.
+  Java uses a fluent `noClasses()` rule, .NET a loop in the shape of `DCA-HEX-012`: dependencies from
+  ArchUnitNET plus the runtime constructor parameters, because ArchUnitNET attributes an async member's body to
+  its state machine. The `checks` text says so; otherwise it is Java's wording. Negative fixture:
+  `Hexagonal/Bad/Ordering/Adapter/Outgoing/ReorderingAdapter.cs`.
+- **`DCA-TAC-023` — Aggregate Roots must not declare public constructors** (tactical). Concrete, non-record
+  classes assignable to the `AggregateRoot` role; no instance constructor the class declares itself is public
+  (reflection, `DeclaredOnly`). Three .NET readings, each named in the texts: records are excluded for parity,
+  with the C# reason — a positional record's primary constructor is public by the language; structs are excluded
+  because a struct's parameterless constructor is always public; static constructors are not constructors in
+  this sense. `internal`, `protected`, `private protected` and `protected internal` count as non-public, the
+  reading of Java's package-private and protected. The compiler-generated record copy constructor never comes up
+  because records are not selected. The good fixture's `Order` and `Category` got a private constructor and a
+  static `Create` / `Reconstitute`; the bad fixture's `Order` keeps its public constructor. The fix hint names
+  `Create(...)` / `Reconstitute(...)` in PascalCase.
+- **`DCA-STR-013` — Interfaces in a module's events namespace must extend IIntegrationEvent** (strategic).
+  Top-level interfaces in `<module>.Events` and below of every module root, the shared kernel's included;
+  each must be assignable to the `IntegrationEvent` role. Java's exclusions of `package-info` and annotation
+  types have no C# counterpart (neither is an interface here) and are left out of the `selects` text; nested
+  interfaces are excluded in both. Title and rationale say "namespace" where Java says "package". Fixtures:
+  `Cart.Events.IProductAddedTrigger` (with a nested `ILine` that is not selected) in the good tree,
+  `Cart.Events.IProductRemovalTrigger` without the marker in the bad tree.
+
+All three select through `DcaMarkers` roles and the layout's segments. Inventory after this change: .NET 130 ids
+(124 enforced, 5 informational, 1 n/a in the sets; 5 retired in `DcaRules`), Java 124 ids in its sets
+(118 enforced, 6 informational).
