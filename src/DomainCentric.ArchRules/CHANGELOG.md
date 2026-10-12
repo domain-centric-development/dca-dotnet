@@ -4,6 +4,8 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-12
+
 **Migration from 0.6.0.** Three new rules, all `error`, can turn a suite red that was green: an
 outgoing adapter that depends on an input port, an aggregate root with a public constructor, and an
 interface in a module's events namespace that does not extend the integration-event role.
