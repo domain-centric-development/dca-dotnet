@@ -40,6 +40,15 @@ selected like `[HttpGet]`; a `[Route]` without an HTTP method answers every meth
 unselected. A malformed attribute entry is refused. The Java twin reads
 `RequestMapping#method=GET` the same way.
 
+**`DCA-MAP-014` reads an entry as the Java twin does.** An entry that names an edge of a `Planned`
+`[Upstream]` declaration is announced, not stale, and is skipped; an entry whose module is neither a
+bounded context nor a module root of the scan is skipped; `module :: *` means the whole module; a
+module root is named by its last namespace segment. Before, all three were reported. Without a
+configured module-declaration attribute the rule still selects nothing — the `selects` text now says
+why no fallback exists: .NET draws module boundaries with projects, and the compiler drops a project
+reference no code uses, so the compiled assemblies carry no stale edge to compare; the `[Upstream]`
+declarations are `DCA-MAP-007`'s business.
+
 ## [0.8.0] - 2026-10-14
 
 ### Added

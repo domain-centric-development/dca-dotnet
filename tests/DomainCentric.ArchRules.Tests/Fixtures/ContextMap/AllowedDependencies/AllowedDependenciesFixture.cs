@@ -40,9 +40,16 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.ContextMap.AllowedDependencies.
 
 namespace DomainCentric.ArchRules.Tests.Fixtures.ContextMap.AllowedDependencies.Good.Ordering
 {
-    // Allows exactly what the code uses.
+    // Allows what the code uses ("Catalog :: Api", "Catalog :: *"), the edge a Planned upstream announces
+    // ("Billing :: Events"), and a module that is neither a bounded context nor a module root of the scan
+    // ("Platform") - the last two are skipped, as in the Java twin.
     [DomainCentric.BuildingBlocks.Ddd.Strategic.BoundedContext("Ordering")]
-    [DomainCentric.ArchRules.Tests.Fixtures.ContextMap.AllowedDependencies.Good.Module(AllowedDependencies = new[] { "Catalog :: Api" })]
+    [DomainCentric.BuildingBlocks.Ddd.Strategic.Relationships.Upstream(
+        "Billing",
+        DomainCentric.BuildingBlocks.Ddd.Strategic.Relationships.Translation.Conformist,
+        DomainCentric.BuildingBlocks.Ddd.Strategic.Relationships.Consumes.Events,
+        Status = DomainCentric.BuildingBlocks.Ddd.Strategic.Relationships.UpstreamStatus.Planned)]
+    [DomainCentric.ArchRules.Tests.Fixtures.ContextMap.AllowedDependencies.Good.Module(AllowedDependencies = new[] { "Catalog :: Api", "Catalog :: *", "Billing :: Events", "Platform" })]
     public static class OrderingContext
     {
     }
@@ -96,9 +103,9 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.ContextMap.AllowedDependencies.
 
 namespace DomainCentric.ArchRules.Tests.Fixtures.ContextMap.AllowedDependencies.Bad.Ordering
 {
-    // Allows Billing, which no type of Ordering uses.
+    // Allows Billing and the Common module root, which no type of Ordering uses.
     [DomainCentric.BuildingBlocks.Ddd.Strategic.BoundedContext("Ordering")]
-    [DomainCentric.ArchRules.Tests.Fixtures.ContextMap.AllowedDependencies.Bad.Module(AllowedDependencies = new[] { "Catalog :: Api", "Billing" })]
+    [DomainCentric.ArchRules.Tests.Fixtures.ContextMap.AllowedDependencies.Bad.Module(AllowedDependencies = new[] { "Catalog :: Api", "Billing", "Common" })]
     public static class OrderingContext
     {
     }
@@ -110,4 +117,10 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.ContextMap.AllowedDependencies.
     {
         public string NameOf(DomainCentric.ArchRules.Tests.Fixtures.ContextMap.AllowedDependencies.Bad.Catalog.Api.ItemView item) => item.Name;
     }
+}
+
+namespace DomainCentric.ArchRules.Tests.Fixtures.ContextMap.AllowedDependencies.Bad.Common.Domain
+{
+    /// <summary>A module root that is no bounded context; an entry naming it is compared like any other.</summary>
+    public sealed record Clock(long Ticks);
 }

@@ -524,3 +524,9 @@ libraries saw different things. Same ids, titles and rationales stay; what chang
   compiler keeps the enum type in the IL; Java's compiler hands the value over as an `Object`, so Java lists
   only an explicit `name()` / `toString()`. The gap is named in Java's `checks` text and pinned by a fixture;
   .NET is unchanged.
+- **`DCA-MAP-014`** — .NET now skips what Java skips: an entry a `Planned` upstream announces, an entry naming
+  no module of the scan; `module :: *` is the whole module, a module root is named by its last segment. Without
+  a module-declaration attribute the rule selects nothing in both libraries. No fallback was added: the .NET
+  counterpart of a module declaration is the project reference, which the compiler drops from the assembly when
+  no code uses it — the stale edge the rule looks for is not in the compiled model — and a fallback over the
+  `[Upstream]` declarations would repeat `DCA-MAP-007` within its own set.

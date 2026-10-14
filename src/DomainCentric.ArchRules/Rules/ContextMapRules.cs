@@ -344,20 +344,28 @@ public sealed class ContextMapRules : IDcaRuleSet
                 }
 
                 var violations = new List<string>();
-                var contexts = NamespacesByName(arch);
+                var modules = ModuleNamespacesByName(arch);
                 foreach (var ns in arch.BoundedContextNamespaces)
                 {
                     var source = ShortName(arch, ns);
+                    var planned = PlannedEdges(arch, ns);
                     foreach (var entry in AllowedDependencies(ModuleDeclarationsOn(arch, ns, declarations))
                         .Select(e => Regex.Replace(e, @"\s*::\s*", " :: ").Trim())
                         .Distinct(StringComparer.Ordinal)
                         .OrderBy(e => e, StringComparer.Ordinal))
                     {
-                        var parts = entry.Split(" :: ");
-                        var module = contexts.TryGetValue(parts[0], out var contextNamespace)
-                            ? contextNamespace
-                            : arch.Layout.RootNamespace + "." + parts[0];
-                        var target = parts.Length > 1 ? module + "." + parts[1] : module;
+                        if (planned.Contains(entry))
+                        {
+                            continue;
+                        }
+
+                        var parts = entry.Split(" :: ", 2);
+                        if (!modules.TryGetValue(parts[0], out var module) || module == ns)
+                        {
+                            continue;
+                        }
+
+                        var target = parts.Length == 1 || parts[1] == "*" ? module : module + "." + parts[1];
                         var backed = TypesBelow(arch, ns).Any(t => t.Dependencies.Any(d =>
                             d.Target.Namespace is { } targetNamespace
                             && !IsBelow(d.Target, ns)
@@ -381,14 +389,17 @@ public sealed class ContextMapRules : IDcaRuleSet
             "Every namespace carrying [BoundedContext], provided the layout configures at least one module"
                 + " declaration attribute (a module system's per-module declaration) that is in the loaded"
                 + " assemblies; reads, reflectively, the AllowedDependencies entries of every configured module"
-                + " declaration the marker class carries. Without a configured and loadable module declaration"
-                + " the rule selects nothing and passes - the default here, because .NET draws module"
-                + " boundaries with projects and no preset names an attribute.")
+                + " declaration the marker class carries. Entries that name an edge of a Planned [Upstream]"
+                + " declaration, and entries whose module is neither a bounded context nor a module root of"
+                + " the scan, are skipped. Without a configured and loadable module declaration the rule"
+                + " selects nothing and passes - the default here, because .NET draws module boundaries with"
+                + " projects, no preset names an attribute, and the compiler drops a project reference no"
+                + " code uses, so the compiled assemblies carry no stale edge to compare.")
         .Checking(
-            "For every entry - 'module' or 'module :: named-interface', whitespace around '::' normalized -"
-                + " at least one type below the context namespace has a direct dependency on a type in the"
-                + " named module's namespace (a bounded context by its name, any other module as"
-                + " <root>.<module>) or, for a named interface, in that segment below it, compared ignoring"
+            "For every entry - 'module', 'module :: *' or 'module :: named-interface', whitespace around '::'"
+                + " normalized - at least one type below the context namespace has a direct dependency on a"
+                + " type in the named module's namespace (a bounded context by its name, any other module root"
+                + " by its last segment) or, for a named interface, in that segment below it, compared ignoring"
                 + " case. Dependencies within the context itself do not count. Whether an undeclared"
                 + " dependency exists is DCA-MAP-006's and the isolation rules' business, not this rule's.");
 
@@ -779,6 +790,39 @@ public sealed class ContextMapRules : IDcaRuleSet
 
     private static HashSet<string> ModuleNames(DcaArchitecture arch) =>
         new(arch.BoundedContextNamespaces.Select(arch.ContextName), StringComparer.Ordinal);
+
+    /// <summary>
+    /// Module names as a module declaration spells them: a bounded context by its name, any module root - the
+    /// shared kernel included - by its last namespace segment.
+    /// </summary>
+    private static Dictionary<string, string> ModuleNamespacesByName(DcaArchitecture arch)
+    {
+        var byName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var root in arch.ModuleRoots())
+        {
+            byName.TryAdd(root[(root.LastIndexOf('.') + 1)..], root);
+        }
+
+        if (arch.SharedKernelNamespace is { } shared)
+        {
+            byName.TryAdd(shared[(shared.LastIndexOf('.') + 1)..], shared);
+        }
+
+        foreach (var ns in arch.BoundedContextNamespaces)
+        {
+            byName[arch.ContextName(ns)] = ns;
+        }
+
+        return byName;
+    }
+
+    /// <summary>The edges 'context :: channel' of the context's Planned [Upstream] declarations.</summary>
+    private static HashSet<string> PlannedEdges(DcaArchitecture arch, string contextNamespace) =>
+        new(
+            arch.NamespaceAttributes<UpstreamAttribute>(contextNamespace)
+                .Where(u => u.Status == UpstreamStatus.Planned)
+                .SelectMany(u => u.Via.Select(c => u.Context + " :: " + ChannelName(arch, c))),
+            StringComparer.Ordinal);
 
     private static Dictionary<string, string> NamespacesByName(DcaArchitecture arch) =>
         arch.BoundedContextNamespaces.ToDictionary(arch.ContextName, ns => ns, StringComparer.Ordinal);

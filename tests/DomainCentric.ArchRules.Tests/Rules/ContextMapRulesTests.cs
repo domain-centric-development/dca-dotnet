@@ -129,7 +129,8 @@ public sealed class ContextMapRulesTests
 
     /// <summary>
     /// DCA-MAP-014 reads the same configured module-declaration attribute as DCA-MAP-006 and selects nothing
-    /// without one.
+    /// without one. As in Java, an entry a Planned upstream announces and an entry naming no module of the scan
+    /// are skipped; 'module :: *' means the whole module.
     /// </summary>
     [Fact]
     public void AnAllowedDependencyNoCodeUsesIsReportedOnceConfigured()
@@ -149,6 +150,7 @@ public sealed class ContextMapRulesTests
         var message = Assert.Throws<DcaRuleViolationException>(
             () => Rule(bad).Check(DcaArchitecture.Load(bad, typeof(ContextMapRulesTests).Assembly))).Message;
         Assert.Contains("Context 'Ordering': the module declaration allows 'Billing'", message, StringComparison.Ordinal);
+        Assert.Contains("Context 'Ordering': the module declaration allows 'Common'", message, StringComparison.Ordinal);
         Assert.DoesNotContain("'Catalog :: Api'", message, StringComparison.Ordinal);
     }
 }
