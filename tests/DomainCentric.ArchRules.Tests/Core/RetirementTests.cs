@@ -1,78 +1,108 @@
 using System;
-using System.Linq;
 using System.Collections.Generic;
+using System.Linq;
 using ArchUnitNET.Loader;
-using DomainCentric.ArchRules.Rules;
 using DomainCentric.ArchRules.ContextMap;
+using DomainCentric.ArchRules.Rules;
 using Xunit;
 namespace DomainCentric.ArchRules.Tests.Core;
-public class RetirementTests {
- [Fact] public void PublishedExclusionsAndSeverityEntriesStillLoadAndAreReportedAsRetired() {
-  foreach (var id in DcaRules.Retired().Keys) {
-   Assert.DoesNotContain(id,DcaRules.AllIds());
-   Assert.Contains(id,DcaRuleSelection.All().Excluding(id).Warning(id).RetiredReferences);
-   Assert.Contains(id,DcaRuleSelection.FromProperties(new Dictionary<string,string> {{"dca.rules.off",id},{"dca.rules.warn",id}}).RetiredReferences);
-   Assert.Contains(id,DcaRuleSelection.All().MergedWith(DcaRuleSelection.All().Excluding(id)).RetiredReferences);
-  }
-  Assert.Empty(DcaRuleSelection.All().Excluding("DCA-USE-016").RetiredReferences);
-  Assert.Throws<ArgumentException>(()=>DcaRuleSelection.All().Excluding("DCA-ADV-999"));
- }
- /// <summary>
- /// A properties file written for an earlier release names a retired id; the notice must survive the
- /// merge with the selection made in code, on whichever side the retired id stands.
- /// </summary>
- [Fact] public void ARetiredIdTheFileNamesIsStillReportedAfterTheMerge() {
-  var file=DcaRuleSelection.All().Excluding("DCA-HEX-015","several instances");
-  var code=DcaRuleSelection.All().Warning("DCA-TAC-009","from the code");
-  Assert.Equal(new[] { "DCA-HEX-015" },file.MergedWith(code).RetiredReferences);
-  Assert.Equal(new[] { "DCA-HEX-015" },code.MergedWith(file).RetiredReferences);
-  // the chain DcaArchitectureTest builds: file, legacy overrides, additional selection
-  Assert.Equal(new[] { "DCA-HEX-015" },file.MergedWith(DcaRuleSelection.All()).MergedWith(DcaRuleSelection.All()).RetiredReferences);
- }
- [Fact] public void AProjectNamingTheRetiredHex015GetsTheNotice() {
-  Assert.Equal(new[] { "DCA-HEX-015" },DcaRuleSelection.All().Excluding("DCA-HEX-015").RetiredReferences);
-  Assert.Equal("0.9.0",DcaRules.Retired()["DCA-HEX-015"].Since);
- }
+
+public class RetirementTests
+{
+    [Fact]
+    public void PublishedExclusionsAndSeverityEntriesStillLoadAndAreReportedAsRetired()
+    {
+        foreach (var id in DcaRules.Retired().Keys)
+        {
+            Assert.DoesNotContain(id, DcaRules.AllIds());
+            Assert.Contains(id, DcaRuleSelection.All().Excluding(id).Warning(id).RetiredReferences);
+            Assert.Contains(id, DcaRuleSelection.FromProperties(new Dictionary<string, string> { { "dca.rules.off", id }, { "dca.rules.warn", id } }).RetiredReferences);
+            Assert.Contains(id, DcaRuleSelection.All().MergedWith(DcaRuleSelection.All().Excluding(id)).RetiredReferences);
+        }
+        Assert.Empty(DcaRuleSelection.All().Excluding("DCA-USE-016").RetiredReferences);
+        Assert.Throws<ArgumentException>(() => DcaRuleSelection.All().Excluding("DCA-ADV-999"));
+    }
+    /// <summary>
+    /// A properties file written for an earlier release names a retired id; the notice must survive the
+    /// merge with the selection made in code, on whichever side the retired id stands.
+    /// </summary>
+    [Fact]
+    public void ARetiredIdTheFileNamesIsStillReportedAfterTheMerge()
+    {
+        var file = DcaRuleSelection.All().Excluding("DCA-HEX-015", "several instances");
+        var code = DcaRuleSelection.All().Warning("DCA-TAC-009", "from the code");
+        Assert.Equal(new[] { "DCA-HEX-015" }, file.MergedWith(code).RetiredReferences);
+        Assert.Equal(new[] { "DCA-HEX-015" }, code.MergedWith(file).RetiredReferences);
+        // the chain DcaArchitectureTest builds: file, legacy overrides, additional selection
+        Assert.Equal(new[] { "DCA-HEX-015" }, file.MergedWith(DcaRuleSelection.All()).MergedWith(DcaRuleSelection.All()).RetiredReferences);
+    }
+    [Fact]
+    public void AProjectNamingTheRetiredHex015GetsTheNotice()
+    {
+        Assert.Equal(new[] { "DCA-HEX-015" }, DcaRuleSelection.All().Excluding("DCA-HEX-015").RetiredReferences);
+        Assert.Equal("0.9.0", DcaRules.Retired()["DCA-HEX-015"].Since);
+    }
 #pragma warning disable CS0618
- [Fact] public void TheRetiredInstanceLocalStateRoleStillCompilesAndIsIgnored() {
-  var written=FrameworkTypes.AspNetCore() with { InstanceLocalStateTypes=new[] { "X.Session" } };
-  Assert.Equal(FrameworkTypes.AspNetCore().GetMappingAttributeTypes,written.GetMappingAttributeTypes);
-  Assert.Empty(written.InstanceLocalStateTypes);
- }
+    [Fact]
+    public void TheRetiredInstanceLocalStateRoleStillCompilesAndIsIgnored()
+    {
+        var written = FrameworkTypes.AspNetCore() with { InstanceLocalStateTypes = new[] { "X.Session" } };
+        Assert.Equal(FrameworkTypes.AspNetCore().GetMappingAttributeTypes, written.GetMappingAttributeTypes);
+        Assert.Empty(written.InstanceLocalStateTypes);
+    }
 #pragma warning restore CS0618
- [Fact] public void RetiredIdentitiesCannotBeSelected() {
-  foreach (var id in DcaRules.Retired().Keys) {
-   var message=Assert.Throws<ArgumentException>(()=>DcaRuleSelection.All().OnlyIds(id)).Message;
-   Assert.Contains(id,message); Assert.Contains(DcaRules.Retired()[id].Replacement,message);
-   Assert.Throws<ArgumentException>(()=>DcaRuleSelection.FromProperties(new Dictionary<string,string> {{"dca.rules.ids",id}}));
-  }
- }
- [Fact] public void ConsumerImplementationInReservedOutputPackageFails() {
-  var layout=DcaLayout.ForRootNamespace("Example");
-  var model=new ArchLoader().LoadNamespacesWithinAssembly(typeof(DomainCentric.BuildingBlocks.Hexagonal.Ports.Out.ConsumerImplementation).Assembly,"DomainCentric.BuildingBlocks.Hexagonal.Ports.Out").Build();
-  var arch=DcaArchitecture.Of(layout,model,typeof(DomainCentric.BuildingBlocks.Hexagonal.Ports.Out.ConsumerImplementation).Assembly);
-  Assert.Contains("ConsumerImplementation",Assert.Throws<DcaRuleViolationException>(()=>new LayeredRules(layout).OutputPortMarkersMustBeInterfaces().Check(arch)).Message);
- }
- [Fact] public void ConsumerImplementationInReservedOutputPackageFailsThroughLoad() {
-  var layout=DcaLayout.ForRootNamespace("Example");
-  var arch=DcaArchitecture.Load(layout,typeof(DomainCentric.BuildingBlocks.Hexagonal.Ports.Out.ConsumerImplementation).Assembly);
-  Assert.Contains("ConsumerImplementation",Assert.Throws<DcaRuleViolationException>(()=>new LayeredRules(layout).OutputPortMarkersMustBeInterfaces().Check(arch)).Message);
- }
- [Fact] public void InformationalEntriesHaveExplicitKind() {
-  Assert.Equal(new[] { "DCA-ERR-006", "DCA-ERR-007", "DCA-HEX-016", "DCA-LAY-001", "DCA-MAP-013", "DCA-NAM-012", "DCA-STR-001", "DCA-STR-010" },DcaRules.All(DcaLayout.ForRootNamespace("Example")).Where(r=>r.Kind==DcaRuleKind.Informational).Select(r=>r.Id).OrderBy(x=>x));
- }
- [Fact] public void OnlyInformationalTitlesCarryTheDiagnosticPrefix() {
-  foreach (var rule in DcaRules.All(DcaLayout.ForRootNamespace("Example")))
-   Assert.Equal(rule.Kind==DcaRuleKind.Informational,rule.Title.StartsWith("Diagnostic: ",StringComparison.Ordinal));
- }
- [Fact] public void RendererDisambiguatesExternalNames() {
-  var arch=DcaArchitecture.Load(DcaLayout.ForRootNamespace("DomainCentric.ArchRules.Tests.Fixtures.ContextMap.Bad"),typeof(RetirementTests).Assembly);
-  var md=ContextMapRenderer.Of(arch).Render(); Assert.Contains("_2[[",md);
- }
- [Fact] public void NoRuleSetOffersARetiredIdentity() {
-  var layout=DcaLayout.ForRootNamespace("Example");
-  var offered=new HashSet<string>(DcaRules.RuleSets(layout).SelectMany(s=>s.Rules).Select(r=>r.Id),StringComparer.Ordinal);
-  foreach (var retired in DcaRules.Retired().Keys)
-   Assert.DoesNotContain(retired,offered);
- }
+    [Fact]
+    public void RetiredIdentitiesCannotBeSelected()
+    {
+        foreach (var id in DcaRules.Retired().Keys)
+        {
+            var message = Assert.Throws<ArgumentException>(() => DcaRuleSelection.All().OnlyIds(id)).Message;
+            Assert.Contains(id, message); Assert.Contains(DcaRules.Retired()[id].Replacement, message);
+            Assert.Throws<ArgumentException>(() => DcaRuleSelection.FromProperties(new Dictionary<string, string> { { "dca.rules.ids", id } }));
+        }
+    }
+    [Fact]
+    public void ConsumerImplementationInReservedOutputPackageFails()
+    {
+        var layout = DcaLayout.ForRootNamespace("Example");
+        var model = new ArchLoader().LoadNamespacesWithinAssembly(typeof(DomainCentric.BuildingBlocks.Hexagonal.Ports.Out.ConsumerImplementation).Assembly, "DomainCentric.BuildingBlocks.Hexagonal.Ports.Out").Build();
+        var arch = DcaArchitecture.Of(layout, model, typeof(DomainCentric.BuildingBlocks.Hexagonal.Ports.Out.ConsumerImplementation).Assembly);
+        Assert.Contains("ConsumerImplementation", Assert.Throws<DcaRuleViolationException>(() => new LayeredRules(layout).OutputPortMarkersMustBeInterfaces().Check(arch)).Message);
+    }
+    [Fact]
+    public void ConsumerImplementationInReservedOutputPackageFailsThroughLoad()
+    {
+        var layout = DcaLayout.ForRootNamespace("Example");
+        var arch = DcaArchitecture.Load(layout, typeof(DomainCentric.BuildingBlocks.Hexagonal.Ports.Out.ConsumerImplementation).Assembly);
+        Assert.Contains("ConsumerImplementation", Assert.Throws<DcaRuleViolationException>(() => new LayeredRules(layout).OutputPortMarkersMustBeInterfaces().Check(arch)).Message);
+    }
+    [Fact]
+    public void InformationalEntriesHaveExplicitKind()
+    {
+        Assert.Equal(new[] { "DCA-ERR-006", "DCA-ERR-007", "DCA-HEX-016", "DCA-LAY-001", "DCA-MAP-013", "DCA-NAM-012", "DCA-STR-001", "DCA-STR-010" }, DcaRules.All(DcaLayout.ForRootNamespace("Example")).Where(r => r.Kind == DcaRuleKind.Informational).Select(r => r.Id).OrderBy(x => x));
+    }
+    [Fact]
+    public void OnlyInformationalTitlesCarryTheDiagnosticPrefix()
+    {
+        foreach (var rule in DcaRules.All(DcaLayout.ForRootNamespace("Example")))
+        {
+            Assert.Equal(rule.Kind == DcaRuleKind.Informational, rule.Title.StartsWith("Diagnostic: ", StringComparison.Ordinal));
+        }
+    }
+    [Fact]
+    public void RendererDisambiguatesExternalNames()
+    {
+        var arch = DcaArchitecture.Load(DcaLayout.ForRootNamespace("DomainCentric.ArchRules.Tests.Fixtures.ContextMap.Bad"), typeof(RetirementTests).Assembly);
+        var md = ContextMapRenderer.Of(arch).Render(); Assert.Contains("_2[[", md);
+    }
+    [Fact]
+    public void NoRuleSetOffersARetiredIdentity()
+    {
+        var layout = DcaLayout.ForRootNamespace("Example");
+        var offered = new HashSet<string>(DcaRules.RuleSets(layout).SelectMany(s => s.Rules).Select(r => r.Id), StringComparer.Ordinal);
+        foreach (var retired in DcaRules.Retired().Keys)
+        {
+            Assert.DoesNotContain(retired, offered);
+        }
+    }
 }

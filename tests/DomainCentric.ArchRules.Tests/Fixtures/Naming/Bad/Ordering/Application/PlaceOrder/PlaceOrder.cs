@@ -1,10 +1,10 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using DomainCentric.BuildingBlocks.Hexagonal.Ports.In;
-using DomainCentric.BuildingBlocks.Hexagonal.Ports.Out;
 using DomainCentric.ArchRules.Tests.Fixtures.Naming.Bad.Ordering.Application.Shared;
 using DomainCentric.ArchRules.Tests.Fixtures.Naming.Bad.Ordering.Domain.Model;
+using DomainCentric.BuildingBlocks.Hexagonal.Ports.In;
+using DomainCentric.BuildingBlocks.Hexagonal.Ports.Out;
 
 namespace DomainCentric.ArchRules.Tests.Fixtures.Naming.Bad.Ordering.Application.PlaceOrder;
 

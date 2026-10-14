@@ -1,7 +1,6 @@
 using System.Threading;
 using System.Threading.Tasks;
 using System.Transactions;
-using Microsoft.AspNetCore.Mvc;
 using DomainCentric.ArchRules.Tests.Fixtures.Hexagonal.Bad.Infrastructure.Config;
 using DomainCentric.ArchRules.Tests.Fixtures.Hexagonal.Bad.Ordering.Adapter.Outgoing;
 using DomainCentric.ArchRules.Tests.Fixtures.Hexagonal.Bad.Ordering.Application.PlaceOrder;
@@ -9,6 +8,7 @@ using DomainCentric.ArchRules.Tests.Fixtures.Hexagonal.Bad.Ordering.Application.
 using DomainCentric.ArchRules.Tests.Fixtures.Hexagonal.Bad.Ordering.Domain.Model;
 using DomainCentric.ArchRules.Tests.Fixtures.Hexagonal.Bad.Ordering.Domain.Service;
 using DomainCentric.ArchRules.Tests.Fixtures.Hexagonal.Bad.SharedKernel.Domain.Model;
+using Microsoft.AspNetCore.Mvc;
 
 namespace DomainCentric.ArchRules.Tests.Fixtures.Hexagonal.Bad.Ordering.Adapter.Incoming;
 

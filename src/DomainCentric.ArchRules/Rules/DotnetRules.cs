@@ -195,18 +195,28 @@ public sealed class DotnetRules : IDcaRuleSet
             + "so its contract is awaitable; and a host that shuts down, a cancelled request or an expired deadline must be "
             + "able to stop the work, which needs a CancellationToken on the contract itself. A synchronous or "
             + "non-cancellable use-case contract blocks a thread pool thread and cannot be stopped",
-            arch => {
+            arch =>
+            {
                 var violations = new List<string>();
-                foreach (var type in arch.Classes) {
+                foreach (var type in arch.Classes)
+                {
                     var runtime = arch.RuntimeType(type);
-                    if (runtime is null || runtime.IsAbstract) continue;
-                    foreach (var contract in runtime.GetInterfaces().Where(i => DcaMarkers.CarriesRole(i, arch.Layout.Markers.UseCase))) {
+                    if (runtime is null || runtime.IsAbstract)
+                    {
+                        continue;
+                    }
+
+                    foreach (var contract in runtime.GetInterfaces().Where(i => DcaMarkers.CarriesRole(i, arch.Layout.Markers.UseCase)))
+                    {
                         var map = runtime.GetInterfaceMap(contract);
-                        foreach (var method in map.TargetMethods) {
+                        foreach (var method in map.TargetMethods)
+                        {
                             var parameters = method.GetParameters();
                             if (!method.ReturnType.IsGenericType || method.ReturnType.GetGenericTypeDefinition() != typeof(Task<>)
                                 || parameters.Length != 2 || parameters[1].ParameterType != typeof(CancellationToken))
+                            {
                                 violations.Add($"{type.FullName}.{method.Name} must accept input and CancellationToken and return Task<T>");
+                            }
                         }
                     }
                 }
@@ -251,7 +261,7 @@ public sealed class DotnetRules : IDcaRuleSet
             "Non-interface, non-abstract types in <module>.Domain of every module root that"
                 + " are assignable to IValue and whose runtime type is in the loaded assemblies.")
         .Checking(
-            "Struct values must carry the readonly modifier. Classes are governed by TAC-009/010/012; equality is checked by TAC-012. An IValue outside a domain namespace is not selected." );
+            "Struct values must carry the readonly modifier. Classes are governed by TAC-009/010/012; equality is checked by TAC-012. An IValue outside a domain namespace is not selected.");
 
     /// <summary>DCA-NET-005: identifiers are record structs.</summary>
     public static IDcaRule IdentifiersShouldBeReadonlyRecordStructs() =>
@@ -289,7 +299,7 @@ public sealed class DotnetRules : IDcaRuleSet
             "Non-interface, non-abstract types anywhere under the root namespace that are"
                 + " assignable to IId and whose runtime type is in the loaded assemblies.")
         .Checking(
-            "The type must be a readonly record struct. Reference types, plain structs and mutable record structs fail." );
+            "The type must be a readonly record struct. Reference types, plain structs and mutable record structs fail.");
 
     // ---------------------------------------------------------------------------------------------
     // Helpers

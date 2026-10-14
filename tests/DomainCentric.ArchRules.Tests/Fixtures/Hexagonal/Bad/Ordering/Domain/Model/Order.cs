@@ -1,10 +1,10 @@
 using System;
-using DomainCentric.BuildingBlocks.Ddd.Tactical;
-using Microsoft.EntityFrameworkCore;
 using DomainCentric.ArchRules.Tests.Fixtures.Hexagonal.Bad.Infrastructure.Config;
 using DomainCentric.ArchRules.Tests.Fixtures.Hexagonal.Bad.Ordering.Adapter.Outgoing;
 using DomainCentric.ArchRules.Tests.Fixtures.Hexagonal.Bad.Ordering.Application.PlaceOrder;
 using DomainCentric.ArchRules.Tests.Fixtures.Hexagonal.Bad.SharedKernel.Domain.Model;
+using DomainCentric.BuildingBlocks.Ddd.Tactical;
+using Microsoft.EntityFrameworkCore;
 
 namespace DomainCentric.ArchRules.Tests.Fixtures.Hexagonal.Bad.Ordering.Domain.Model;
 

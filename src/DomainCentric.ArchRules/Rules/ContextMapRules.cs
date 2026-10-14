@@ -4,9 +4,9 @@ using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
 using ArchUnitNET.Domain;
-using Attribute = System.Attribute;
 using DomainCentric.BuildingBlocks.Ddd.Strategic;
 using DomainCentric.BuildingBlocks.Ddd.Strategic.Relationships;
+using Attribute = System.Attribute;
 
 namespace DomainCentric.ArchRules.Rules;
 
@@ -473,7 +473,11 @@ public sealed class ContextMapRules : IDcaRuleSet
                             var channelNs = targetNs + "." + ChannelName(arch, channel);
                             var translationSite = TypesBelow(arch, allowedAdapter).Any(t => DependsOnNamespace(t, channelNs)
                                 && (DependsOnNamespace(t, ns + "." + Layout.DomainSegment) || DependsOnNamespace(t, ns + "." + Layout.ApplicationSegment)));
-                            if (demandsTranslationSite && !translationSite) violations.Add("Context '" + source + "' needs translation evidence towards '" + u.Context + "' (" + ChannelName(arch, channel) + ") in " + allowedAdapter);
+                            if (demandsTranslationSite && !translationSite)
+                            {
+                                violations.Add("Context '" + source + "' needs translation evidence towards '" + u.Context + "' (" + ChannelName(arch, channel) + ") in " + allowedAdapter);
+                            }
+
                             foreach (var type in TypesBelow(arch, ns).Where(t => !IsBelow(t, allowedAdapter)))
                             {
                                 if (DependsOnNamespace(type, channelNs))

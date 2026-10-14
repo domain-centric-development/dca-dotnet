@@ -58,9 +58,9 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Layout.Infra.Cart.Infrastructur
 
 namespace DomainCentric.ArchRules.Tests.Fixtures.Layout.Infra.Cart.Application.GetCart
 {
+    using Infra.Cart.Infrastructure;
     using Infra.Infrastructure;
     using Infra.InfrastructureX;
-    using Infra.Cart.Infrastructure;
 
     /// <summary>DCA-LAY-003: depends on the global and on the module's infrastructure implementation.</summary>
     public sealed class GetCartUseCase

@@ -1,6 +1,6 @@
 using System;
-using DomainCentric.BuildingBlocks.Ddd.Tactical;
 using DomainCentric.ArchRules.Tests.Fixtures.Hexagonal.Good.SharedKernel.Domain.Model;
+using DomainCentric.BuildingBlocks.Ddd.Tactical;
 
 namespace DomainCentric.ArchRules.Tests.Fixtures.Hexagonal.Good.Ordering.Domain.Model;
 

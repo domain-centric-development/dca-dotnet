@@ -1,5 +1,5 @@
-using DomainCentric.BuildingBlocks.Ddd.Tactical;
 using DomainCentric.ArchRules.Tests.Fixtures.UseCase.Bad.Ordering.Adapter.Incoming.Web;
+using DomainCentric.BuildingBlocks.Ddd.Tactical;
 
 namespace DomainCentric.ArchRules.Tests.Fixtures.UseCase.Bad.Ordering.Domain.Model;
 

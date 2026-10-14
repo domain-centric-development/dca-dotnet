@@ -4,11 +4,11 @@ using System.Linq;
 using System.Reflection;
 using ArchUnitNET.Domain;
 using ArchUnitNET.Loader;
+using DomainCentric.BuildingBlocks.Ddd.Strategic;
+using DomainCentric.BuildingBlocks.Ddd.Strategic.Relationships;
 using Assembly = System.Reflection.Assembly;
 using Attribute = System.Attribute;
 using Type = System.Type;
-using DomainCentric.BuildingBlocks.Ddd.Strategic;
-using DomainCentric.BuildingBlocks.Ddd.Strategic.Relationships;
 
 namespace DomainCentric.ArchRules;
 

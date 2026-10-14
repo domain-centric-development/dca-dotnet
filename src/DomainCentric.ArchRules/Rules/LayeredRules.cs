@@ -1,11 +1,11 @@
 using System;
-using System.Reflection;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text.RegularExpressions;
-using DomainCentric.BuildingBlocks.Hexagonal.Ports.Out;
 using ArchUnitNET.Domain;
 using ArchUnitNET.Domain.Extensions;
+using DomainCentric.BuildingBlocks.Hexagonal.Ports.Out;
 using static ArchUnitNET.Fluent.ArchRuleDefinition;
 
 namespace DomainCentric.ArchRules.Rules;
@@ -127,7 +127,11 @@ public sealed class LayeredRules : IDcaRuleSet
                         .Append(DcaLayout.Below($"{Layout.SharedKernelNamespace}.{Layout.InfrastructureSegment}"))));
                 var types = Layout.FrameworkTypes;
                 var transactionApis = new HashSet<string>(types.TransactionApiTypes, StringComparer.Ordinal);
-                if (FrameworkTypes.IsSet(types.TransactionScope)) transactionApis.Add(types.TransactionScope);
+                if (FrameworkTypes.IsSet(types.TransactionScope))
+                {
+                    transactionApis.Add(types.TransactionScope);
+                }
+
                 var transactionManagers = new HashSet<string>(types.TransactionManagerTypes, StringComparer.Ordinal);
                 bool IsBoundary(IType t) => t.FullName == BoundaryPort || t.ImplementsInterface(BoundaryPort);
                 bool UsesApi(IType target) => transactionApis.Contains(target.FullName);

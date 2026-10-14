@@ -1,6 +1,6 @@
 using System;
-using Microsoft.AspNetCore.Mvc;
 using DomainCentric.ArchRules.Tests.Fixtures.UseCase.Bad.Ordering.Application.PlaceOrder;
+using Microsoft.AspNetCore.Mvc;
 
 namespace DomainCentric.ArchRules.Tests.Fixtures.UseCase.Bad.Ordering.Adapter.Incoming.Rest;
 

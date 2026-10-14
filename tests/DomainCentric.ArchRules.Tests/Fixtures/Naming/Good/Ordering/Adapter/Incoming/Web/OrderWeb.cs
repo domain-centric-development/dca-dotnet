@@ -1,6 +1,6 @@
 using System;
-using Microsoft.AspNetCore.Mvc.RazorPages;
 using DomainCentric.ArchRules.Tests.Fixtures.Naming.Good.Ordering.Application.PlaceOrder;
+using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace DomainCentric.ArchRules.Tests.Fixtures.Naming.Good.Ordering.Adapter.Incoming.Web;
 

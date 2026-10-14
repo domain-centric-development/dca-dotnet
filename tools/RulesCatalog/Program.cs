@@ -44,9 +44,15 @@ if (libraryVersion.Contains('+', StringComparison.Ordinal))
 }
 
 var json = JsonSerializer.Serialize(
-    new { library = "DomainCentric.ArchRules", version = libraryVersion, rules = entries.Select(e => e.Status != "n/a"
+    new
+    {
+        library = "DomainCentric.ArchRules",
+        version = libraryVersion,
+        rules = entries.Select(e => e.Status != "n/a"
         ? (object)new { set = e.Set, id = e.Id, title = e.Title, rationale = e.Rationale, selects = e.Selects, checks = e.Checks, implementation = "dotnet", status = e.Status, maturity = e.Maturity }
-        : new { set = e.Set, id = e.Id, status = "n/a", reason = e.Reason }), retired = DcaRules.Retired().OrderBy(e => e.Key).Select(e => new { id = e.Key, reason = e.Value.Reason, replacement = e.Value.Replacement, since = e.Value.Since }) },
+        : new { set = e.Set, id = e.Id, status = "n/a", reason = e.Reason }),
+        retired = DcaRules.Retired().OrderBy(e => e.Key).Select(e => new { id = e.Key, reason = e.Value.Reason, replacement = e.Value.Replacement, since = e.Value.Since })
+    },
     new JsonSerializerOptions { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
 File.WriteAllText(Path.Combine(root, "rules.json"), json + "\n");
 
@@ -81,7 +87,10 @@ foreach (var set in ruleSets)
 
 md.Append("## Retired identities\n\n");
 foreach (var (id, value) in DcaRules.Retired().OrderBy(e => e.Key))
+{
     md.Append($"- `{id}` — {value.Reason}; replacement: {value.Replacement}; since {value.Since}\n");
+}
+
 File.WriteAllText(Path.Combine(root, "RULES.md"), md.ToString());
 Console.WriteLine($"{enforced} enforced, {informational} informational, {DcaRules.Retired().Count} retired, {na} n/a → rules.json, RULES.md");
 

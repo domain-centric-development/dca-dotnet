@@ -24,7 +24,8 @@ public static class DcaRules
     /// <summary>Stable registry for compatibility, migration and catalog history.</summary>
     public static IReadOnlyDictionary<string, RetiredRule> Retired() => RetiredRegistry;
     private static readonly IReadOnlyDictionary<string, RetiredRule> RetiredRegistry =
-        new System.Collections.ObjectModel.ReadOnlyDictionary<string, RetiredRule>(new Dictionary<string, RetiredRule> {
+        new System.Collections.ObjectModel.ReadOnlyDictionary<string, RetiredRule>(new Dictionary<string, RetiredRule>
+        {
             ["DCA-MAP-003"] = new("Renderer disambiguates normalized external-system identifiers", "ContextMapRenderer", "0.4.0"),
             ["DCA-ADV-003"] = new("Immutable event shape is checked by DCA-ADV-001", "DCA-ADV-001", "0.4.0"),
             ["DCA-TAC-022"] = new("Selected on the sample's own pattern name (Enriched*), which a general rule may not carry; value models are covered by DCA-TAC-008..012 and naming one enriched remains guide and catalog guidance", "DCA-TAC-008..012", "0.4.0"),

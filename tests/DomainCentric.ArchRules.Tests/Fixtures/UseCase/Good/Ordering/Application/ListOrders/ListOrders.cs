@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using DomainCentric.BuildingBlocks.Hexagonal.Ports.In;
 using DomainCentric.ArchRules.Tests.Fixtures.UseCase.Good.Ordering.Application.Shared;
 using DomainCentric.ArchRules.Tests.Fixtures.UseCase.Good.Ordering.Domain.Model;
+using DomainCentric.BuildingBlocks.Hexagonal.Ports.In;
 
 namespace DomainCentric.ArchRules.Tests.Fixtures.UseCase.Good.Ordering.Application.ListOrders;
 

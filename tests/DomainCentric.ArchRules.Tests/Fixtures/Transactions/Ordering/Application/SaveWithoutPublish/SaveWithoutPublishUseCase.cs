@@ -1,9 +1,9 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using DomainCentric.BuildingBlocks.Hexagonal.Ports.Out;
 using DomainCentric.ArchRules.Tests.Fixtures.Transactions.Ordering.Application.Shared;
 using DomainCentric.ArchRules.Tests.Fixtures.Transactions.Ordering.Domain.Model;
+using DomainCentric.BuildingBlocks.Hexagonal.Ports.Out;
 
 namespace DomainCentric.ArchRules.Tests.Fixtures.Transactions.Ordering.Application.SaveWithoutPublish;
 

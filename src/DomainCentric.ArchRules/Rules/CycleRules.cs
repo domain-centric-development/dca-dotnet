@@ -169,15 +169,27 @@ public sealed class CycleRules : IDcaRuleSet
 
         var segments = ns.Substring(application.Length + 1).Split('.');
         var index = 0;
-        while (index < segments.Length && layout.OperationContainers.Contains(segments[index])) index++;
-        if (index == segments.Length || segments[index] == layout.SharedSegment) return null;
+        while (index < segments.Length && layout.OperationContainers.Contains(segments[index]))
+        {
+            index++;
+        }
+
+        if (index == segments.Length || segments[index] == layout.SharedSegment)
+        {
+            return null;
+        }
+
         var operationRoot = arch.Types.Where(t => OperationPolicy.Operation(t, arch)).Select(t => t.Namespace.FullName)
             .Where(p => p.StartsWith(application + ".", StringComparison.Ordinal) && DcaLayout.IsBelow(ns, p))
             .OrderByDescending(p => p.Length).FirstOrDefault();
         var physicalFeature = application + "." + string.Join(".", segments.Take(index + 1));
         if (operationRoot is null)
         {
-            if (!arch.Types.Any(t => OperationPolicy.Operation(t, arch) && t.Namespace.FullName.StartsWith(physicalFeature + ".", StringComparison.Ordinal))) return null;
+            if (!arch.Types.Any(t => OperationPolicy.Operation(t, arch) && t.Namespace.FullName.StartsWith(physicalFeature + ".", StringComparison.Ordinal)))
+            {
+                return null;
+            }
+
             operationRoot = physicalFeature;
         }
         var logical = string.Join(".", operationRoot[(application.Length + 1)..].Split('.').Where(segment => !layout.OperationContainers.Contains(segment)));

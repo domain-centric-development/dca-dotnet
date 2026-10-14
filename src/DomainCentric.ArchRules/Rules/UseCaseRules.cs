@@ -5,8 +5,8 @@ using System.Reflection;
 using ArchUnitNET.Domain;
 using ArchUnitNET.Domain.Extensions;
 using DomainCentric.BuildingBlocks.Ddd.Tactical;
-using DomainCentric.BuildingBlocks.Hexagonal.Ports.Out;
 using DomainCentric.BuildingBlocks.Hexagonal.Ports.In;
+using DomainCentric.BuildingBlocks.Hexagonal.Ports.Out;
 using static ArchUnitNET.Fluent.ArchRuleDefinition;
 
 namespace DomainCentric.ArchRules.Rules;
@@ -318,7 +318,7 @@ public sealed class UseCaseRules : IDcaRuleSet
             arch => ImmutableApplicationModels(arch, "Command"))
         .Selecting("Classes and structs in each module application namespace with the corresponding Command, Query or Result suffix, including record classes and record structs.")
         .Checking(
-            "Classes are sealed or records; structs are allowed. Every inherited instance field is readonly, every property is get-only or init-only and no instance Set*(x): void method exists. Referenced objects and collection contents are not inspected." );
+            "Classes are sealed or records; structs are allowed. Every inherited instance field is readonly, every property is get-only or init-only and no instance Set*(x): void method exists. Referenced objects and collection contents are not inspected.");
 
     public static IDcaRule QueriesAreImmutable(DcaLayout layout) =>
         DcaRule.Check(
@@ -328,7 +328,7 @@ public sealed class UseCaseRules : IDcaRuleSet
             arch => ImmutableApplicationModels(arch, "Query"))
         .Selecting("Classes and structs in each module application namespace with the corresponding Command, Query or Result suffix, including record classes and record structs.")
         .Checking(
-            "Classes are sealed or records; structs are allowed. Every inherited instance field is readonly, every property is get-only or init-only and no instance Set*(x): void method exists. Referenced objects and collection contents are not inspected." );
+            "Classes are sealed or records; structs are allowed. Every inherited instance field is readonly, every property is get-only or init-only and no instance Set*(x): void method exists. Referenced objects and collection contents are not inspected.");
 
     public static IDcaRule ResultsResideInApplication(DcaLayout layout) =>
         DcaRule.Of(
@@ -361,7 +361,7 @@ public sealed class UseCaseRules : IDcaRuleSet
             arch => ImmutableApplicationModels(arch, "Result"))
         .Selecting("Classes and structs in each module application namespace with the corresponding Command, Query or Result suffix, including record classes and record structs.")
         .Checking(
-            "Classes are sealed or records; structs are allowed. Every inherited instance field is readonly, every property is get-only or init-only and no instance Set*(x): void method exists. Referenced objects and collection contents are not inspected." );
+            "Classes are sealed or records; structs are allowed. Every inherited instance field is readonly, every property is get-only or init-only and no instance Set*(x): void method exists. Referenced objects and collection contents are not inspected.");
 
     public static IDcaRule ResponsesResideInIncomingAdapters(DcaLayout layout) =>
         // Matched by pattern: every incoming adapter, in any context or none, including the shared
@@ -426,7 +426,11 @@ public sealed class UseCaseRules : IDcaRuleSet
                     foreach (var unit in calls.Units.Where(u => IntraClassCalls.Calls(u, "SaveAsync", arch.Layout.Markers.Repository)))
                     {
                         if (IntraClassCalls.IlCalls(unit).Where(m => m.Name == "SaveAsync" && m.DeclaringType is not null && DcaMarkers.IsAssignableToByName(m.DeclaringType, arch.Layout.Markers.Repository))
-                            .All(m => EventFreeAggregate.Repository(m, arch))) continue;
+                            .All(m => EventFreeAggregate.Repository(m, arch)))
+                        {
+                            continue;
+                        }
+
                         foreach (var entry in calls.EntryPointsOf(unit))
                         {
                             var publishes = calls.ReachableFrom(entry)
@@ -471,22 +475,32 @@ public sealed class UseCaseRules : IDcaRuleSet
             + " nothing in the class calls - no route down to the saving, deleting or publishing method may be free of an"
             + " attribute or a boundary; a covered caller does not cover another route to the same helper, and a boundary on"
             + " one route does not cover a second route",
-            arch => {
+            arch =>
+            {
                 var violations = new List<string>();
-                foreach (var type in arch.Types.Where(t => OperationPolicy.Operation(t, arch))) {
+                foreach (var type in arch.Types.Where(t => OperationPolicy.Operation(t, arch)))
+                {
                     var runtime = arch.RuntimeType(type)!;
                     var graph = new IntraClassCalls(runtime);
-                    foreach (var unit in graph.Units) {
+                    foreach (var unit in graph.Units)
+                    {
                         var effect = TransactionalEffectOf(unit, arch.Layout.Markers);
-                        if (effect is null) continue;
-                        foreach (var entry in graph.EntryPointsOf(unit)) {
+                        if (effect is null)
+                        {
+                            continue;
+                        }
+
+                        foreach (var entry in graph.EntryPointsOf(unit))
+                        {
                             if (!Transactional(runtime, layout.FrameworkTypes.TransactionalAttribute)
                                 && graph.ReachableThrough(entry, u => !Transactional(u, layout.FrameworkTypes.TransactionalAttribute) && !CallsBoundary(u, arch.Layout.Markers)).Contains(unit))
+                            {
                                 violations.Add(
                                     $"{type.FullName}.{IntraClassCalls.PathName(entry, unit)} {effect} without "
                                     + DescribeTransactionalAttribute(layout.FrameworkTypes.TransactionalAttribute)
                                     + " on the class or on a method of that path, and without"
                                     + " ITransactionBoundary.InTransactionAsync(...) on it");
+                            }
                         }
                     }
                 }
@@ -538,11 +552,27 @@ public sealed class UseCaseRules : IDcaRuleSet
         var saves = IntraClassCalls.Calls(unit, "SaveAsync", markers.Repository);
         var deletes = IntraClassCalls.Calls(unit, "DeleteByIdAsync", markers.Repository);
         var publishes = IntraClassCalls.IlCalls(unit).Any(m => m.DeclaringType is not null && DcaMarkers.IsAssignableToByName(m.DeclaringType, markers.DomainEventPublisher));
-        if (!saves && !deletes && !publishes) return null;
+        if (!saves && !deletes && !publishes)
+        {
+            return null;
+        }
+
         var effects = new List<string>();
-        if (saves) effects.Add("saves an aggregate");
-        if (deletes) effects.Add("deletes an aggregate");
-        if (publishes) effects.Add("publishes domain events");
+        if (saves)
+        {
+            effects.Add("saves an aggregate");
+        }
+
+        if (deletes)
+        {
+            effects.Add("deletes an aggregate");
+        }
+
+        if (publishes)
+        {
+            effects.Add("publishes domain events");
+        }
+
         return string.Join(" and ", effects);
     }
 
@@ -552,9 +582,21 @@ public sealed class UseCaseRules : IDcaRuleSet
 
     private static bool Transactional(MemberInfo target, string attributeName)
     {
-        if (string.IsNullOrWhiteSpace(attributeName)) return false;
-        return target.GetCustomAttributesData().Any(a => {
-            for (var type = a.AttributeType; type is not null; type = type.BaseType) if (type.FullName == attributeName) return true;
+        if (string.IsNullOrWhiteSpace(attributeName))
+        {
+            return false;
+        }
+
+        return target.GetCustomAttributesData().Any(a =>
+        {
+            for (var type = a.AttributeType; type is not null; type = type.BaseType)
+            {
+                if (type.FullName == attributeName)
+                {
+                    return true;
+                }
+            }
+
             return false;
         });
     }
@@ -619,21 +661,32 @@ public sealed class UseCaseRules : IDcaRuleSet
             + " IDomainEventPublisher, IIntegrationEventPublisher. Everything else is called before the transaction - draw"
             + " the boundary by hand with ITransactionBoundary.InTransactionAsync(...) - or after it, as a reaction to an"
             + " integration event",
-            arch => {
+            arch =>
+            {
                 var attribute = layout.FrameworkTypes.TransactionalAttribute;
                 var violations = new List<string>();
-                if (FrameworkTypes.IsSet(attribute)) {
-                    foreach (var type in arch.Types.Where(t => OperationPolicy.Operation(t, arch))) {
+                if (FrameworkTypes.IsSet(attribute))
+                {
+                    foreach (var type in arch.Types.Where(t => OperationPolicy.Operation(t, arch)))
+                    {
                         var runtime = arch.RuntimeType(type)!;
                         var graph = new IntraClassCalls(runtime);
-                        foreach (var unit in graph.Units) {
+                        foreach (var unit in graph.Units)
+                        {
                             if (!Transactional(runtime, attribute)
                                 && !graph.EntryPointsOf(unit).Any(entry =>
                                     Transactional(entry, attribute)
                                     || !graph.ReachableThrough(entry, u => !Transactional(u, attribute)).Contains(unit)))
+                            {
                                 continue;
+                            }
+
                             var remotePorts = RemotePortsCalledBy(unit, arch).ToList();
-                            if (remotePorts.Count == 0) continue;
+                            if (remotePorts.Count == 0)
+                            {
+                                continue;
+                            }
+
                             violations.Add(
                                 $"{type.FullName}.{IntraClassCalls.DisplayName(unit)} runs under {attribute} and calls "
                                 + string.Join(", ", remotePorts)

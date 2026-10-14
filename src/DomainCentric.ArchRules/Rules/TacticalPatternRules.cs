@@ -235,7 +235,11 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 foreach (var caller in arch.Types.Where(t => !t.IsCompilerGenerated))
                 {
                     var runtime = arch.RuntimeType(caller);
-                    if (runtime is null) continue;
+                    if (runtime is null)
+                    {
+                        continue;
+                    }
+
                     foreach (var target in new IntraClassCalls(runtime).Units.SelectMany(IntraClassCalls.IlCalls)
                         .OfType<ConstructorInfo>().Where(c => entities.Contains(c.DeclaringType)).Distinct())
                     {
@@ -249,7 +253,9 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                             || DcaMarkers.IsAssignableToByName(runtime, arch.Layout.Markers.Entity)
                             || DcaMarkers.IsAssignableToByName(runtime, arch.Layout.Markers.Factory);
                         if (runtime != entity && !(sameDomain && role))
+                        {
                             violations.Add($"{runtime.FullName} constructs entity {entity.FullName} outside its domain construction boundary");
+                        }
                     }
                 }
                 DcaRule.Fail("Entities are constructed by their own domain aggregate, entity or factory.", violations);
@@ -322,7 +328,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 "Non-interface types below the root namespace assignable to IEntity but not "
                 + "to IAggregateRoot; records, structs and abstract classes included.")
             .Checking(
-            "No instance state, including inherited state, arrays and nested generic arguments, involves IAggregateRoot. Same-type references and interfaces extending the marker are included. Interfaces that do not extend the marker are invisible; references by id are valid." );
+            "No instance state, including inherited state, arrays and nested generic arguments, involves IAggregateRoot. Same-type references and interfaces extending the marker are included. Interfaces that do not extend the marker are invisible; references by id are valid.");
 
     // ---------------------------------------------------------------------------------------------
     // Value Object pattern
@@ -371,7 +377,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 "Non-interface types below the root namespace assignable to IValue - records, "
                 + "structs, enums and hand-written classes alike.")
             .Checking(
-            "No instance state, including inherited state, arrays and nested generic arguments, involves IAggregateRoot or IEntity. Same-type references and interfaces extending the marker are included. Interfaces that do not extend the marker are invisible; references by id are valid." );
+            "No instance state, including inherited state, arrays and nested generic arguments, involves IAggregateRoot or IEntity. Same-type references and interfaces extending the marker are included. Interfaces that do not extend the marker are invisible; references by id are valid.");
 
     public static IDcaRule ValueObjectClassesAreFinal(DcaLayout layout) =>
         DcaRule.Check(
@@ -455,7 +461,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
             })
             .Selecting("Classes, record classes and structs below the root namespace assignable to IValue; enums excluded.")
         .Checking(
-            "Instance fields, inherited ones included, are readonly; auto-property backing fields are inspected through their get-only or init-only property. Static state, referenced objects and collection contents are not inspected." );
+            "Instance fields, inherited ones included, are readonly; auto-property backing fields are inspected through their get-only or init-only property. Static state, referenced objects and collection contents are not inspected.");
 
     public static IDcaRule ValueObjectsHaveNoSetters() =>
         DcaRule.Check(
@@ -517,7 +523,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
             })
             .Selecting("Non-interface types below the root namespace assignable to IValue; enums excluded.")
         .Checking(
-            "The runtime type or a base other than object or ValueType overrides Equals(object) and GetHashCode(). Record-generated equality counts; plain structs must supply both overrides." );
+            "The runtime type or a base other than object or ValueType overrides Equals(object) and GetHashCode(). Record-generated equality counts; plain structs must supply both overrides.");
 
     // ---------------------------------------------------------------------------------------------
     // Repository pattern

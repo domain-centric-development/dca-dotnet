@@ -330,7 +330,9 @@ public sealed class DcaLayout
         foreach (var name in names)
         {
             if (string.IsNullOrWhiteSpace(name) || !Regex.IsMatch(name, "^[A-Za-z_][A-Za-z0-9_]*$") || name == SharedSegment)
+            {
                 throw new ArgumentException("Invalid operation container: " + name, nameof(names));
+            }
         }
         return Copy(operationContainers: names);
     }

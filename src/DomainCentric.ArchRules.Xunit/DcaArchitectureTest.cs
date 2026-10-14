@@ -197,16 +197,19 @@ public abstract class DcaArchitectureTest
     /// self-describing on both stacks.
     /// </summary>
     [Fact]
-    public void LayoutDiagnostics() {
+    public void LayoutDiagnostics()
+    {
         var layout = EffectiveLayout;
         Console.Out.WriteLine($"framework annotations: {layout.FrameworkTypesReport()}");
         Console.Out.WriteLine($"building block markers: {layout.MarkersReport()}");
     }
 
     [Fact]
-    public void CatalogKindsAndRetiredIdentities() {
+    public void CatalogKindsAndRetiredIdentities()
+    {
         Console.Out.WriteLine(Summary(Rules));
-        foreach (var id in Selection.RetiredReferences) {
+        foreach (var id in Selection.RetiredReferences)
+        {
             var retired = DcaRules.Retired()[id];
             Console.Out.WriteLine($"{id} is retired since {retired.Since}: {retired.Reason}; replacement: {retired.Replacement}");
         }

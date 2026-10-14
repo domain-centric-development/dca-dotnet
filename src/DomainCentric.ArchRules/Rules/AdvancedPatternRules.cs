@@ -172,7 +172,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 "Non-interface types anywhere under scan that are assignable to IDomainEvent - directly "
                 + "or through a supertype.")
             .Checking(
-            "Classes are sealed or records; structs are allowed. Every inherited instance field is readonly, every property is get-only or init-only and no instance Set*(x): void method exists. Referenced objects and collection contents are not inspected." );
+            "Classes are sealed or records; structs are allowed. Every inherited instance field is readonly, every property is get-only or init-only and no instance Set*(x): void method exists. Referenced objects and collection contents are not inspected.");
 
     public IDcaRule DomainEventsResideInDomain() =>
         DcaRule.Of(

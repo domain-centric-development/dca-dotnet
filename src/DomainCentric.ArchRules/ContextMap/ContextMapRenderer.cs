@@ -225,9 +225,14 @@ public sealed class ContextMapRenderer
         {
             var externalIds = new Dictionary<string, string>(StringComparer.Ordinal);
             var usedIds = new HashSet<string>(namespaces.Select(ShortName), StringComparer.Ordinal);
-            foreach (var name in ExternalSystems(namespaces)) {
+            foreach (var name in ExternalSystems(namespaces))
+            {
                 var stem = ExternalId(name); var id = stem; var suffix = 2;
-                while (!usedIds.Add(id)) id = stem + "_" + suffix++;
+                while (!usedIds.Add(id))
+                {
+                    id = stem + "_" + suffix++;
+                }
+
                 externalIds.Add(name, id);
             }
             foreach (var name in ExternalSystems(namespaces))

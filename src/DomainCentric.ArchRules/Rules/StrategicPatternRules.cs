@@ -1,13 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using DomainCentric.BuildingBlocks.Ddd.Strategic.Relationships;
-using DomainCentric.BuildingBlocks.Ddd.Tactical;
-using static ArchUnitNET.Fluent.ArchRuleDefinition;
-
 using ArchUnitNET.Domain;
 using ArchUnitNET.Domain.Extensions;
 using ArchUnitNET.Fluent;
+using DomainCentric.BuildingBlocks.Ddd.Strategic.Relationships;
+using DomainCentric.BuildingBlocks.Ddd.Tactical;
+using static ArchUnitNET.Fluent.ArchRuleDefinition;
 
 namespace DomainCentric.ArchRules.Rules;
 
@@ -325,7 +324,7 @@ public sealed class StrategicPatternRules : IDcaRuleSet
                 + " IIntegrationEvent - directly or through a derived interface; classes, records and structs"
                 + " alike, compiler-generated types excluded.")
         .Checking(
-            "Classes are sealed or records; structs are allowed. Every inherited instance field is readonly, every property is get-only or init-only and no instance Set*(x): void method exists. Referenced objects and collection contents are not inspected." );
+            "Classes are sealed or records; structs are allowed. Every inherited instance field is readonly, every property is get-only or init-only and no instance Set*(x): void method exists. Referenced objects and collection contents are not inspected.");
 
     /// <summary>DCA-STR-010 — documentation only, never fails.</summary>
     public static IDcaRule EventListenersUseAntiCorruptionLayer() =>

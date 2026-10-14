@@ -1,8 +1,8 @@
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
 using DomainCentric.ArchRules.Tests.Fixtures.Hexagonal.Bad.Ordering.Application.PlaceOrder;
 using DomainCentric.ArchRules.Tests.Fixtures.Hexagonal.Bad.SharedKernel.Domain.Model;
+using Microsoft.AspNetCore.Mvc;
 
 namespace DomainCentric.ArchRules.Tests.Fixtures.Hexagonal.Bad.Shipping.Adapter.Incoming;
 
