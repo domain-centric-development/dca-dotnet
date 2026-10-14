@@ -506,3 +506,21 @@ Three rules join both libraries with the same ids, titles and rationales:
 All three select through `DcaMarkers` roles and the layout's segments. Inventory after this change: .NET 130 ids
 (124 enforced, 5 informational, 1 n/a in the sets; 5 retired in `DcaRules`), Java 124 ids in its sets
 (118 enforced, 6 informational).
+
+## 2026-10-15 — WP-109 review notes on the experimental rules
+
+The first probes of the experimental rules in both samples (WP-109) showed four places where the two
+libraries saw different things. Same ids, titles and rationales stay; what changed, and what stays apart:
+
+- **`DCA-ERR-007`** — both `checks` texts end in the same sentence: a string that holds a code is listed as
+  well, the type does not tell it from display text, the remedy is a typed value. No naming signal is read.
+  Two readings stay apart, each in its own text: Java lists every type that is neither id, value, number nor
+  platform type; .NET lists only strings, aggregates and entities.
+- **`DCA-HEX-014`** — the GET-mapping role takes an entry `<attribute>#<property>=<value>` in both libraries.
+  `AspNetCore()` adds `AcceptVerbsAttribute#HttpMethods=GET` (read from the attribute instance), Java's Spring
+  preset `RequestMapping#method=GET` (read from the annotation, meta-annotations included). A `[Route]` / a
+  mapping without an HTTP method answers every method and is not selected in either.
+- **`DCA-HEX-016`** — .NET sees the bare enum value in a concatenation or a formatting call, because the C#
+  compiler keeps the enum type in the IL; Java's compiler hands the value over as an `Object`, so Java lists
+  only an explicit `name()` / `toString()`. The gap is named in Java's `checks` text and pinned by a fixture;
+  .NET is unchanged.
