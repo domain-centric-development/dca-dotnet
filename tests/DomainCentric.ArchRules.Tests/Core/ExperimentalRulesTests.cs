@@ -94,6 +94,29 @@ public sealed class ExperimentalRulesTests
     }
 
     [Fact]
+    public void TheConfigurationKeySetToFalseLeavesItOut()
+    {
+        var selection = DcaRuleSelection.FromProperties(Properties((DcaRuleSelection.ExperimentalKey, "false")));
+
+        Assert.False(selection.IncludesExperimental);
+        Assert.False(selection.Includes(Set, Trial));
+        Assert.True(selection.Includes(Set, Released));
+    }
+
+    [Theory]
+    [InlineData("TRUE", true)]
+    [InlineData("True", true)]
+    [InlineData("", false)]
+    [InlineData("   ", false)]
+    public void TheConfigurationKeyIgnoresCaseAndTreatsBlankAsNoOptIn(string value, bool optedIn)
+    {
+        var selection = DcaRuleSelection.FromProperties(Properties((DcaRuleSelection.ExperimentalKey, value)));
+
+        Assert.Equal(optedIn, selection.IncludesExperimental);
+        Assert.Equal(optedIn, selection.Includes(Set, Trial));
+    }
+
+    [Fact]
     public void TheConfigurationKeyRejectsAValueThatIsNotABoolean()
     {
         var rejected = Assert.Throws<ArgumentException>(
