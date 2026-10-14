@@ -234,6 +234,28 @@
       "maturity": "released"
     },
     {
+      "set": "hexagonal",
+      "id": "DCA-HEX-014",
+      "title": "GET handlers must not drive an input port that takes a command",
+      "rationale": "A state-changing use case is reached only by an unsafe HTTP method, never by GET; links do not create state. Prefetching, crawlers and cross-site navigation follow a link without asking, and would otherwise trigger the change",
+      "selects": "Methods declared by classes in <module>.Adapter.Incoming of every module root that carry an attribute of the configured GET-mapping role (derived attributes included), or - on a class recognised as a controller or page model - whose name starts with a configured GET-handler prefix. Both roles are empty in the None() preset, which then selects nothing.",
+      "checks": "No method reached from the handler through calls within the class - async state machines and lambdas included - calls a method of a type assignable to IInputPort that takes a parameter whose type name ends in Command. A handler mapped by a routing call rather than by an attribute or a name is not seen, and a command reached through a second class is not followed. An empty selection passes.",
+      "implementation": "dotnet",
+      "status": "enforced",
+      "maturity": "experimental"
+    },
+    {
+      "set": "hexagonal",
+      "id": "DCA-HEX-015",
+      "title": "Incoming adapters must not keep state for a later request in one instance",
+      "rationale": "State a later request needs travels with that request or lives in a store every instance reads. A server session or a message held for the page after a redirect is kept by one instance, and behind a load balancer without sticky sessions the next request reaches another one",
+      "selects": "Classes in <module>.Adapter.Incoming of every module root, compiler-generated classes excluded, with their runtime type in the loaded assemblies.",
+      "checks": "No type of the configured instance-local-state role appears as the declaring, parameter or return type of a method the class calls - async state machines and lambdas included - as the type of a field, property or method parameter or return it declares, or as an attribute on the class or its members. The role is empty in the None() preset, which then reports nothing; a project whose instances share that state empties it. Whether the state is read by a later request is not checked. An empty selection passes.",
+      "implementation": "dotnet",
+      "status": "enforced",
+      "maturity": "experimental"
+    },
+    {
       "set": "tactical",
       "id": "DCA-TAC-001",
       "title": "Aggregate Roots must implement IAggregateRoot",
@@ -474,6 +496,17 @@
       "implementation": "dotnet",
       "status": "enforced",
       "maturity": "released"
+    },
+    {
+      "set": "tactical",
+      "id": "DCA-TAC-024",
+      "title": "Value Objects must not declare a neutral factory beside an origin factory with the same parameters",
+      "rationale": "A value built from input and a value rebuilt from storage are two origins with different checks, and each has its own named factory. A neutral factory beside them that takes the same parameters leaves the caller to guess which checks run; a value with one origin keeps its one factory",
+      "selects": "Concrete classes, records and structs below the root namespace assignable to IValue, with their runtime type in the loaded assemblies.",
+      "checks": "No public static method named Of, declared by the type itself and returning exactly that type, sits beside another such method that takes the same parameter types in the same sequence. Two named factories with equal parameters (FromInput, FromStored) pass, and so does an Of that is the only factory for its parameters. Operators, generic methods, inherited methods and factories that return a wrapper (a nullable struct, a task, a result type) are not counted - a nullable reference return is the type itself and counts; constructors are not factories in this sense. An empty selection passes.",
+      "implementation": "dotnet",
+      "status": "enforced",
+      "maturity": "experimental"
     },
     {
       "set": "strategic",
@@ -738,6 +771,17 @@
       "implementation": "dotnet",
       "status": "informational",
       "maturity": "released"
+    },
+    {
+      "set": "contextmap",
+      "id": "DCA-MAP-014",
+      "title": "Every allowed dependency of a module declaration must be backed by an actual code dependency",
+      "rationale": "A context declares only the dependencies it uses. An allowed dependency no code uses is a stale edge: the module boundary claims a relationship the code does not have, and the next dependency on that module passes without anyone deciding it",
+      "selects": "Every namespace carrying [BoundedContext], provided the layout configures at least one module declaration attribute (a module system's per-module declaration) that is in the loaded assemblies; reads, reflectively, the AllowedDependencies entries of every configured module declaration the marker class carries. Without a configured and loadable module declaration the rule selects nothing and passes - the default here, because .NET draws module boundaries with projects and no preset names an attribute.",
+      "checks": "For every entry - 'module' or 'module :: named-interface', whitespace around '::' normalized - at least one type below the context namespace has a direct dependency on a type in the named module's namespace (a bounded context by its name, any other module as <root>.<module>) or, for a named interface, in that segment below it, compared ignoring case. Dependencies within the context itself do not count. Whether an undeclared dependency exists is DCA-MAP-006's and the isolation rules' business, not this rule's.",
+      "implementation": "dotnet",
+      "status": "enforced",
+      "maturity": "experimental"
     },
     {
       "set": "advanced",
@@ -1125,6 +1169,28 @@
       "maturity": "released"
     },
     {
+      "set": "usecase",
+      "id": "DCA-USE-018",
+      "title": "In a module grouped by feature, incoming adapters must drive the input ports of one feature only",
+      "rationale": "Once the application is grouped into features, the incoming adapter is cut the same way: one adapter serves the use cases of one feature. An adapter that drives the input ports of two features grows with every use case of both and is cut along them",
+      "selects": "Classes in <module>.Adapter.Incoming of every module root, compiler-generated classes excluded, with the input ports they depend on: interfaces assignable to IInputPort in the same module's application namespace. A port counts toward a feature when it sits at Application.<Feature>.<UseCase> after removing configured OperationContainers segments, the grouped depth of DCA-USE-014.",
+      "checks": "The input ports an adapter depends on belong to one feature. A port in a flat use-case namespace (Application.<UseCase>), in Application.Shared or in another module counts toward no feature, so a module that is not grouped into features is never reported. Fields, constructor parameters and calls all count as a dependency; constructor parameters are read from the runtime type as well. An empty selection passes.",
+      "implementation": "dotnet",
+      "status": "enforced",
+      "maturity": "experimental"
+    },
+    {
+      "set": "usecase",
+      "id": "DCA-USE-019",
+      "title": "Query use cases must not write or publish",
+      "rationale": "A read never creates. A query has no side effect: it does not create, save or publish, and when nothing exists it answers none. Find-or-create is a command, called where the caller is about to change state; a caller that only shows what exists asks the query",
+      "selects": "Concrete non-nested application operations selected by IInputPort marker or configured use-case suffix, with loadable runtime types, whose input ends in Query: the input type argument of an implemented IUseCase<TInput, TOutput>, or a parameter of a method that implements an IInputPort interface.",
+      "checks": "No method of the class - async state machines and lambdas included - calls a repository write (IRepository.SaveAsync or DeleteByIdAsync, or a method of a repository or store port whose name starts with Save, Delete, Remove, Add, Insert, Update, Upsert, Put, Store, Write, Create, Append, Archive, Purge, Clear, Set or Mark), or any method of the domain-event or integration-event publisher. Only the class's own calls are read: a write reached through a helper class or a second port is not seen, and a store write under another verb passes. An empty selection passes.",
+      "implementation": "dotnet",
+      "status": "enforced",
+      "maturity": "experimental"
+    },
+    {
       "set": "naming",
       "id": "DCA-NAM-001",
       "title": "Application layer InputPort implementations must end with 'UseCase'",
@@ -1239,6 +1305,28 @@
       "implementation": "dotnet",
       "status": "enforced",
       "maturity": "released"
+    },
+    {
+      "set": "naming",
+      "id": "DCA-NAM-012",
+      "title": "Diagnostic: use cases and input ports named after a trigger rather than an effect",
+      "rationale": "A use case is named after its effect, never after its trigger or its caller. When and by whom it runs is the business of the adapter or the consumer that calls it; the same effect reached from a second trigger is the same use case",
+      "selects": "Interfaces in <module>.Application of every module root assignable to IInputPort, and concrete application operations selected by IInputPort assignability or the configured use-case suffix. The name is read without the interface's I prefix, the generic arity, and the InputPort and use-case suffixes.",
+      "checks": "Informational diagnostic only: lists a type whose name holds On, After, When, Upon or Before at the start or after a lower-case letter or digit, followed by an upper-case letter, and never fails. A word that only looks like a trigger is listed as well; whether the name describes a trigger stays with review.",
+      "implementation": "dotnet",
+      "status": "informational",
+      "maturity": "experimental"
+    },
+    {
+      "set": "naming",
+      "id": "DCA-NAM-013",
+      "title": "Use cases, input ports and published operations must not be named after a field they write",
+      "rationale": "An operation speaks the domain, not data access. Neither a use case nor an operation of the context's published API is named after a field it writes; it is named after what the change means, with the verb from the glossary",
+      "selects": "Interfaces in <module>.Application of every module root assignable to IInputPort, concrete application operations selected by IInputPort assignability or the configured use-case suffix, and the public methods declared by types in <module>.Api and below of every module root. Type names are read without the interface's I prefix and the generic arity.",
+      "checks": "No selected name starts with Set or Update followed by an upper-case letter. Property accessors and other compiler-named methods are not methods in this sense, and a name such as Settle or Updated passes. Whether another verb names a field is not checked. An empty selection passes.",
+      "implementation": "dotnet",
+      "status": "enforced",
+      "maturity": "experimental"
     },
     {
       "set": "cycles",
@@ -1426,6 +1514,17 @@
       "implementation": "dotnet",
       "status": "informational",
       "maturity": "released"
+    },
+    {
+      "set": "errors",
+      "id": "DCA-ERR-007",
+      "title": "Diagnostic: failures that carry display data or objects instead of ids and figures",
+      "rationale": "A failure carries ids and figures, never what a page shows: its fields are the typed identities and the values the rule compared. A name or a description of the thing the id refers to is resolved by the translation site, through the queries it already has; a failure that carries it decides for every surface what it shows, and one that carries the aggregate hands its state to every caller",
+      "selects": "The project's own types below DomainException or UseCaseException, with their runtime type in the loaded assemblies, and the instance fields they and their project base types declare - the backing fields of auto-properties included.",
+      "checks": "Informational diagnostic only: lists a field whose type is a plain string, or is assignable to IAggregateRoot or IEntity - directly, as an array element or as a generic type argument - and never fails. Ids, values, numbers and every other type pass. A string that holds a code rather than display text is listed as well; whether it should be a value stays with review.",
+      "implementation": "dotnet",
+      "status": "informational",
+      "maturity": "experimental"
     }
   ],
   "retired": [

@@ -16,7 +16,7 @@ public sealed class HexagonalRulesTests
 
     };
 
-    private static readonly string[] ExpectedIds = { "DCA-HEX-001", "DCA-HEX-002", "DCA-HEX-003", "DCA-HEX-004", "DCA-HEX-005", "DCA-HEX-006", "DCA-HEX-007", "DCA-HEX-008", "DCA-HEX-009", "DCA-HEX-010", "DCA-HEX-011", "DCA-HEX-012", "DCA-HEX-013" };
+    private static readonly string[] ExpectedIds = { "DCA-HEX-001", "DCA-HEX-002", "DCA-HEX-003", "DCA-HEX-004", "DCA-HEX-005", "DCA-HEX-006", "DCA-HEX-007", "DCA-HEX-008", "DCA-HEX-009", "DCA-HEX-010", "DCA-HEX-011", "DCA-HEX-012", "DCA-HEX-013", "DCA-HEX-014", "DCA-HEX-015" };
 
     private static DcaArchitecture Arch(string ns) =>
         DcaArchitecture.Load(DcaLayout.ForRootNamespace(ns), typeof(HexagonalRulesTests).Assembly);
@@ -80,5 +80,39 @@ public sealed class HexagonalRulesTests
         var rule = new HexagonalRules(DcaLayout.ForRootNamespace(Infra)).Rules.Single(r => r.Id == "DCA-HEX-005");
         var arch = DcaArchitecture.Load(DcaLayout.ForRootNamespace(Infra), typeof(HexagonalRulesTests).Assembly);
         rule.Check(arch);
+    }
+
+    [Fact]
+    public void GetHandlersThatDriveACommandAreReportedByAttributeAndByName()
+    {
+        var message = Assert.Throws<DcaRuleViolationException>(() => Rules(Bad).Rules.Single(r => r.Id == "DCA-HEX-014").Check(Arch(Bad))).Message;
+
+        Assert.Contains("OrderLinkResource.Reorder handles GET and drives IUseCase.ExecuteAsync with the command PlaceOrderCommand", message);
+        Assert.Contains("ReorderPage.OnGetAsync handles GET", message);
+    }
+
+    [Fact]
+    public void WithoutGetRolesNoHandlerIsSelected()
+    {
+        var layout = DcaLayout.ForRootNamespace(Bad).WithFrameworkTypes(FrameworkTypes.AspNetCore() with
+        {
+            GetMappingAttributeTypes = System.Array.Empty<string>(),
+            GetHandlerNamePrefixes = System.Array.Empty<string>(),
+        });
+
+        new HexagonalRules(layout).Rules.Single(r => r.Id == "DCA-HEX-014").Check(DcaArchitecture.Load(layout, typeof(HexagonalRulesTests).Assembly));
+    }
+
+    [Fact]
+    public void InstanceLocalStateIsReportedPerApiAndPassesOnceTheRoleIsEmptied()
+    {
+        var message = Assert.Throws<DcaRuleViolationException>(() => Rules(Bad).Rules.Single(r => r.Id == "DCA-HEX-015").Check(Arch(Bad))).Message;
+
+        Assert.Contains("OrderLinkResource uses the instance-local state API Microsoft.AspNetCore.Http.ISession", message);
+        Assert.Contains("ReorderPage uses the instance-local state API Microsoft.AspNetCore.Mvc.ViewFeatures.ITempDataDictionary", message);
+        Assert.Contains("ReorderPage uses the instance-local state API Microsoft.AspNetCore.Mvc.TempDataAttribute", message);
+
+        var shared = DcaLayout.ForRootNamespace(Bad).WithFrameworkTypes(FrameworkTypes.AspNetCore() with { InstanceLocalStateTypes = System.Array.Empty<string>() });
+        new HexagonalRules(shared).Rules.Single(r => r.Id == "DCA-HEX-015").Check(DcaArchitecture.Load(shared, typeof(HexagonalRulesTests).Assembly));
     }
 }

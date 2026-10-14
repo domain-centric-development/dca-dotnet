@@ -16,11 +16,12 @@ public sealed class ErrorHandlingRulesTests
     private static readonly IReadOnlyDictionary<string, string> NoNegativeFixture = new Dictionary<string, string>
     {
         ["DCA-ERR-006"] = "informational diagnostic, never fails",
+        ["DCA-ERR-007"] = "informational diagnostic, never fails - FailureFieldsAreObservedOnTheBadFixtureOnly shows it",
     };
 
     private static readonly string[] ExpectedIds =
     {
-        "DCA-ERR-001", "DCA-ERR-002", "DCA-ERR-003", "DCA-ERR-004", "DCA-ERR-005", "DCA-ERR-006",
+        "DCA-ERR-001", "DCA-ERR-002", "DCA-ERR-003", "DCA-ERR-004", "DCA-ERR-005", "DCA-ERR-006", "DCA-ERR-007",
     };
 
     private static DcaArchitecture Arch(string ns) =>
@@ -81,5 +82,15 @@ public sealed class ErrorHandlingRulesTests
         var message = Assert.Throws<DcaRuleViolationException>(() => rule.Check(Arch(Bad))).Message;
 
         Assert.Contains(offender, message);
+    }
+
+    [Fact]
+    public void FailureFieldsAreObservedOnTheBadFixtureOnly()
+    {
+        Assert.Empty(Rules(Good).Rules.Single(r => r.Id == "DCA-ERR-007").Observe(Arch(Good)));
+
+        var observed = Rules(Bad).Rules.Single(r => r.Id == "DCA-ERR-007").Observe(Arch(Bad));
+        Assert.Contains(observed, line => line.Contains("GuestAlreadyBookedException holds _guestName as a plain string", System.StringComparison.Ordinal));
+        Assert.Contains(observed, line => line.Contains("GuestAlreadyBookedException holds Reservation as the aggregate Reservation", System.StringComparison.Ordinal));
     }
 }

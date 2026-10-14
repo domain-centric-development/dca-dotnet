@@ -36,6 +36,8 @@ public sealed class NamingRules : IDcaRuleSet
             NoTechnicalBucketPackages(layout),
             NoTechnicalSuffixesInDomain(layout),
             ViewModelsResideInIncomingWebAdapters(layout),
+            OperationsAreNotNamedAfterTheirTrigger(),
+            OperationsAreNotNamedAfterAFieldTheyWrite(),
         };
     }
 
@@ -300,9 +302,146 @@ public sealed class NamingRules : IDcaRuleSet
                 + " other than the configured web one, such as Adapter.Incoming.Mcp, is"
                 + " reported. An empty selection passes.");
 
+    /// <summary>
+    /// DCA-NAM-012 (experimental, informational). A use case is named after its effect; when and by whom it runs is
+    /// the caller's business. A trigger word inside the name is visible, whether it names a trigger is not.
+    /// </summary>
+    public static IDcaRule OperationsAreNotNamedAfterTheirTrigger() =>
+        DcaRule.Informational(
+            "DCA-NAM-012",
+            "Diagnostic: use cases and input ports named after a trigger rather than an effect",
+            "A use case is named after its effect, never after its trigger or its caller. When and by whom it"
+                + " runs is the business of the adapter or the consumer that calls it; the same effect reached"
+                + " from a second trigger is the same use case",
+            arch => OperationNames(arch)
+                .Select(o => (o.Type, Match: TriggerWord.Match(o.Name)))
+                .Where(o => o.Match.Success)
+                .Select(o => $"{o.Type} carries the trigger word '{o.Match.Value}' - name it after its effect")
+                .Distinct()
+                .OrderBy(v => v, StringComparer.Ordinal)
+                .ToList())
+            .Experimental()
+            .Selecting(
+                "Interfaces in <module>.Application of every module root assignable to IInputPort, and"
+                + " concrete application operations selected by IInputPort assignability or the configured"
+                + " use-case suffix. The name is read without the interface's I prefix, the generic arity, and"
+                + " the InputPort and use-case suffixes.")
+            .Checking(
+                "Informational diagnostic only: lists a type whose name holds On, After, When, Upon or Before"
+                + " at the start or after a lower-case letter or digit, followed by an upper-case letter,"
+                + " and never fails. A word that only looks like a trigger is listed as well; whether the"
+                + " name describes a trigger stays with review.");
+
+    /// <summary>
+    /// DCA-NAM-013 (experimental). An operation speaks the domain, not data access: a use case, an input port and a
+    /// method of a module's published API are not named after a field they write.
+    /// </summary>
+    public static IDcaRule OperationsAreNotNamedAfterAFieldTheyWrite() =>
+        DcaRule.Check(
+            "DCA-NAM-013",
+            "Use cases, input ports and published operations must not be named after a field they write",
+            "An operation speaks the domain, not data access. Neither a use case nor an operation of the"
+                + " context's published API is named after a field it writes; it is named after what the"
+                + " change means, with the verb from the glossary",
+            arch =>
+            {
+                var violations = OperationNames(arch)
+                    .Where(o => FieldWriteVerb.IsMatch(o.Name))
+                    .Select(o => $"{o.Type} is named after a field it writes")
+                    .Concat(PublishedMethods(arch)
+                        .Where(m => FieldWriteVerb.IsMatch(m.Name))
+                        .Select(m => $"{m.DeclaringType!.FullName}.{m.Name} is a published operation named after a field it writes"))
+                    .Distinct()
+                    .OrderBy(v => v, StringComparer.Ordinal)
+                    .ToList();
+                DcaRule.Fail(
+                    "Use cases, input ports and published operations must not be named after a field they write",
+                    violations,
+                    "name the operation after what the change means, with the verb from the glossary");
+            })
+            .Experimental()
+            .Selecting(
+                "Interfaces in <module>.Application of every module root assignable to IInputPort, concrete"
+                + " application operations selected by IInputPort assignability or the configured use-case"
+                + " suffix, and the public methods declared by types in <module>.Api and below of every module"
+                + " root. Type names are read without the interface's I prefix and the generic arity.")
+            .Checking(
+                "No selected name starts with Set or Update followed by an upper-case letter. Property"
+                + " accessors and other compiler-named methods are not methods in this sense, and a name"
+                + " such as Settle or Updated passes. Whether another verb names a field is not checked. An"
+                + " empty selection passes.");
+
     // ---------------------------------------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------------------------------------
+
+    /// <summary>A trigger word: at the start or after a lower-case letter or digit, followed by an upper-case letter.</summary>
+    private static readonly Regex TriggerWord = new("(?:^|(?<=[a-z0-9]))(On|After|When|Upon|Before)(?=[A-Z])", RegexOptions.Compiled);
+
+    /// <summary>A name that starts with a field-write verb followed by the field.</summary>
+    private static readonly Regex FieldWriteVerb = new("^(Set|Update)(?=[A-Z])", RegexOptions.Compiled);
+
+    /// <summary>
+    /// The input ports and use cases of every module, each with the name a reader gives it: no <c>I</c> prefix,
+    /// no generic arity, and no InputPort or use-case suffix where one is left after that.
+    /// </summary>
+    private static IEnumerable<(string Type, string Name)> OperationNames(DcaArchitecture arch)
+    {
+        var application = DcaLayout.AnyOf(arch.AllApplicationPatterns());
+        foreach (var port in arch.Interfaces.Where(i => InNamespace(i, application)
+            && !IsBaseInputPortName(i.Name.Split('`')[0])
+            && IsAssignableTo(arch, i, arch.Layout.Markers.InputPort)))
+        {
+            yield return (port.FullName, Plain(port.Name, true, arch.Layout));
+        }
+
+        foreach (var operation in arch.Types.Where(t => OperationPolicy.Operation(t, arch)))
+        {
+            yield return (operation.FullName, Plain(operation.Name, false, arch.Layout));
+        }
+    }
+
+    private static string Plain(string name, bool isInterface, DcaLayout layout)
+    {
+        var plain = name.Split('`')[0];
+        if (isInterface && plain.Length > 1 && plain[0] == 'I' && char.IsUpper(plain[1]))
+        {
+            plain = plain[1..];
+        }
+
+        foreach (var suffix in new[] { "InputPort", layout.UseCaseSuffix })
+        {
+            if (suffix.Length > 0 && plain.Length > suffix.Length && plain.EndsWith(suffix, StringComparison.Ordinal))
+            {
+                plain = plain[..^suffix.Length];
+            }
+        }
+
+        return plain;
+    }
+
+    /// <summary>The public methods declared by the types of every module's published API namespace.</summary>
+    private static IEnumerable<System.Reflection.MethodInfo> PublishedMethods(DcaArchitecture arch)
+    {
+        var api = DcaLayout.AnyOf(arch.ModuleRoots().Select(root => DcaLayout.Below(root + "." + arch.Layout.ApiSegment)));
+        foreach (var type in arch.Types.Where(t => InNamespace(t, api)))
+        {
+            var runtime = arch.RuntimeType(type);
+            if (runtime is null)
+            {
+                continue;
+            }
+
+            foreach (var method in runtime.GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance
+                | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.DeclaredOnly))
+            {
+                if (!method.IsSpecialName && !method.Name.Contains('<', StringComparison.Ordinal))
+                {
+                    yield return method;
+                }
+            }
+        }
+    }
 
     /// <summary>Namespaces containing a technical bucket segment (any casing): Entities, ValueObjects, Helpers, Util, Utils.</summary>
     private const string TechnicalBucketPattern = @"(?i)(^|\.)(entities|valueobjects|helpers|utils?)(\.|$)";

@@ -88,6 +88,15 @@ public sealed record FrameworkTypes(
     /// <summary>Full attribute type names that fix the protocol answer of the type they sit on — the role <c>DCA-ERR-004</c> forbids on the exceptions of the domain and application layers, because which status a failure earns is the incoming adapter's decision and a second adapter on another protocol has no use for it. Empty in every preset: the platform answers through a mapper type rather than through an attribute on the failure. A project that defines such an attribute itself adds it via a with-expression, and the Java library's <c>transportStatus</c> role is the same setting under the same rule.</summary>
     public IReadOnlyList<string> TransportStatusAttributeTypes { get; init; } = Array.Empty<string>();
 
+    /// <summary>Full attribute type names that map a handler method to an HTTP GET request (derived attributes included) — the counterpart of the Java library's <c>getMapping</c> role. <c>DCA-HEX-014</c> reads it: a GET handler drives no command. Empty in <see cref="None"/>.</summary>
+    public IReadOnlyList<string> GetMappingAttributeTypes { get; init; } = Array.Empty<string>();
+
+    /// <summary>Method-name prefixes by which a framework maps a handler of a controller or page model to an HTTP GET request without an attribute. <c>DCA-HEX-014</c> treats such a method like one carrying a <see cref="GetMappingAttributeTypes"/> attribute. Empty in <see cref="None"/>.</summary>
+    public IReadOnlyList<string> GetHandlerNamePrefixes { get; init; } = Array.Empty<string>();
+
+    /// <summary>Full type names of the APIs that keep state for a later request inside one running instance — a server session, a message held for the page after a redirect — the counterpart of the Java library's <c>instanceLocalState</c> role. <c>DCA-HEX-015</c> forbids an incoming adapter to use them: behind a load balancer without sticky sessions the next request reaches another instance. A type is matched as a declaring, parameter, return, field or property type and as an attribute. A project whose instances share that state (a distributed session store, a key ring every instance reads) empties the role via a with-expression. Empty in <see cref="None"/>.</summary>
+    public IReadOnlyList<string> InstanceLocalStateTypes { get; init; } = Array.Empty<string>();
+
     /// <summary>ASP.NET Core MVC / Razor Pages and <c>System.Transactions</c>.</summary>
     public static FrameworkTypes AspNetCore() =>
         new(
@@ -100,7 +109,10 @@ public sealed record FrameworkTypes(
             PersistenceAttributeNamespaces = Array.AsReadOnly(new[] { "System.ComponentModel.DataAnnotations.Schema", "Microsoft.EntityFrameworkCore" }),
             PersistenceAttributeTypes = Array.AsReadOnly(new[] { "System.ComponentModel.DataAnnotations.KeyAttribute", "System.ComponentModel.DataAnnotations.TimestampAttribute", "System.ComponentModel.DataAnnotations.ConcurrencyCheckAttribute" }),
             InjectionAttributeNamespaces = Array.AsReadOnly(new[] { "Microsoft.Extensions.DependencyInjection" }),
-            TransactionApiTypes = Array.AsReadOnly(new[] { "System.Transactions.CommittableTransaction", "System.Data.IDbTransaction", "System.Data.Common.DbTransaction", "Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction" })
+            TransactionApiTypes = Array.AsReadOnly(new[] { "System.Transactions.CommittableTransaction", "System.Data.IDbTransaction", "System.Data.Common.DbTransaction", "Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction" }),
+            GetMappingAttributeTypes = Array.AsReadOnly(new[] { "Microsoft.AspNetCore.Mvc.HttpGetAttribute" }),
+            GetHandlerNamePrefixes = Array.AsReadOnly(new[] { "OnGet" }),
+            InstanceLocalStateTypes = Array.AsReadOnly(new[] { "Microsoft.AspNetCore.Http.ISession", "Microsoft.AspNetCore.Mvc.ViewFeatures.ITempDataDictionary", "Microsoft.AspNetCore.Mvc.TempDataAttribute" }),
         };
 
     /// <summary>

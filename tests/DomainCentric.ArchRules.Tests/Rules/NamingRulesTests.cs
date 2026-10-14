@@ -22,10 +22,15 @@ public sealed class NamingRulesTests
         "DCA-NAM-009",
         "DCA-NAM-010",
         "DCA-NAM-011",
+        "DCA-NAM-012",
+        "DCA-NAM-013",
     };
 
     /// <summary>Rules without a negative fixture (id → reason).</summary>
-    private static readonly IReadOnlyDictionary<string, string> NoNegativeFixture = new Dictionary<string, string>();
+    private static readonly IReadOnlyDictionary<string, string> NoNegativeFixture = new Dictionary<string, string>
+    {
+        ["DCA-NAM-012"] = "informational diagnostic, never fails - TriggerNamesAreObservedOnTheBadFixtureOnly shows it",
+    };
 
     public static IEnumerable<object[]> RuleIds() => ExpectedIds.Select(id => new object[] { id });
 
@@ -59,5 +64,23 @@ public sealed class NamingRulesTests
     {
         var ex = Assert.Throws<DcaRuleViolationException>(() => Rule(Bad, id).Check(Arch(Bad)));
         Assert.False(string.IsNullOrWhiteSpace(ex.Message));
+    }
+
+    [Fact]
+    public void TriggerNamesAreObservedOnTheBadFixtureOnly()
+    {
+        Assert.Empty(Rule(Good, "DCA-NAM-012").Observe(Arch(Good)));
+
+        var observed = Assert.Single(Rule(Bad, "DCA-NAM-012").Observe(Arch(Bad)));
+        Assert.Contains("IArchiveOrderOnExpiryInputPort carries the trigger word 'On'", observed);
+    }
+
+    [Fact]
+    public void NamesAfterAWrittenFieldAreReportedForUseCasesAndPublishedOperations()
+    {
+        var message = Assert.Throws<DcaRuleViolationException>(() => Rule(Bad, "DCA-NAM-013").Check(Arch(Bad))).Message;
+
+        Assert.Contains("ISetOrderStatusInputPort is named after a field it writes", message);
+        Assert.Contains("IOrderLookup.UpdateStatusAsync is a published operation", message);
     }
 }

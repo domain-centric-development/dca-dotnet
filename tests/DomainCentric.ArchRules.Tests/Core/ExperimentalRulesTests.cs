@@ -30,9 +30,20 @@ public sealed class ExperimentalRulesTests
     private static IReadOnlyDictionary<string, string> Properties(params (string Key, string Value)[] entries) =>
         entries.ToDictionary(e => e.Key, e => e.Value, StringComparer.Ordinal);
 
+    /// <summary>The catalog's experimental rules — every other rule of the catalog is released.</summary>
+    private static readonly string[] CatalogExperimentalIds =
+    {
+        "DCA-ERR-007", "DCA-HEX-014", "DCA-HEX-015", "DCA-MAP-014", "DCA-NAM-012", "DCA-NAM-013", "DCA-TAC-024", "DCA-USE-018", "DCA-USE-019",
+    };
+
     [Fact]
-    public void EveryCatalogRuleIsReleased() =>
-        Assert.All(DcaRules.All(DcaLayout.ForRootNamespace("Acme.Shop")), rule => Assert.Equal(DcaRuleMaturity.Released, rule.Maturity));
+    public void TheCatalogsExperimentalRulesAreExactlyTheDeclaredOnes() =>
+        Assert.Equal(
+            CatalogExperimentalIds,
+            DcaRules.All(DcaLayout.ForRootNamespace("Acme.Shop"))
+                .Where(rule => rule.Maturity == DcaRuleMaturity.Experimental)
+                .Select(rule => rule.Id)
+                .OrderBy(id => id, StringComparer.Ordinal));
 
     [Fact]
     public void ARuleIsReleasedUnlessDeclaredExperimental()

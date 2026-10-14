@@ -44,6 +44,8 @@ public sealed class UseCaseRules : IDcaRuleSet
             ResultsMustNotExposeAggregatesOrEntities(layout),
             UseCasesMustNotInvokeOtherUseCases(layout),
             UseCasesExposeOnlyInputPort(layout),
+            IncomingAdaptersDriveOneFeature(layout),
+            QueryUseCasesDoNotWrite(layout),
         };
     }
 
@@ -58,6 +60,133 @@ public sealed class UseCaseRules : IDcaRuleSet
             "The input port describes the complete externally callable operation surface", OperationPolicy.Surface)
         .Selecting("Concrete non-nested application operations selected by IInputPort marker or configured use-case suffix, with loadable runtime types.")
         .Checking("The effective public instance surface maps through the implemented IInputPort interface maps. Inherited and explicit implementations pass; unrelated-interface methods and public properties outside the contract fail (a property is reported once). Constructors, object/ValueType methods and compiler-generated members are exempt; special-name property accessors alone are not exempt. A use case selected by suffix only, without an input-port interface, has no permitted operation and is reported in full — implement the input port.");
+
+    /// <summary>
+    /// DCA-USE-018 (experimental). Once the application is grouped into features, the incoming adapter is cut the
+    /// same way: an adapter class that drives the input ports of two features grows with every use case of both.
+    /// The feature of an input port is read the way <c>DCA-USE-014</c> reads it — the segment below the application
+    /// namespace when the port sits at <c>Application.&lt;Feature&gt;.&lt;UseCase&gt;</c>.
+    /// </summary>
+    public static IDcaRule IncomingAdaptersDriveOneFeature(DcaLayout layout) =>
+        DcaRule.Check(
+            "DCA-USE-018",
+            "In a module grouped by feature, incoming adapters must drive the input ports of one feature only",
+            "Once the application is grouped into features, the incoming adapter is cut the same way: one"
+                + " adapter serves the use cases of one feature. An adapter that drives the input ports of two"
+                + " features grows with every use case of both and is cut along them",
+            arch =>
+            {
+                var violations = new List<string>();
+                var incoming = DcaLayout.AnyOf(arch.AllIncomingAdapterPatterns());
+                foreach (var adapter in arch.Classes
+                    .Where(c => !c.IsCompilerGenerated && c.Namespace is not null && Matches(c.Namespace.FullName, incoming))
+                    .OrderBy(c => c.FullName, StringComparer.Ordinal))
+                {
+                    var root = arch.ModuleRootOf(adapter.Namespace!.FullName);
+                    if (root is null)
+                    {
+                        continue;
+                    }
+
+                    var features = new SortedDictionary<string, SortedSet<string>>(StringComparer.Ordinal);
+                    foreach (var port in InputPortsOf(arch, adapter))
+                    {
+                        var feature = FeatureOf(port.Namespace ?? "", root, layout);
+                        if (feature is null)
+                        {
+                            continue;
+                        }
+
+                        if (!features.TryGetValue(feature, out var ports))
+                        {
+                            features[feature] = ports = new SortedSet<string>(StringComparer.Ordinal);
+                        }
+
+                        ports.Add(port.Name.Split('`')[0]);
+                    }
+
+                    if (features.Count > 1)
+                    {
+                        violations.Add($"{adapter.FullName} drives the input ports of {features.Count} features: "
+                            + string.Join("; ", features.Select(f => $"{f.Key} ({string.Join(", ", f.Value)})")));
+                    }
+                }
+
+                DcaRule.Fail(
+                    "In a module grouped by feature, incoming adapters must drive the input ports of one feature only",
+                    violations,
+                    "cut the adapter along the features - one adapter class per feature, below the same protocol segment");
+            })
+        .Experimental()
+        .Selecting(
+            "Classes in <module>.Adapter.Incoming of every module root, compiler-generated classes excluded,"
+                + " with the input ports they depend on: interfaces assignable to IInputPort in the same module's"
+                + " application namespace. A port counts toward a feature when it sits at"
+                + " Application.<Feature>.<UseCase> after removing configured OperationContainers segments, the"
+                + " grouped depth of DCA-USE-014.")
+        .Checking(
+            "The input ports an adapter depends on belong to one feature. A port in a flat use-case namespace"
+                + " (Application.<UseCase>), in Application.Shared or in another module counts toward no"
+                + " feature, so a module that is not grouped into features is never reported. Fields,"
+                + " constructor parameters and calls all count as a dependency; constructor parameters are read"
+                + " from the runtime type as well. An empty selection passes.");
+
+    /// <summary>
+    /// DCA-USE-019 (experimental). A read never creates: a use case whose input is a query saves, deletes and
+    /// publishes nothing.
+    /// </summary>
+    public static IDcaRule QueryUseCasesDoNotWrite(DcaLayout layout) =>
+        DcaRule.Check(
+            "DCA-USE-019",
+            "Query use cases must not write or publish",
+            "A read never creates. A query has no side effect: it does not create, save or publish, and when"
+                + " nothing exists it answers none. Find-or-create is a command, called where the caller is about"
+                + " to change state; a caller that only shows what exists asks the query",
+            arch =>
+            {
+                var violations = new List<string>();
+                var markers = arch.Layout.Markers;
+                foreach (var type in arch.Types.Where(t => OperationPolicy.Operation(t, arch)).OrderBy(t => t.FullName, StringComparer.Ordinal))
+                {
+                    var runtime = arch.RuntimeType(type)!;
+                    if (!InputTypesOf(runtime, markers).Any(t => PlainName(t).EndsWith("Query", StringComparison.Ordinal)))
+                    {
+                        continue;
+                    }
+
+                    foreach (var unit in new IntraClassCalls(runtime).Units)
+                    {
+                        foreach (var call in IntraClassCalls.IlCalls(unit))
+                        {
+                            var effect = WriteEffectOf(call, markers);
+                            if (effect is not null)
+                            {
+                                violations.Add($"{type.FullName}.{IntraClassCalls.DisplayName(unit)} takes a query and {effect}"
+                                    + $" ({call.DeclaringType!.Name.Split('`')[0]}.{call.Name})");
+                            }
+                        }
+                    }
+                }
+
+                DcaRule.Fail(
+                    "Query use cases must not write or publish",
+                    violations.Distinct().ToList(),
+                    "answer none when nothing exists, and move the write into a command use case the caller runs where it is about to change state");
+            })
+        .Experimental()
+        .Selecting(
+            "Concrete non-nested application operations selected by IInputPort marker or configured use-case"
+                + " suffix, with loadable runtime types, whose input ends in Query: the input type argument of an"
+                + " implemented IUseCase<TInput, TOutput>, or a parameter of a method that implements an"
+                + " IInputPort interface.")
+        .Checking(
+            "No method of the class - async state machines and lambdas included - calls a repository write"
+                + " (IRepository.SaveAsync or DeleteByIdAsync, or a method of a repository or store port whose"
+                + " name starts with Save, Delete, Remove, Add, Insert, Update, Upsert, Put, Store, Write,"
+                + " Create, Append, Archive, Purge, Clear, Set or Mark), or any method of the domain-event or"
+                + " integration-event publisher. Only the class's own calls are read: a write reached through"
+                + " a helper class or a second port is not seen, and a store write under another verb passes."
+                + " An empty selection passes.");
 
     public string Name => "usecase";
 
@@ -713,6 +842,102 @@ public sealed class UseCaseRules : IDcaRuleSet
             $"Use case {suffix} models should be immutable (sealed or records)",
             violations,
             $"declare *{suffix} types with immutable instance state");
+    }
+
+    /// <summary>The input ports (interfaces and classes assignable to the role) a class depends on, by namespace and name.</summary>
+    private static IEnumerable<(string Namespace, string Name)> InputPortsOf(DcaArchitecture arch, Class adapter)
+    {
+        var found = new HashSet<(string, string)>();
+        foreach (var target in adapter.Dependencies.Select(d => d.Target))
+        {
+            if (!target.IsGenericParameter && IsAssignableTo(arch, target, arch.Layout.Markers.InputPort))
+            {
+                found.Add((target.Namespace?.FullName ?? "", target.Name));
+            }
+        }
+
+        var runtime = arch.RuntimeType(adapter);
+        if (runtime is not null)
+        {
+            foreach (var parameter in runtime
+                .GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                .SelectMany(c => c.GetParameters())
+                .Select(p => p.ParameterType)
+                .Where(t => DcaMarkers.IsAssignableToByName(t, arch.Layout.Markers.InputPort)))
+            {
+                found.Add((parameter.Namespace ?? "", parameter.Name));
+            }
+        }
+
+        return found;
+    }
+
+    /// <summary>
+    /// The feature a use-case namespace belongs to: the segment below the module's application namespace when the
+    /// namespace sits at <c>Application.&lt;Feature&gt;.&lt;UseCase&gt;</c> once the configured operation-container
+    /// segments are removed; <c>null</c> for a flat namespace, <c>Application.Shared</c> and another module.
+    /// </summary>
+    private static string? FeatureOf(string ns, string root, DcaLayout layout)
+    {
+        var application = root + "." + layout.ApplicationSegment;
+        if (!ns.StartsWith(application + ".", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var segments = ns.Substring(application.Length + 1).Split('.').Where(segment => !layout.OperationContainers.Contains(segment)).ToList();
+        return segments.Count == 2 && segments[0] != layout.SharedSegment ? segments[0] : null;
+    }
+
+    /// <summary>A port method name that writes: a write verb followed by the end, an upper-case letter or a digit.</summary>
+    private static readonly System.Text.RegularExpressions.Regex WriteVerb = new(
+        "^(Save|Delete|Remove|Add|Insert|Update|Upsert|Put|Store|Write|Create|Append|Archive|Purge|Clear|Set|Mark)(?=$|[A-Z0-9])",
+        System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    /// <summary>What a call does that a query must not, worded for the violation, or <c>null</c>.</summary>
+    private static string? WriteEffectOf(MethodBase call, DcaMarkers markers)
+    {
+        var owner = call.DeclaringType;
+        if (owner is null)
+        {
+            return null;
+        }
+
+        if (DcaMarkers.IsAssignableToByName(owner, markers.DomainEventPublisher) || DcaMarkers.IsAssignableToByName(owner, markers.IntegrationEventPublisher)
+            || (call.IsStatic && call.GetParameters().FirstOrDefault()?.ParameterType is { } first
+                && (DcaMarkers.IsAssignableToByName(first, markers.DomainEventPublisher) || DcaMarkers.IsAssignableToByName(first, markers.IntegrationEventPublisher))))
+        {
+            return "publishes events";
+        }
+
+        var port = DcaMarkers.IsAssignableToByName(owner, markers.Repository) ? "repository"
+            : DcaMarkers.IsAssignableToByName(owner, markers.Store) ? "store" : null;
+        return port is not null && WriteVerb.IsMatch(call.Name) ? $"writes through a {port}" : null;
+    }
+
+    /// <summary>The input types of an operation: the input argument of its use-case role, and the parameters of the methods implementing its input ports.</summary>
+    private static IEnumerable<Type> InputTypesOf(Type runtime, DcaMarkers markers)
+    {
+        foreach (var contract in runtime.GetInterfaces())
+        {
+            if (contract.IsGenericType && DcaMarkers.IsRole(contract.GetGenericTypeDefinition(), markers.UseCase))
+            {
+                yield return contract.GetGenericArguments()[0];
+            }
+
+            if (runtime.IsInterface || !DcaMarkers.IsAssignableToByName(contract, markers.InputPort))
+            {
+                continue;
+            }
+
+            foreach (var method in runtime.GetInterfaceMap(contract).TargetMethods)
+            {
+                foreach (var parameter in method.GetParameters())
+                {
+                    yield return parameter.ParameterType;
+                }
+            }
+        }
     }
 
     private static bool Matches(string ns, string pattern) =>

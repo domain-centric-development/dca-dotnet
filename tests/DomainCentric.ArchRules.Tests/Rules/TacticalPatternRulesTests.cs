@@ -14,7 +14,7 @@ public sealed class TacticalPatternRulesTests
 
     private static readonly IReadOnlyDictionary<string, string> NoNegativeFixture = new Dictionary<string, string>();
 
-    private static readonly string[] ExpectedIds = Enumerable.Range(1, 21).Select(i => $"DCA-TAC-{i:000}").Append("DCA-TAC-023").ToArray();
+    private static readonly string[] ExpectedIds = Enumerable.Range(1, 21).Select(i => $"DCA-TAC-{i:000}").Append("DCA-TAC-023").Append("DCA-TAC-024").ToArray();
 
     public static IEnumerable<object[]> RuleIds() => ExpectedIds.Select(id => new object[] { id });
 
@@ -113,5 +113,14 @@ public sealed class TacticalPatternRulesTests
         Assert.DoesNotContain("IAuditedRepository", message, StringComparison.Ordinal);
 
         Rule(Good, "DCA-TAC-016").Check(Arch(Good));
+    }
+
+    [Fact]
+    public void ANeutralFactoryBesideAnOriginFactoryIsReportedAndTwoOriginFactoriesPass()
+    {
+        var message = Assert.Throws<DcaRuleViolationException>(() => Rule(Bad, "DCA-TAC-024").Check(Arch(Bad))).Message;
+
+        Assert.Contains("Code declares the neutral factory Of(System.String) beside FromHash with the same parameters", message);
+        Assert.DoesNotContain("Label", message);
     }
 }

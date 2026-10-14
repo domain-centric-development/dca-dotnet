@@ -16,7 +16,7 @@ public sealed class DcaRuleSelectionTests
 
     [Fact]
     public void AllSelectsTheWholeCatalog() =>
-        Assert.Equal(DcaRules.All(Layout).Count, DcaRules.SelectFlat(Layout, DcaRuleSelection.All()).Count);
+        Assert.Equal(DcaRules.All(Layout).Count(r => r.Maturity == DcaRuleMaturity.Released), DcaRules.SelectFlat(Layout, DcaRuleSelection.All()).Count);
 
     [Fact]
     public void OnlySetsNarrowsTheRun()
@@ -186,7 +186,7 @@ public sealed class DcaRuleSelectionTests
         {
             var selection = DcaRuleSelection.FromDirectory(directory);
 
-            Assert.Equal(DcaRules.All(Layout).Count, DcaRules.SelectFlat(Layout, selection).Count);
+            Assert.Equal(DcaRules.All(Layout).Count(r => r.Maturity == DcaRuleMaturity.Released), DcaRules.SelectFlat(Layout, selection).Count);
         }
         finally
         {

@@ -64,6 +64,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
             StoreImplementationsResideInOutgoingAdapters(layout),
             StoreInterfacesHaveNoRepositorySemantics(),
             AggregateRootsHaveNoPublicConstructors(),
+            ValueObjectsHaveNoNeutralFactoryBesideAnOriginFactory(),
         }.AsReadOnly();
     }
 
@@ -860,6 +861,76 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 + " a parameterless constructor gets a non-public one. Static constructors are not"
                 + " constructors in this sense. Who calls the factory methods is not checked. An empty"
                 + " selection passes.");
+
+    /// <summary>
+    /// DCA-TAC-024 (experimental). One factory per origin: a neutral <c>Of</c> beside an origin factory that takes
+    /// the same parameters leaves the caller to guess which checks run. Two named origin factories with equal
+    /// parameters - from input, from storage - are the recommended shape and pass.
+    /// </summary>
+    public static IDcaRule ValueObjectsHaveNoNeutralFactoryBesideAnOriginFactory() =>
+        DcaRule.Check(
+            "DCA-TAC-024",
+            "Value Objects must not declare a neutral factory beside an origin factory with the same parameters",
+            "A value built from input and a value rebuilt from storage are two origins with different checks,"
+                + " and each has its own named factory. A neutral factory beside them that takes the same"
+                + " parameters leaves the caller to guess which checks run; a value with one origin keeps its"
+                + " one factory",
+            arch =>
+            {
+                var violations = new List<string>();
+                foreach (var value in ConcreteTypesAssignableTo(arch, arch.Layout.Markers.Value)
+                    .Where(t => ResidesInAny(t, DcaLayout.Below(arch.Layout.RootNamespace)))
+                    .OrderBy(t => t.FullName, StringComparer.Ordinal))
+                {
+                    var runtime = arch.RuntimeType(value);
+                    if (runtime is null || runtime.IsAbstract)
+                    {
+                        continue;
+                    }
+
+                    var factories = runtime
+                        .GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
+                        .Where(m => !m.IsSpecialName && !m.IsGenericMethodDefinition && m.ReturnType == runtime)
+                        .ToList();
+                    foreach (var neutral in factories.Where(m => m.Name == NeutralFactoryName))
+                    {
+                        var signature = Signature(neutral);
+                        var beside = factories
+                            .Where(m => m.Name != NeutralFactoryName && Signature(m) == signature)
+                            .Select(m => m.Name)
+                            .OrderBy(n => n, StringComparer.Ordinal)
+                            .ToList();
+                        if (beside.Count > 0)
+                        {
+                            violations.Add($"{value.FullName} declares the neutral factory {NeutralFactoryName}({signature})"
+                                + $" beside {string.Join(", ", beside)} with the same parameters");
+                        }
+                    }
+                }
+
+                DcaRule.Fail(
+                    "Value Objects must not declare a neutral factory beside an origin factory with the same parameters",
+                    violations,
+                    "remove the neutral factory and let each caller name the origin - the factory that validates input or the one that takes a stored value as given");
+            })
+            .Experimental()
+            .Selecting(
+                "Concrete classes, records and structs below the root namespace assignable to IValue, with"
+                + " their runtime type in the loaded assemblies.")
+            .Checking(
+                "No public static method named Of, declared by the type itself and returning exactly that"
+                + " type, sits beside another such method that takes the same parameter types in the same"
+                + " sequence. Two named factories with equal parameters (FromInput, FromStored) pass, and so"
+                + " does an Of that is the only factory for its parameters. Operators, generic methods,"
+                + " inherited methods and factories that return a wrapper (a nullable struct, a task, a"
+                + " result type) are not counted - a nullable reference return is the type itself and"
+                + " counts; constructors are not factories in this sense. An empty selection passes.");
+
+    /// <summary>The neutral factory name, as C# spells it.</summary>
+    private const string NeutralFactoryName = "Of";
+
+    private static string Signature(MethodInfo method) =>
+        string.Join(", ", method.GetParameters().Select(p => p.ParameterType.FullName ?? p.ParameterType.Name));
 
     // ---------------------------------------------------------------------------------------------
     // Helpers

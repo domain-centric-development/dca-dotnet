@@ -16,6 +16,11 @@ public sealed class OrderResource : ControllerBase
         _placeOrder = placeOrder;
     }
 
+    // DCA-HEX-014: the command is reached by POST; DCA-HEX-015: the notice travels as a code in the URL
+    [HttpPost]
     public Task<PlaceOrderResult> Place(decimal amount, CancellationToken cancellationToken) =>
         _placeOrder.ExecuteAsync(new PlaceOrderCommand(new Money(amount, "EUR")), cancellationToken);
+
+    [HttpGet]
+    public string Confirmation(string notice) => notice == "placed" ? "placed" : "";
 }

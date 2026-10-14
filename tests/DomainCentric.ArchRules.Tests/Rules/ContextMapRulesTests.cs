@@ -19,7 +19,7 @@ public sealed class ContextMapRulesTests
     {
         "DCA-MAP-001", "DCA-MAP-002", "DCA-MAP-004", "DCA-MAP-005", "DCA-MAP-006",
         "DCA-MAP-007", "DCA-MAP-008", "DCA-MAP-009", "DCA-MAP-010", "DCA-MAP-011",
-        "DCA-MAP-012", "DCA-MAP-013",
+        "DCA-MAP-012", "DCA-MAP-013", "DCA-MAP-014",
     };
 
     private static readonly IReadOnlyDictionary<string, string> NoNegativeFixture = new Dictionary<string, string>
@@ -29,6 +29,7 @@ public sealed class ContextMapRulesTests
         // one. Its negative fixture therefore needs a configured layout: see
         // AModuleDeclarationThatDisagreesWithTheContextMapIsReportedOnceConfigured.
         ["DCA-MAP-006"] = "no .NET preset configures a module-declaration attribute; the ModuleDeclaration fixture does",
+        ["DCA-MAP-014"] = "no .NET preset configures a module-declaration attribute; the AllowedDependencies fixture does",
     };
 
     private static DcaArchitecture Arch(string ns) =>
@@ -124,5 +125,30 @@ public sealed class ContextMapRulesTests
         Assert.Contains("Ordering", message, StringComparison.Ordinal);
         Assert.Contains("Catalog :: Api", message, StringComparison.Ordinal);
         Assert.Contains("Catalog :: Events", message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// DCA-MAP-014 reads the same configured module-declaration attribute as DCA-MAP-006 and selects nothing
+    /// without one.
+    /// </summary>
+    [Fact]
+    public void AnAllowedDependencyNoCodeUsesIsReportedOnceConfigured()
+    {
+        const string root = "DomainCentric.ArchRules.Tests.Fixtures.ContextMap.AllowedDependencies";
+        IDcaRule Rule(DcaLayout layout) => new ContextMapRules(layout).Rules.Single(r => r.Id == "DCA-MAP-014");
+        DcaLayout Configured(string ns) => DcaLayout.ForRootNamespace(ns).WithFrameworkTypes(
+            FrameworkTypes.AspNetCore() with { ModuleDeclarationAttributeTypes = new[] { ns + ".ModuleAttribute" } });
+
+        var unconfigured = DcaLayout.ForRootNamespace(root + ".Bad");
+        Rule(unconfigured).Check(DcaArchitecture.Load(unconfigured, typeof(ContextMapRulesTests).Assembly));
+
+        var good = Configured(root + ".Good");
+        Rule(good).Check(DcaArchitecture.Load(good, typeof(ContextMapRulesTests).Assembly));
+
+        var bad = Configured(root + ".Bad");
+        var message = Assert.Throws<DcaRuleViolationException>(
+            () => Rule(bad).Check(DcaArchitecture.Load(bad, typeof(ContextMapRulesTests).Assembly))).Message;
+        Assert.Contains("Context 'Ordering': the module declaration allows 'Billing'", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("'Catalog :: Api'", message, StringComparison.Ordinal);
     }
 }

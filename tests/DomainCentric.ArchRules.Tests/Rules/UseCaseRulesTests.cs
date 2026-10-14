@@ -31,6 +31,8 @@ public sealed class UseCaseRulesTests
         "DCA-USE-015",
         "DCA-USE-016",
         "DCA-USE-017",
+        "DCA-USE-018",
+        "DCA-USE-019",
     };
 
     /// <summary>Rules without a negative fixture (id → reason).</summary>
@@ -191,5 +193,24 @@ public sealed class UseCaseRulesTests
         Assert.Contains("ICarrierPort", message, StringComparison.Ordinal);
         // A repository is a transactional resource and belongs inside the boundary.
         Assert.DoesNotContain("IOrderRepository", message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AnAdapterDrivingTwoFeaturesIsReportedNamingBoth()
+    {
+        var message = Assert.Throws<DcaRuleViolationException>(() => Rule(Bad, "DCA-USE-018").Check(Arch(Bad))).Message;
+
+        Assert.Contains("OrderDeskPageController drives the input ports of 2 features: Billing (IIssueInvoiceInputPort); Fulfilment (IShipOrderLaterInputPort)", message);
+    }
+
+    [Fact]
+    public void AQueryThatCreatesIsReportedAndOneThatOnlyReadsPasses()
+    {
+        var message = Assert.Throws<DcaRuleViolationException>(() => Rule(Bad, "DCA-USE-019").Check(Arch(Bad))).Message;
+
+        Assert.Contains("FindOrPlaceOrderUseCase.ExecuteAsync takes a query and writes through a repository", message);
+        Assert.Contains("FindOrPlaceOrderUseCase.ExecuteAsync takes a query and publishes events", message);
+        Assert.DoesNotContain("PlaceOrderUseCase.ExecuteAsync takes", message.Replace("FindOrPlaceOrderUseCase", ""));
+        Assert.DoesNotContain("ShowOrder", message);
     }
 }

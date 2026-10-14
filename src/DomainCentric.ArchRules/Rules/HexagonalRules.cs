@@ -44,6 +44,8 @@ public sealed class HexagonalRules : IDcaRuleSet
             IncomingAdaptersMustDependOnInputPortsNotUseCaseClasses(),
             IncomingAdaptersMustNotDependOnDomainServices(),
             OutgoingAdaptersMustNotDependOnInputPorts(),
+            GetHandlersMustNotDriveCommands(),
+            IncomingAdaptersKeepNoInstanceLocalState(),
         }.AsReadOnly();
     }
 
@@ -420,6 +422,179 @@ public sealed class HexagonalRules : IDcaRuleSet
                 + " - only direct dependencies are read; constructor parameters are read from the"
                 + " runtime type as well, so a port injected into an adapter whose members are all"
                 + " async is still found. An empty selection passes.");
+
+    /// <summary>
+    /// DCA-HEX-014 (experimental). A state-changing use case is reached only by an unsafe method. Handlers are found
+    /// through the GET-mapping roles of the framework preset; the call is followed through the class's own helpers.
+    /// </summary>
+    public IDcaRule GetHandlersMustNotDriveCommands() =>
+        DcaRule.Check(
+            "DCA-HEX-014",
+            "GET handlers must not drive an input port that takes a command",
+            "A state-changing use case is reached only by an unsafe HTTP method, never by GET; links do not"
+                + " create state. Prefetching, crawlers and cross-site navigation follow a link without asking,"
+                + " and would otherwise trigger the change",
+            arch =>
+            {
+                var roles = arch.Layout.FrameworkTypes;
+                var incoming = DcaLayout.AnyOf(arch.AllIncomingAdapterPatterns());
+                var violations = new List<string>();
+                foreach (var adapter in arch.Classes.Where(c => !c.IsCompilerGenerated && InNamespace(c, incoming)).OrderBy(c => c.FullName, StringComparer.Ordinal))
+                {
+                    var runtime = arch.RuntimeType(adapter);
+                    if (runtime is null)
+                    {
+                        continue;
+                    }
+
+                    var byPrefix = IsController(adapter, arch.Layout);
+                    var graph = new IntraClassCalls(runtime);
+                    foreach (var handler in graph.Units.OfType<MethodInfo>()
+                        .Where(m => m.DeclaringType == runtime && IsGetHandler(m, roles, byPrefix)))
+                    {
+                        foreach (var call in graph.ReachableFrom(handler).SelectMany(IntraClassCalls.IlCalls))
+                        {
+                            var command = CommandTakenBy(call, arch.Layout.Markers);
+                            if (command is not null)
+                            {
+                                violations.Add($"{adapter.FullName}.{handler.Name} handles GET and drives"
+                                    + $" {call.DeclaringType!.Name.Split('`')[0]}.{call.Name} with the command {command}");
+                            }
+                        }
+                    }
+                }
+
+                DcaRule.Fail(
+                    "GET handlers must not drive an input port that takes a command",
+                    violations.Distinct().ToList(),
+                    "map the handler to POST, PUT or DELETE, or let the GET handler ask a query");
+            })
+        .Experimental()
+        .Selecting(
+            "Methods declared by classes in <module>.Adapter.Incoming of every module root that carry an"
+                + " attribute of the configured GET-mapping role (derived attributes included), or - on a"
+                + " class recognised as a controller or page model - whose name starts with a configured"
+                + " GET-handler prefix. Both roles are empty in the None() preset, which then selects nothing.")
+        .Checking(
+            "No method reached from the handler through calls within the class - async state machines and"
+                + " lambdas included - calls a method of a type assignable to IInputPort that takes a"
+                + " parameter whose type name ends in Command. A handler mapped by a routing call rather than"
+                + " by an attribute or a name is not seen, and a command reached through a second class is"
+                + " not followed. An empty selection passes.");
+
+    /// <summary>
+    /// DCA-HEX-015 (experimental). State a later request needs travels with that request or lives in a store every
+    /// instance reads. The APIs that keep it in one instance come from the framework preset.
+    /// </summary>
+    public IDcaRule IncomingAdaptersKeepNoInstanceLocalState() =>
+        DcaRule.Check(
+            "DCA-HEX-015",
+            "Incoming adapters must not keep state for a later request in one instance",
+            "State a later request needs travels with that request or lives in a store every instance"
+                + " reads. A server session or a message held for the page after a redirect is kept by one"
+                + " instance, and behind a load balancer without sticky sessions the next request reaches"
+                + " another one",
+            arch =>
+            {
+                var roles = arch.Layout.FrameworkTypes.InstanceLocalStateTypes;
+                var violations = new List<string>();
+                if (roles.Count > 0)
+                {
+                    var incoming = DcaLayout.AnyOf(arch.AllIncomingAdapterPatterns());
+                    foreach (var adapter in arch.Classes.Where(c => !c.IsCompilerGenerated && InNamespace(c, incoming)).OrderBy(c => c.FullName, StringComparer.Ordinal))
+                    {
+                        var runtime = arch.RuntimeType(adapter);
+                        if (runtime is null)
+                        {
+                            continue;
+                        }
+
+                        foreach (var used in InstanceLocalStateUsedBy(runtime, roles))
+                        {
+                            violations.Add($"{adapter.FullName} uses the instance-local state API {used}");
+                        }
+                    }
+                }
+
+                DcaRule.Fail(
+                    "Incoming adapters must not keep state for a later request in one instance",
+                    violations.Distinct().ToList(),
+                    "carry the state in the request - a fixed code in the redirect URL for a message - or keep it in a store every instance reads");
+            })
+        .Experimental()
+        .Selecting(
+            "Classes in <module>.Adapter.Incoming of every module root, compiler-generated classes"
+                + " excluded, with their runtime type in the loaded assemblies.")
+        .Checking(
+            "No type of the configured instance-local-state role appears as the declaring, parameter or"
+                + " return type of a method the class calls - async state machines and lambdas included - as"
+                + " the type of a field, property or method parameter or return it declares, or as an"
+                + " attribute on the class or its members. The role is empty in the None() preset, which then reports nothing; a project"
+                + " whose instances share that state empties it. Whether the state is read by a later"
+                + " request is not checked. An empty selection passes.");
+
+    private static bool IsGetHandler(MethodInfo method, FrameworkTypes roles, bool byPrefix) =>
+        (!method.IsSpecialName && method.GetCustomAttributesData().Any(a => roles.GetMappingAttributeTypes.Any(r => DcaMarkers.IsAssignableToByName(a.AttributeType, r))))
+        || (byPrefix && method.IsPublic && !method.IsStatic && roles.GetHandlerNamePrefixes.Any(p => p.Length > 0 && method.Name.StartsWith(p, StringComparison.Ordinal)));
+
+    /// <summary>The command type an input-port call takes, or <c>null</c> when the call is no such call.</summary>
+    private static string? CommandTakenBy(MethodBase call, DcaMarkers markers)
+    {
+        if (call.DeclaringType is null || !DcaMarkers.IsAssignableToByName(call.DeclaringType, markers.InputPort))
+        {
+            return null;
+        }
+
+        return call.GetParameters()
+            .Select(p => p.ParameterType.Name.Split('`')[0])
+            .FirstOrDefault(name => name.EndsWith("Command", StringComparison.Ordinal));
+    }
+
+    /// <summary>The role types a class touches: through its calls, its declared fields and properties, and its attributes.</summary>
+    private static IEnumerable<string> InstanceLocalStateUsedBy(Type runtime, IReadOnlyList<string> roles)
+    {
+        string? Role(Type? type) => type is null ? null : roles.FirstOrDefault(r => DcaMarkers.IsAssignableToByName(type, r));
+
+        var flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
+        var found = new SortedSet<string>(StringComparer.Ordinal);
+        foreach (var unit in new IntraClassCalls(runtime).Units)
+        {
+            foreach (var call in IntraClassCalls.IlCalls(unit))
+            {
+                var types = call.GetParameters().Select(p => p.ParameterType).Append(call.DeclaringType);
+                if (call is MethodInfo info)
+                {
+                    types = types.Append(info.ReturnType);
+                }
+
+                foreach (var role in types.Select(Role).Where(r => r is not null))
+                {
+                    found.Add(role!);
+                }
+            }
+        }
+
+        var members = new MemberInfo[] { runtime }
+            .Concat(runtime.GetFields(flags))
+            .Concat(runtime.GetProperties(flags))
+            .Concat(runtime.GetMethods(flags));
+        foreach (var member in members)
+        {
+            var memberTypes = member switch
+            {
+                FieldInfo field => new[] { field.FieldType },
+                PropertyInfo property => new[] { property.PropertyType },
+                MethodInfo method => method.GetParameters().Select(p => p.ParameterType).Append(method.ReturnType).ToArray(),
+                _ => Type.EmptyTypes,
+            };
+            foreach (var role in member.GetCustomAttributesData().Select(a => Role(a.AttributeType)).Concat(memberTypes.Select(Role)).Where(r => r is not null))
+            {
+                found.Add(role!);
+            }
+        }
+
+        return found;
+    }
 
     /// <summary>A use case implementation: a class (never an interface) behind an <see cref="IInputPort"/>.</summary>
     private static bool IsUseCaseImplementation(DcaArchitecture arch, IType type) =>

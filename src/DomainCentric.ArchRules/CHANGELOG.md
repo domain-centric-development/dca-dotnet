@@ -17,7 +17,36 @@ rules only; `DcaRules.All` stays the whole catalog. `DcaArchitectureTest` report
 as a group of their own, `experimental (n) / <id>`, after the rule sets — marked `[NOT OPTED IN]`
 and not run when the file does not opt in — and the summary line always reads
 `<n> enforced, <n> informational, <n> experimental`. `rules.json` carries `"maturity"` on every rule,
-right after `"status"`; every rule of the catalog is `released`.
+right after `"status"`.
+
+**The first experimental rules** (WP-109) — same ids as the Java library, all `experimental`, so a suite
+without the opt-in runs exactly as before:
+
+- `DCA-TAC-024` (tactical) — a value object declares no neutral factory `Of` beside another public static
+  factory that returns it and takes the same parameter types; two named origin factories with equal
+  parameters (`FromInput`, `FromStored`) pass.
+- `DCA-NAM-012` (naming, informational) — lists an input port or use case whose name holds a trigger word
+  (`On`, `After`, `When`, `Upon`, `Before` followed by an upper-case letter).
+- `DCA-NAM-013` (naming) — a use case, an input port and a public method of a module's `Api` namespace are
+  not named `Set…` or `Update…` followed by the field.
+- `DCA-USE-018` (usecase) — in a module grouped into features, an incoming adapter class depends on the
+  input ports of one feature only.
+- `DCA-USE-019` (usecase) — a use case whose input ends in `Query` calls no repository or store write and no
+  event publisher.
+- `DCA-HEX-014` (hexagonal) — a GET handler drives no input port that takes a `*Command`.
+- `DCA-HEX-015` (hexagonal) — an incoming adapter uses no API that keeps state for a later request in one
+  instance.
+- `DCA-MAP-014` (contextmap) — every allowed-dependency entry of a module declaration is backed by a code
+  dependency of the context on that module (or its named interface). Reads the same
+  `ModuleDeclarationAttributeTypes` role as `DCA-MAP-006` and selects nothing where none is configured —
+  the default, since no preset names one.
+- `DCA-ERR-007` (errors, informational) — lists fields of domain and use-case exceptions that hold a plain
+  string or an aggregate or entity instead of ids and values.
+
+Three new `FrameworkTypes` roles carry the framework names: `GetMappingAttributeTypes` and
+`GetHandlerNamePrefixes` (`DCA-HEX-014`; `AspNetCore()`: `[HttpGet]`, the `OnGet` handler prefix) and
+`InstanceLocalStateTypes` (`DCA-HEX-015`; `AspNetCore()`: `ISession`, `ITempDataDictionary`, `[TempData]`).
+All three are empty in `None()`.
 
 ## [0.7.0] - 2026-10-12
 

@@ -167,4 +167,21 @@ public sealed class FeatureLayoutTests
             Assert.Contains("Application.ShipOrder", message);
         }
     }
+
+    public sealed class AdapterCut
+    {
+        private const string Cut = Fixtures + ".AdapterCut";
+        private const string Id = "DCA-USE-018";
+
+        [Fact]
+        public void OneAdapterPerFeaturePasses() => Rule(Cut + ".Good", Id).Check(Arch(Cut + ".Good"));
+
+        [Fact]
+        public void AnAdapterDrivingTwoFeaturesIsReported()
+        {
+            var message = Assert.Throws<DcaRuleViolationException>(() => Rule(Cut + ".Bad", Id).Check(Arch(Cut + ".Bad"))).Message;
+
+            Assert.Contains("SchedulingPageController drives the input ports of 2 features: Booking (IBookSlotInputPort); Calendar (IShowCalendarInputPort)", message);
+        }
+    }
 }

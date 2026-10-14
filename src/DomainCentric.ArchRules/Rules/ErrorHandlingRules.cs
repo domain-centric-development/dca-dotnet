@@ -42,6 +42,7 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
             ExceptionsCarryNoFrameworkMetadata(),
             ExceptionsNameNoTransportConcept(),
             AdaptersWithoutTranslation(),
+            FailuresCarryIdsAndValues(),
         };
     }
 
@@ -325,6 +326,84 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                 + "UseCaseException, and never fails. A handler in a different namespace of the same module is "
                 + "not seen, and a caught type is not visible to the type model, so this does not establish "
                 + "that a namespace translates nothing.");
+
+    /// <summary>
+    /// DCA-ERR-007 (experimental, informational). A failure carries ids and figures, never what a page shows. A
+    /// plain string field may hold a code, so the rule observes rather than fails.
+    /// </summary>
+    public IDcaRule FailuresCarryIdsAndValues() =>
+        DcaRule.Informational(
+            "DCA-ERR-007",
+            "Diagnostic: failures that carry display data or objects instead of ids and figures",
+            "A failure carries ids and figures, never what a page shows: its fields are the typed identities"
+                + " and the values the rule compared. A name or a description of the thing the id refers to is"
+                + " resolved by the translation site, through the queries it already has; a failure that"
+                + " carries it decides for every surface what it shows, and one that carries the aggregate"
+                + " hands its state to every caller",
+            arch =>
+            {
+                var markers = arch.Layout.Markers;
+                var observed = new List<string>();
+                foreach (var exception in ExceptionsOfEitherLayer(arch).OrderBy(t => t.FullName, StringComparer.Ordinal))
+                {
+                    var runtime = arch.RuntimeType(exception);
+                    for (var type = runtime; type is not null && !DcaMarkers.IsRole(type, markers.DomainException)
+                        && !DcaMarkers.IsRole(type, markers.UseCaseException) && type != typeof(Exception); type = type.BaseType)
+                    {
+                        foreach (var field in type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly))
+                        {
+                            var finding = FieldFinding(field.FieldType, markers);
+                            if (finding is not null)
+                            {
+                                observed.Add($"{exception.FullName} holds {FieldName(field)} as {finding} - carry the id or the value the rule compared");
+                            }
+                        }
+                    }
+                }
+
+                return observed.Distinct().ToList();
+            })
+            .Experimental()
+            .Selecting(
+                "The project's own types below DomainException or UseCaseException, with their runtime type in"
+                + " the loaded assemblies, and the instance fields they and their project base types declare -"
+                + " the backing fields of auto-properties included.")
+            .Checking(
+                "Informational diagnostic only: lists a field whose type is a plain string, or is assignable to"
+                + " IAggregateRoot or IEntity - directly, as an array element or as a generic type argument -"
+                + " and never fails. Ids, values, numbers and every other type pass. A string that holds a code"
+                + " rather than display text is listed as well; whether it should be a value stays with review.");
+
+    /// <summary>What is wrong with a failure's field type, worded for the line, or <c>null</c>.</summary>
+    private static string? FieldFinding(Type type, DcaMarkers markers)
+    {
+        if (type == typeof(string))
+        {
+            return "a plain string";
+        }
+
+        if (DcaMarkers.IsAssignableToByName(type, markers.AggregateRoot))
+        {
+            return $"the aggregate {type.Name}";
+        }
+
+        if (DcaMarkers.IsAssignableToByName(type, markers.Entity))
+        {
+            return $"the entity {type.Name}";
+        }
+
+        var parts = type.IsArray ? new[] { type.GetElementType()! } : type.IsGenericType ? type.GetGenericArguments() : Type.EmptyTypes;
+        return parts.Select(part => FieldFinding(part, markers)).FirstOrDefault(f => f is not null) is { } inner
+            ? $"{type.Name.Split('`')[0]} of {inner}"
+            : null;
+    }
+
+    /// <summary>A field's source name: the property name for an auto-property's backing field.</summary>
+    private static string FieldName(FieldInfo field)
+    {
+        var name = field.Name;
+        return name.StartsWith('<') && name.IndexOf('>') > 1 ? name[1..name.IndexOf('>')] : name;
+    }
 
     /// <summary>The project's own exception types: assignable to Exception, outside the building blocks.</summary>
     private static IEnumerable<IType> ProjectExceptions(DcaArchitecture arch) =>
