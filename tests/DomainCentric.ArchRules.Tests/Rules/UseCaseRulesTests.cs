@@ -201,7 +201,7 @@ public sealed class UseCaseRulesTests
     {
         var message = Assert.Throws<DcaRuleViolationException>(() => Rule(Bad, "DCA-USE-018").Check(Arch(Bad))).Message;
 
-        Assert.Contains("OrderDeskPageController drives the input ports of 2 features: Billing (IIssueInvoiceInputPort); Fulfilment (IShipOrderLaterInputPort)", message);
+        Assert.Contains("OrderDeskPageController drives the commands of 2 features: Billing (IIssueInvoiceInputPort); Fulfilment (IShipOrderLaterInputPort)", message);
     }
 
     [Fact]

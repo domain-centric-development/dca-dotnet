@@ -174,14 +174,14 @@ public sealed class FeatureLayoutTests
         private const string Id = "DCA-USE-018";
 
         [Fact]
-        public void OneAdapterPerFeaturePasses() => Rule(Cut + ".Good", Id).Check(Arch(Cut + ".Good"));
+        public void OneAdapterPerFeaturePassesAndReadingANeighboursQueryIsAllowed() => Rule(Cut + ".Good", Id).Check(Arch(Cut + ".Good"));
 
         [Fact]
         public void AnAdapterDrivingTwoFeaturesIsReported()
         {
             var message = Assert.Throws<DcaRuleViolationException>(() => Rule(Cut + ".Bad", Id).Check(Arch(Cut + ".Bad"))).Message;
 
-            Assert.Contains("SchedulingPageController drives the input ports of 2 features: Booking (IBookSlotInputPort); Calendar (IShowCalendarInputPort)", message);
+            Assert.Contains("SchedulingPageController drives the commands of 2 features: Booking (IBookSlotInputPort); Calendar (IBlockDayInputPort)", message);
         }
     }
 }

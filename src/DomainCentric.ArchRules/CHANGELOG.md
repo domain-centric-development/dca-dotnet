@@ -29,8 +29,9 @@ without the opt-in runs exactly as before:
   (`On`, `After`, `When`, `Upon`, `Before` followed by an upper-case letter).
 - `DCA-NAM-013` (naming) — a use case, an input port and a public method of a module's `Api` namespace are
   not named `Set…` or `Update…` followed by the field.
-- `DCA-USE-018` (usecase) — in a module grouped into features, an incoming adapter class depends on the
-  input ports of one feature only.
+- `DCA-USE-018` (usecase) — in a module grouped into features, an incoming adapter class drives the
+  commands of one feature only: input ports whose input ends in `Command` fall into one feature, while a
+  port whose input ends in `Query` is not counted (reading a neighbouring feature's query is allowed).
 - `DCA-USE-020` (usecase) — no type of the application layer parses raw input into an id with
   `System.Guid.Parse`, `TryParse`, `ParseExact` or `TryParseExact`; the adapter or the id's value type parses.
 - `DCA-USE-019` (usecase) — a use case whose input ends in `Query` calls no repository or store write and no
