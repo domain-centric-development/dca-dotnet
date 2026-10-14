@@ -94,8 +94,9 @@ public sealed record FrameworkTypes(
     /// <summary>Method-name prefixes by which a framework maps a handler of a controller or page model to an HTTP GET request without an attribute. <c>DCA-HEX-014</c> treats such a method like one carrying a <see cref="GetMappingAttributeTypes"/> attribute. Empty in <see cref="None"/>.</summary>
     public IReadOnlyList<string> GetHandlerNamePrefixes { get; init; } = Array.Empty<string>();
 
-    /// <summary>Full type names of the APIs that keep state for a later request inside one running instance — a server session, a message held for the page after a redirect — the counterpart of the Java library's <c>instanceLocalState</c> role. <c>DCA-HEX-015</c> forbids an incoming adapter to use them: behind a load balancer without sticky sessions the next request reaches another instance. A type is matched as a declaring, parameter, return, field or property type and as an attribute. A project whose instances share that state (a distributed session store, a key ring every instance reads) empties the role via a with-expression. Empty in <see cref="None"/>.</summary>
-    public IReadOnlyList<string> InstanceLocalStateTypes { get; init; } = Array.Empty<string>();
+    /// <summary>Always empty, and an assignment is ignored. The role was read only by <c>DCA-HEX-015</c>, which is retired; the property stays so a with-expression written against 0.8.0 still compiles.</summary>
+    [Obsolete("DCA-HEX-015 is retired and nothing reads this role; remove the assignment.")]
+    public IReadOnlyList<string> InstanceLocalStateTypes { get => Array.Empty<string>(); init { } }
 
     /// <summary>ASP.NET Core MVC / Razor Pages and <c>System.Transactions</c>.</summary>
     public static FrameworkTypes AspNetCore() =>
@@ -112,7 +113,6 @@ public sealed record FrameworkTypes(
             TransactionApiTypes = Array.AsReadOnly(new[] { "System.Transactions.CommittableTransaction", "System.Data.IDbTransaction", "System.Data.Common.DbTransaction", "Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction" }),
             GetMappingAttributeTypes = Array.AsReadOnly(new[] { "Microsoft.AspNetCore.Mvc.HttpGetAttribute" }),
             GetHandlerNamePrefixes = Array.AsReadOnly(new[] { "OnGet" }),
-            InstanceLocalStateTypes = Array.AsReadOnly(new[] { "Microsoft.AspNetCore.Http.ISession", "Microsoft.AspNetCore.Mvc.ViewFeatures.ITempDataDictionary", "Microsoft.AspNetCore.Mvc.TempDataAttribute" }),
         };
 
     /// <summary>

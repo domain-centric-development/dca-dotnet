@@ -45,7 +45,6 @@ public sealed class HexagonalRules : IDcaRuleSet
             IncomingAdaptersMustNotDependOnDomainServices(),
             OutgoingAdaptersMustNotDependOnInputPorts(),
             GetHandlersMustNotDriveCommands(),
-            IncomingAdaptersKeepNoInstanceLocalState(),
             AdaptersPublishNoEnumMemberName(),
         }.AsReadOnly();
     }
@@ -484,57 +483,6 @@ public sealed class HexagonalRules : IDcaRuleSet
                 + " not followed. An empty selection passes.");
 
     /// <summary>
-    /// DCA-HEX-015 (experimental). State a later request needs travels with that request or lives in a store every
-    /// instance reads. The APIs that keep it in one instance come from the framework preset.
-    /// </summary>
-    public IDcaRule IncomingAdaptersKeepNoInstanceLocalState() =>
-        DcaRule.Check(
-            "DCA-HEX-015",
-            "Incoming adapters must not keep state for a later request in one instance",
-            "State a later request needs travels with that request or lives in a store every instance"
-                + " reads. A server session or a message held for the page after a redirect is kept by one"
-                + " instance, and behind a load balancer without sticky sessions the next request reaches"
-                + " another one",
-            arch =>
-            {
-                var roles = arch.Layout.FrameworkTypes.InstanceLocalStateTypes;
-                var violations = new List<string>();
-                if (roles.Count > 0)
-                {
-                    var incoming = DcaLayout.AnyOf(arch.AllIncomingAdapterPatterns());
-                    foreach (var adapter in arch.Classes.Where(c => !c.IsCompilerGenerated && InNamespace(c, incoming)).OrderBy(c => c.FullName, StringComparer.Ordinal))
-                    {
-                        var runtime = arch.RuntimeType(adapter);
-                        if (runtime is null)
-                        {
-                            continue;
-                        }
-
-                        foreach (var used in InstanceLocalStateUsedBy(runtime, roles))
-                        {
-                            violations.Add($"{adapter.FullName} uses the instance-local state API {used}");
-                        }
-                    }
-                }
-
-                DcaRule.Fail(
-                    "Incoming adapters must not keep state for a later request in one instance",
-                    violations.Distinct().ToList(),
-                    "carry the state in the request - a fixed code in the redirect URL for a message - or keep it in a store every instance reads");
-            })
-        .Experimental()
-        .Selecting(
-            "Classes in <module>.Adapter.Incoming of every module root, compiler-generated classes"
-                + " excluded, with their runtime type in the loaded assemblies.")
-        .Checking(
-            "No type of the configured instance-local-state role appears as the declaring, parameter or"
-                + " return type of a method the class calls - async state machines and lambdas included - as"
-                + " the type of a field, property or method parameter or return it declares, or as an"
-                + " attribute on the class or its members. The role is empty in the None() preset, which then reports nothing; a project"
-                + " whose instances share that state empties it. Whether the state is read by a later"
-                + " request is not checked. An empty selection passes.");
-
-    /// <summary>
     /// DCA-HEX-016 (experimental, informational). A value an adapter publishes from an enum is spelled explicitly,
     /// never derived from the member's name. Read from the IL: a <c>ToString</c> on the enum (through
     /// <c>constrained.</c> or after <c>box</c>), a boxed enum passed into a string-building call, an interpolation
@@ -657,52 +605,6 @@ public sealed class HexagonalRules : IDcaRuleSet
         return call.GetParameters()
             .Select(p => p.ParameterType.Name.Split('`')[0])
             .FirstOrDefault(name => name.EndsWith("Command", StringComparison.Ordinal));
-    }
-
-    /// <summary>The role types a class touches: through its calls, its declared fields and properties, and its attributes.</summary>
-    private static IEnumerable<string> InstanceLocalStateUsedBy(Type runtime, IReadOnlyList<string> roles)
-    {
-        string? Role(Type? type) => type is null ? null : roles.FirstOrDefault(r => DcaMarkers.IsAssignableToByName(type, r));
-
-        var flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
-        var found = new SortedSet<string>(StringComparer.Ordinal);
-        foreach (var unit in new IntraClassCalls(runtime).Units)
-        {
-            foreach (var call in IntraClassCalls.IlCalls(unit))
-            {
-                var types = call.GetParameters().Select(p => p.ParameterType).Append(call.DeclaringType);
-                if (call is MethodInfo info)
-                {
-                    types = types.Append(info.ReturnType);
-                }
-
-                foreach (var role in types.Select(Role).Where(r => r is not null))
-                {
-                    found.Add(role!);
-                }
-            }
-        }
-
-        var members = new MemberInfo[] { runtime }
-            .Concat(runtime.GetFields(flags))
-            .Concat(runtime.GetProperties(flags))
-            .Concat(runtime.GetMethods(flags));
-        foreach (var member in members)
-        {
-            var memberTypes = member switch
-            {
-                FieldInfo field => new[] { field.FieldType },
-                PropertyInfo property => new[] { property.PropertyType },
-                MethodInfo method => method.GetParameters().Select(p => p.ParameterType).Append(method.ReturnType).ToArray(),
-                _ => Type.EmptyTypes,
-            };
-            foreach (var role in member.GetCustomAttributesData().Select(a => Role(a.AttributeType)).Concat(memberTypes.Select(Role)).Where(r => r is not null))
-            {
-                found.Add(role!);
-            }
-        }
-
-        return found;
     }
 
     /// <summary>A use case implementation: a class (never an interface) behind an <see cref="IInputPort"/>.</summary>

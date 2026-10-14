@@ -17,6 +17,17 @@ public class RetirementTests {
   Assert.Empty(DcaRuleSelection.All().Excluding("DCA-USE-016").RetiredReferences);
   Assert.Throws<ArgumentException>(()=>DcaRuleSelection.All().Excluding("DCA-ADV-999"));
  }
+ [Fact] public void AProjectNamingTheRetiredHex015GetsTheNotice() {
+  Assert.Equal(new[] { "DCA-HEX-015" },DcaRuleSelection.All().Excluding("DCA-HEX-015").RetiredReferences);
+  Assert.Equal("0.9.0",DcaRules.Retired()["DCA-HEX-015"].Since);
+ }
+#pragma warning disable CS0618
+ [Fact] public void TheRetiredInstanceLocalStateRoleStillCompilesAndIsIgnored() {
+  var written=FrameworkTypes.AspNetCore() with { InstanceLocalStateTypes=new[] { "X.Session" } };
+  Assert.Equal(FrameworkTypes.AspNetCore().GetMappingAttributeTypes,written.GetMappingAttributeTypes);
+  Assert.Empty(written.InstanceLocalStateTypes);
+ }
+#pragma warning restore CS0618
  [Fact] public void RetiredIdentitiesCannotBeSelected() {
   foreach (var id in DcaRules.Retired().Keys) {
    var message=Assert.Throws<ArgumentException>(()=>DcaRuleSelection.All().OnlyIds(id)).Message;

@@ -239,7 +239,7 @@ rule off.
 
 ## Rule catalog
 
-**125 rule ids in 12 sets: 119 enforced, 5 informational, 1 not applicable in .NET.** Five further ids are retired and keep their meaning in the retirement list. The
+**140 rule ids in 12 sets: 131 enforced, 8 informational, 1 not applicable in .NET; 10 of them experimental.** Six further ids are retired and keep their meaning in the retirement list. The
 exact, current list is [RULES.md](RULES.md) and [rules.json](rules.json), both generated from the code
 by `dotnet run --project tools/RulesCatalog -- .` and verified in CI; every number in this README is
 taken from there. `rules.json` names the package version its texts belong to.

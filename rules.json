@@ -246,17 +246,6 @@
     },
     {
       "set": "hexagonal",
-      "id": "DCA-HEX-015",
-      "title": "Incoming adapters must not keep state for a later request in one instance",
-      "rationale": "State a later request needs travels with that request or lives in a store every instance reads. A server session or a message held for the page after a redirect is kept by one instance, and behind a load balancer without sticky sessions the next request reaches another one",
-      "selects": "Classes in <module>.Adapter.Incoming of every module root, compiler-generated classes excluded, with their runtime type in the loaded assemblies.",
-      "checks": "No type of the configured instance-local-state role appears as the declaring, parameter or return type of a method the class calls - async state machines and lambdas included - as the type of a field, property or method parameter or return it declares, or as an attribute on the class or its members. The role is empty in the None() preset, which then reports nothing; a project whose instances share that state empties it. Whether the state is read by a later request is not checked. An empty selection passes.",
-      "implementation": "dotnet",
-      "status": "enforced",
-      "maturity": "experimental"
-    },
-    {
-      "set": "hexagonal",
       "id": "DCA-HEX-016",
       "title": "Diagnostic: adapters that publish an enum by its member name",
       "rationale": "A value an adapter publishes from an enum is spelled explicitly - a code per value on the enum or a mapping in the adapter - never derived from the member's name: renaming a member is a refactoring inside the code and must not change what a client reads",
@@ -1561,6 +1550,12 @@
       "reason": "Where a domain service sits inside the domain layer is the team's decision; DCA-ADV-010 keeps the layer itself",
       "replacement": "DCA-ADV-010",
       "since": "0.5.0"
+    },
+    {
+      "id": "DCA-HEX-015",
+      "reason": "Keeping no state for a later request in one instance is an operational requirement - several instances without sticky sessions - that a project chooses, not architecture every application shares; the pattern stays guide and catalog guidance for applications that run that way",
+      "replacement": "none",
+      "since": "0.9.0"
     },
     {
       "id": "DCA-MAP-003",

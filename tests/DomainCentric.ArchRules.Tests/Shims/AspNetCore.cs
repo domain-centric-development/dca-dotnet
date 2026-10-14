@@ -41,27 +41,4 @@ namespace Microsoft.AspNetCore.Mvc
     public sealed class HttpPostAttribute : System.Attribute
     {
     }
-
-    /// <summary>Stand-in for the attribute that keeps a property in TempData (DCA-HEX-015).</summary>
-    [System.AttributeUsage(System.AttributeTargets.Property)]
-    public sealed class TempDataAttribute : System.Attribute
-    {
-    }
-}
-
-namespace Microsoft.AspNetCore.Mvc.ViewFeatures
-{
-    /// <summary>Stand-in for the message store held for the next request (DCA-HEX-015).</summary>
-    public interface ITempDataDictionary : System.Collections.Generic.IDictionary<string, object?>
-    {
-    }
-}
-
-namespace Microsoft.AspNetCore.Http
-{
-    /// <summary>Stand-in for the server session (DCA-HEX-015).</summary>
-    public interface ISession
-    {
-        void SetString(string key, string value);
-    }
 }
