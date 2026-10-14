@@ -17,6 +17,18 @@ public class RetirementTests {
   Assert.Empty(DcaRuleSelection.All().Excluding("DCA-USE-016").RetiredReferences);
   Assert.Throws<ArgumentException>(()=>DcaRuleSelection.All().Excluding("DCA-ADV-999"));
  }
+ /// <summary>
+ /// A properties file written for an earlier release names a retired id; the notice must survive the
+ /// merge with the selection made in code, on whichever side the retired id stands.
+ /// </summary>
+ [Fact] public void ARetiredIdTheFileNamesIsStillReportedAfterTheMerge() {
+  var file=DcaRuleSelection.All().Excluding("DCA-HEX-015","several instances");
+  var code=DcaRuleSelection.All().Warning("DCA-TAC-009","from the code");
+  Assert.Equal(new[] { "DCA-HEX-015" },file.MergedWith(code).RetiredReferences);
+  Assert.Equal(new[] { "DCA-HEX-015" },code.MergedWith(file).RetiredReferences);
+  // the chain DcaArchitectureTest builds: file, legacy overrides, additional selection
+  Assert.Equal(new[] { "DCA-HEX-015" },file.MergedWith(DcaRuleSelection.All()).MergedWith(DcaRuleSelection.All()).RetiredReferences);
+ }
  [Fact] public void AProjectNamingTheRetiredHex015GetsTheNotice() {
   Assert.Equal(new[] { "DCA-HEX-015" },DcaRuleSelection.All().Excluding("DCA-HEX-015").RetiredReferences);
   Assert.Equal("0.9.0",DcaRules.Retired()["DCA-HEX-015"].Since);
