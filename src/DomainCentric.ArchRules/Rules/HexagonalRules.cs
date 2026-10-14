@@ -472,13 +472,16 @@ public sealed class HexagonalRules : IDcaRuleSet
         .Experimental()
         .Selecting(
             "Methods declared by classes in <module>.Adapter.Incoming of every module root that carry an"
-                + " attribute of the configured GET-mapping role (derived attributes included), or - on a"
+                + " attribute of the configured GET-mapping role (derived attributes included) - for an entry"
+                + " that names a property value, an attribute of that type whose property holds the value (a"
+                + " general verb attribute restricted to GET) - or - on a"
                 + " class recognised as a controller or page model - whose name starts with a configured"
                 + " GET-handler prefix. Both roles are empty in the None() preset, which then selects nothing.")
         .Checking(
             "No method reached from the handler through calls within the class - async state machines and"
                 + " lambdas included - calls a method of a type assignable to IInputPort that takes a"
-                + " parameter whose type name ends in Command. A handler mapped by a routing call rather than"
+                + " parameter whose type name ends in Command. A general mapping without an HTTP method answers"
+                + " every method and is not selected. A handler mapped by a routing call rather than"
                 + " by an attribute or a name is not seen, and a command reached through a second class is"
                 + " not followed. An empty selection passes.");
 
@@ -591,8 +594,52 @@ public sealed class HexagonalRules : IDcaRuleSet
     }
 
     private static bool IsGetHandler(MethodInfo method, FrameworkTypes roles, bool byPrefix) =>
-        (!method.IsSpecialName && method.GetCustomAttributesData().Any(a => roles.GetMappingAttributeTypes.Any(r => DcaMarkers.IsAssignableToByName(a.AttributeType, r))))
+        (!method.IsSpecialName && roles.GetMappingAttributeTypes.Any(entry => CarriesMapping(method, entry)))
         || (byPrefix && method.IsPublic && !method.IsStatic && roles.GetHandlerNamePrefixes.Any(p => p.Length > 0 && method.Name.StartsWith(p, StringComparison.Ordinal)));
+
+    /// <summary>
+    /// Whether the method carries an attribute of one GET-mapping entry: a plain entry by its type (derived types
+    /// included), an entry <c>&lt;attribute&gt;#&lt;property&gt;=&lt;value&gt;</c> only when that property of the
+    /// attribute holds the value - a string, or a member of a sequence, compared ignoring case.
+    /// </summary>
+    private static bool CarriesMapping(MethodInfo method, string entry)
+    {
+        var hash = entry.IndexOf('#', StringComparison.Ordinal);
+        if (hash < 0)
+        {
+            return method.GetCustomAttributesData().Any(a => DcaMarkers.IsAssignableToByName(a.AttributeType, entry));
+        }
+
+        var type = entry[..hash];
+        var property = entry[(hash + 1)..].Split('=', 2);
+        if (!method.GetCustomAttributesData().Any(a => DcaMarkers.IsAssignableToByName(a.AttributeType, type)))
+        {
+            return false;
+        }
+
+        object[] attributes;
+        try
+        {
+            attributes = method.GetCustomAttributes(inherit: false);
+        }
+        catch (Exception e) when (e is TypeLoadException or System.IO.FileNotFoundException or System.IO.FileLoadException or CustomAttributeFormatException)
+        {
+            return false;
+        }
+
+        return attributes
+            .Where(a => DcaMarkers.IsAssignableToByName(a.GetType(), type))
+            .Select(a => a.GetType().GetProperty(property[0])?.GetValue(a))
+            .Any(value => Holds(value, property[1]));
+    }
+
+    private static bool Holds(object? value, string expected) => value switch
+    {
+        null => false,
+        string single => string.Equals(single, expected, StringComparison.OrdinalIgnoreCase),
+        System.Collections.IEnumerable many => many.Cast<object?>().Any(each => Holds(each, expected)),
+        _ => string.Equals(value.ToString(), expected, StringComparison.OrdinalIgnoreCase),
+    };
 
     /// <summary>The command type an input-port call takes, or <c>null</c> when the call is no such call.</summary>
     private static string? CommandTakenBy(MethodBase call, DcaMarkers markers)

@@ -93,6 +93,21 @@ public sealed class HexagonalRulesTests
     }
 
     [Fact]
+    public void AGeneralVerbAttributeRestrictedToGetIsSelected()
+    {
+        var message = Assert.Throws<DcaRuleViolationException>(() => Rules(Bad).Rules.Single(r => r.Id == "DCA-HEX-014").Check(Arch(Bad))).Message;
+
+        Assert.Contains("OrderLinkResource.Repeat handles GET and drives", message);
+    }
+
+    [Fact]
+    public void TheGetMappingRoleTakesAnAttributeEntry()
+    {
+        Assert.Contains("Microsoft.AspNetCore.Mvc.AcceptVerbsAttribute#HttpMethods=GET", FrameworkTypes.AspNetCore().GetMappingAttributeTypes);
+        Assert.Throws<System.ArgumentException>(() => FrameworkTypes.None() with { GetMappingAttributeTypes = new[] { "X.MappingAttribute#HttpMethods" } });
+    }
+
+    [Fact]
     public void WithoutGetRolesNoHandlerIsSelected()
     {
         var layout = DcaLayout.ForRootNamespace(Bad).WithFrameworkTypes(FrameworkTypes.AspNetCore() with

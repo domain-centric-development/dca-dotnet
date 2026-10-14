@@ -31,6 +31,15 @@ shape does so reliably for every domain — and its `checks` text now names the 
 for the code. A code already held in a value, an id or an enum passes, as before; new fixtures pin
 both cases. The same sentence in both libraries.
 
+**`DCA-HEX-014` reads the HTTP methods of a general verb attribute.** An entry of
+`GetMappingAttributeTypes` may now name a general verb attribute with the property value that makes it
+GET, `<attribute>#<property>=<value>`; it matches when that property of the attribute holds the
+value — a string or a member of a sequence, ignoring case. `AspNetCore()` adds
+`Microsoft.AspNetCore.Mvc.AcceptVerbsAttribute#HttpMethods=GET`, so `[AcceptVerbs("GET")]` is
+selected like `[HttpGet]`; a `[Route]` without an HTTP method answers every method and stays
+unselected. A malformed attribute entry is refused. The Java twin reads
+`RequestMapping#method=GET` the same way.
+
 ## [0.8.0] - 2026-10-14
 
 ### Added

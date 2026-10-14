@@ -21,6 +21,10 @@ public sealed class OrderLinkResource : ControllerBase
     [HttpGet]
     public Task<PlaceOrderResult> Reorder(decimal amount, CancellationToken cancellationToken) => Submit(amount, cancellationToken);
 
+    [Route("orders/repeat")]
+    [AcceptVerbs("GET", "HEAD")]
+    public Task<PlaceOrderResult> Repeat(decimal amount, CancellationToken cancellationToken) => Submit(amount, cancellationToken);
+
     private Task<PlaceOrderResult> Submit(decimal amount, CancellationToken cancellationToken) =>
         _placeOrder.ExecuteAsync(new PlaceOrderCommand(new Money(amount, "EUR")), cancellationToken);
 }
