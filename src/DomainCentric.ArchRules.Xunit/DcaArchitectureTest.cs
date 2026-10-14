@@ -29,12 +29,26 @@ namespace DomainCentric.ArchRules.Xunit;
 /// <see cref="AdditionalSelection"/> take effect but cannot change the display name, because theory
 /// data is built before an instance exists. xUnit v2 has no dynamic skip, which is why a lowered rule
 /// is reported green rather than skipped; the Java twin aborts it.
+/// <para>
+/// Experimental rules (<see cref="DcaRuleMaturity.Experimental"/>) form a group of their own,
+/// <c>experimental (1) / DCA-USE-0nn</c> with the number of experimental rules in scope, after the rule sets, and the summary counts them apart from the
+/// released rules. They run only where the project opted in — <c>dca.rules.experimental = true</c> in the
+/// file, or <see cref="DcaRuleSelection.WithExperimental"/> in <see cref="AdditionalSelection"/>. Without
+/// the file's opt-in their cases carry <c>[NOT OPTED IN]</c> and pass without running, unless
+/// <see cref="AdditionalSelection"/> opted in.
+/// </para>
 /// </example>
 public abstract class DcaArchitectureTest
 {
     private static readonly object Gate = new();
     private static readonly Dictionary<Type, DcaArchitecture> Cache = new();
-    private static readonly IReadOnlyDictionary<string, string> SetOfRule = DcaRules.SetOfRule();
+    private static readonly IReadOnlyList<IDcaRuleSet> CatalogSets = DcaRules.RuleSets(DcaLayout.ForRootNamespace("Catalog"));
+
+    /// <summary>
+    /// The report group of the experimental rules, beside the rule sets; a case name carries it with the
+    /// number of experimental rules in scope, <c>experimental (2)</c>.
+    /// </summary>
+    public const string ExperimentalGroup = "experimental";
 
     /// <summary>The layout of the project under test.</summary>
     protected abstract DcaLayout Layout { get; }
@@ -112,19 +126,66 @@ public abstract class DcaArchitectureTest
     /// case at all, so the test count says what was actually checked.
     /// </summary>
     public static IEnumerable<object[]> RuleIds() =>
-        DcaRules.AllIds()
-            .Where(id => FileSelection.Includes(SetOfRule[id], id))
-            .Select(id => new object[] { $"{SetOfRule[id]} / {id}{Annotation(id)}" });
+        CaseNames(CatalogSets, FileSelection).Select(name => new object[] { name });
 
-    private static string Annotation(string ruleId)
+    /// <summary>
+    /// The theory case names for the rules of <paramref name="ruleSets"/> under
+    /// <paramref name="selection"/>: <c>&lt;set&gt; / &lt;id&gt;</c> for every released rule in scope, in
+    /// catalog order, then <c>experimental (n) / &lt;id&gt;</c> for every experimental rule in scope, n being
+    /// their number. Each name
+    /// carries the rule's lowered severity (<c>[WARN: …]</c>, <c>[OFF: …]</c>); an experimental rule of a
+    /// selection that did not opt in carries <c>[NOT OPTED IN]</c> instead.
+    /// </summary>
+    public static IReadOnlyList<string> CaseNames(IEnumerable<IDcaRuleSet> ruleSets, DcaRuleSelection selection)
     {
-        var severity = FileSelection.SeverityOf(ruleId);
+        ArgumentNullException.ThrowIfNull(ruleSets);
+        ArgumentNullException.ThrowIfNull(selection);
+        var released = new List<string>();
+        var experimental = new List<(string Id, string Annotation)>();
+        foreach (var set in ruleSets)
+        {
+            foreach (var rule in set.Rules.Where(r => selection.Includes(set.Name, r.Id)))
+            {
+                if (rule.Maturity == DcaRuleMaturity.Experimental)
+                {
+                    var annotation = selection.IncludesExperimental ? Annotation(selection, rule.Id) : " [NOT OPTED IN]";
+                    experimental.Add((rule.Id, annotation));
+                }
+                else
+                {
+                    released.Add($"{set.Name} / {rule.Id}{Annotation(selection, rule.Id)}");
+                }
+            }
+        }
+
+        var group = $"{ExperimentalGroup} ({experimental.Count})";
+        return released.Concat(experimental.Select(e => $"{group} / {e.Id}{e.Annotation}")).ToList();
+    }
+
+    /// <summary>
+    /// How many of <paramref name="rules"/> are released and enforced, released and informational, and
+    /// experimental — <c>40 enforced, 3 informational, 1 experimental</c>. An experimental rule counts
+    /// only as experimental, whatever its kind.
+    /// </summary>
+    public static string Summary(IEnumerable<IDcaRule> rules)
+    {
+        ArgumentNullException.ThrowIfNull(rules);
+        var list = rules.ToList();
+        var experimental = list.Count(r => r.Maturity == DcaRuleMaturity.Experimental);
+        var informational = list.Count(r => r.Maturity == DcaRuleMaturity.Released && r.Kind == DcaRuleKind.Informational);
+        var enforced = list.Count - experimental - informational;
+        return $"{enforced} enforced, {informational} informational, {experimental} experimental";
+    }
+
+    private static string Annotation(DcaRuleSelection selection, string ruleId)
+    {
+        var severity = selection.SeverityOf(ruleId);
         if (severity == DcaSeverity.Error)
         {
             return string.Empty;
         }
 
-        var reason = FileSelection.ReasonFor(ruleId);
+        var reason = selection.ReasonFor(ruleId);
         var label = severity == DcaSeverity.Warn ? "WARN" : "OFF";
         return reason is null ? $" [{label}]" : $" [{label}: {reason}]";
     }
@@ -144,9 +205,7 @@ public abstract class DcaArchitectureTest
 
     [Fact]
     public void CatalogKindsAndRetiredIdentities() {
-        var selected = Rules.ToList();
-        var informational = selected.Count(r => r.Kind == DcaRuleKind.Informational);
-        Console.Out.WriteLine($"{selected.Count - informational} enforced, {informational} informational");
+        Console.Out.WriteLine(Summary(Rules));
         foreach (var id in Selection.RetiredReferences) {
             var retired = DcaRules.Retired()[id];
             Console.Out.WriteLine($"{id} is retired since {retired.Since}: {retired.Reason}; replacement: {retired.Replacement}");
@@ -161,8 +220,12 @@ public abstract class DcaArchitectureTest
         var rule = Rules.FirstOrDefault(r => r.Id == ruleId);
         if (rule is null)
         {
-            // Scoped out by AdditionalSelection, which cannot shape the static theory data.
-            Console.Out.WriteLine($"[{ruleId}] not run — outside the configured rule selection");
+            // Not opted in, or scoped out by AdditionalSelection, which cannot shape the static theory data.
+            var experimental = CatalogSets.SelectMany(s => s.Rules)
+                .Any(r => r.Id == ruleId && r.Maturity == DcaRuleMaturity.Experimental);
+            Console.Out.WriteLine(experimental && !Selection.IncludesExperimental
+                ? $"[{ruleId}] not run — experimental; opt in with {DcaRuleSelection.ExperimentalKey} = true or WithExperimental()"
+                : $"[{ruleId}] not run — outside the configured rule selection");
             return;
         }
 

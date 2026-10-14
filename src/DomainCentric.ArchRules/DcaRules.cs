@@ -11,10 +11,7 @@ namespace DomainCentric.ArchRules;
 /// <example>
 /// <code>
 /// var arch = DcaArchitecture.Load(DcaLayout.ForRootNamespace("Acme.Shop"), typeof(Program).Assembly);
-/// foreach (var rule in DcaRules.All(arch.Layout))
-/// {
-///     rule.Check(arch);
-/// }
+/// DcaRules.CheckAll(arch, DcaRuleSelection.All());
 /// </code>
 /// For xUnit, derive from <c>DcaArchitectureTest</c> (package DomainCentric.ArchRules.Xunit) instead —
 /// it turns every rule into one theory case.
@@ -53,12 +50,16 @@ public static class DcaRules
             new ErrorHandlingRules(layout),
         };
 
-    /// <summary>Every rule of every set.</summary>
+    /// <summary>
+    /// Every rule of every set — the whole catalog, experimental rules included. To run rules, go through
+    /// <see cref="Select"/> or <see cref="CheckAll(DcaArchitecture, DcaRuleSelection)"/>, which leave the
+    /// experimental rules out unless the selection opted in.
+    /// </summary>
     public static IReadOnlyList<IDcaRule> All(DcaLayout layout) =>
         RuleSets(layout).SelectMany(s => s.Rules).ToList();
 
     /// <summary>
-    /// Every rule except the given identifiers. An identifier that is neither in the catalog nor
+    /// Every released rule except the given identifiers. An identifier that is neither in the catalog nor
     /// retired is rejected: it would exclude nothing and leave the caller believing it had.
     /// </summary>
     public static IReadOnlyList<IDcaRule> AllExcept(DcaLayout layout, IEnumerable<string> excludedIds)
@@ -69,12 +70,12 @@ public static class DcaRules
             DcaRuleSelection.RequireKnownId(id);
         }
 
-        return All(layout).Where(r => !excluded.Contains(r.Id)).ToList();
+        return All(layout).Where(r => r.Maturity == DcaRuleMaturity.Released && !excluded.Contains(r.Id)).ToList();
     }
 
     /// <summary>
-    /// The rules of the named sets only (<c>"tactical"</c>, <c>"hexagonal"</c>, …). An unknown set
-    /// name is rejected rather than silently selecting no rule.
+    /// The released rules of the named sets only (<c>"tactical"</c>, <c>"hexagonal"</c>, …). An unknown
+    /// set name is rejected rather than silently selecting no rule.
     /// </summary>
     public static IReadOnlyList<IDcaRule> Only(DcaLayout layout, params string[] ruleSetNames)
     {
@@ -84,7 +85,11 @@ public static class DcaRules
             DcaRuleSelection.RequireKnownSet(name);
         }
 
-        return RuleSets(layout).Where(s => names.Contains(s.Name)).SelectMany(s => s.Rules).ToList();
+        return RuleSets(layout)
+            .Where(s => names.Contains(s.Name))
+            .SelectMany(s => s.Rules)
+            .Where(r => r.Maturity == DcaRuleMaturity.Released)
+            .ToList();
     }
 
     /// <summary>Identifiers of every rule in the catalog — layout-independent, in catalog order.</summary>
@@ -94,13 +99,16 @@ public static class DcaRules
     public static IDcaRule ById(DcaLayout layout, string id) =>
         All(layout).FirstOrDefault(r => r.Id == id) ?? throw new KeyNotFoundException($"no DCA rule with id {id}");
 
-    /// <summary>The sets and rules the selection asks for, in catalog order, empty sets removed.</summary>
+    /// <summary>
+    /// The sets and rules the selection asks for, in catalog order, empty sets removed. An experimental
+    /// rule is among them only when the selection opted in (<see cref="DcaRuleSelection.WithExperimental"/>).
+    /// </summary>
     public static IReadOnlyList<IDcaRuleSet> Select(DcaLayout layout, DcaRuleSelection selection)
     {
         var selected = new List<IDcaRuleSet>();
         foreach (var set in RuleSets(layout))
         {
-            var rules = set.Rules.Where(r => selection.Includes(set.Name, r.Id)).ToList();
+            var rules = set.Rules.Where(r => selection.Includes(set.Name, r)).ToList();
             if (rules.Count > 0)
             {
                 selected.Add(new SelectedRuleSet(set.Name, rules));
@@ -133,7 +141,7 @@ public static class DcaRules
         return map;
     }
 
-    /// <summary>Convenience: run every rule against the architecture, failing on the first violation.</summary>
+    /// <summary>Convenience: run every released rule against the architecture, failing on the first violation.</summary>
     public static void CheckAll(DcaArchitecture architecture) => CheckAll(architecture, DcaRuleSelection.All());
 
     /// <summary>

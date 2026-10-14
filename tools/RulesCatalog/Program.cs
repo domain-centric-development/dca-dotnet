@@ -1,5 +1,6 @@
 // Renders the DCA rule catalog of DomainCentric.ArchRules to rules.json and RULES.md — the same
-// shape dca-archunit's `rulesCatalog` Gradle task produces (id, title, rationale, selects, checks), so the
+// shape dca-archunit's `rulesCatalog` Gradle task produces (id, title, rationale, selects, checks, status,
+// maturity), so the
 // knowledge catalog can merge both.
 //
 //   dotnet run --project tools/RulesCatalog -- <repo-root>
@@ -19,12 +20,12 @@ foreach (var set in ruleSets)
 {
     foreach (var rule in set.Rules)
     {
-        entries.Add(new Entry(set.Name, rule.Id, rule.Title, rule.Rationale, rule.Selects, rule.Checks, rule.Kind == DcaRuleKind.Informational ? "informational" : "enforced", null));
+        entries.Add(new Entry(set.Name, rule.Id, rule.Title, rule.Rationale, rule.Selects, rule.Checks, rule.Kind == DcaRuleKind.Informational ? "informational" : "enforced", null, rule.Maturity == DcaRuleMaturity.Experimental ? "experimental" : "released"));
     }
 
     foreach (var (id, reason) in NotApplicable(set))
     {
-        entries.Add(new Entry(set.Name, id, "(not applicable in .NET)", reason, "", "", "n/a", reason));
+        entries.Add(new Entry(set.Name, id, "(not applicable in .NET)", reason, "", "", "n/a", reason, null));
     }
 }
 
@@ -44,7 +45,7 @@ if (libraryVersion.Contains('+', StringComparison.Ordinal))
 
 var json = JsonSerializer.Serialize(
     new { library = "DomainCentric.ArchRules", version = libraryVersion, rules = entries.Select(e => e.Status != "n/a"
-        ? (object)new { set = e.Set, id = e.Id, title = e.Title, rationale = e.Rationale, selects = e.Selects, checks = e.Checks, implementation = "dotnet", status = e.Status }
+        ? (object)new { set = e.Set, id = e.Id, title = e.Title, rationale = e.Rationale, selects = e.Selects, checks = e.Checks, implementation = "dotnet", status = e.Status, maturity = e.Maturity }
         : new { set = e.Set, id = e.Id, status = "n/a", reason = e.Reason }), retired = DcaRules.Retired().OrderBy(e => e.Key).Select(e => new { id = e.Key, reason = e.Value.Reason, replacement = e.Value.Replacement, since = e.Value.Since }) },
     new JsonSerializerOptions { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
 File.WriteAllText(Path.Combine(root, "rules.json"), json + "\n");
@@ -54,14 +55,15 @@ var ported = entries.Count(e => e.Status != "n/a");
 var informational = entries.Count(e => e.Status == "informational");
 var enforced = ported - informational;
 var na = entries.Count(e => e.Status == "n/a");
+var experimental = entries.Count(e => e.Maturity == "experimental");
 md.Append("# DCA rule catalog (.NET)\n\n");
-md.Append($"Generated from `DomainCentric.ArchRules` — do not edit. {enforced} enforced, {informational} informational, {DcaRules.Retired().Count} retired in {ruleSets.Count} sets; {na} Java rules not applicable in .NET.\n\n");
+md.Append($"Generated from `DomainCentric.ArchRules` — do not edit. {enforced} enforced, {informational} informational{(experimental > 0 ? $" ({experimental} of them experimental)" : "")}, {DcaRules.Retired().Count} retired in {ruleSets.Count} sets; {na} Java rules not applicable in .NET.\n\n");
 foreach (var set in ruleSets)
 {
     md.Append($"## `{set.Name}`\n\n| Id | Rule | Rationale | Selects | Checks |\n|----|------|-----------|---------|--------|\n");
     foreach (var e in entries.Where(e => e.Set == set.Name && e.Status != "n/a"))
     {
-        md.Append($"| `{e.Id}` | {Cell(e.Title)} ({e.Status}) | {Cell(e.Rationale)} | {Cell(e.Selects)} | {Cell(e.Checks)} |\n");
+        md.Append($"| `{e.Id}` | {Cell(e.Title)} ({e.Status}{(e.Maturity == "experimental" ? ", experimental" : "")}) | {Cell(e.Rationale)} | {Cell(e.Selects)} | {Cell(e.Checks)} |\n");
     }
 
     var skipped = entries.Where(e => e.Set == set.Name && e.Status == "n/a").ToList();
@@ -99,4 +101,4 @@ static IEnumerable<(string, string)> NotApplicable(IDcaRuleSet set)
     }
 }
 
-sealed record Entry(string Set, string Id, string Title, string Rationale, string Selects, string Checks, string Status, string? Reason);
+sealed record Entry(string Set, string Id, string Title, string Rationale, string Selects, string Checks, string Status, string? Reason, string? Maturity);

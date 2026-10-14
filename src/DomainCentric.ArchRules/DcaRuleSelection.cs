@@ -19,6 +19,11 @@ namespace DomainCentric.ArchRules;
 /// and <b>exceptions</b> (<see cref="IgnoringViolationsMatching"/>).
 /// </para>
 /// <para>
+/// Every selection runs the <see cref="DcaRuleMaturity.Released"/> rules only. An
+/// <see cref="DcaRuleMaturity.Experimental"/> rule runs where the project opted in with
+/// <see cref="WithExperimental"/>; scope, severity and exceptions then apply to it as to any other rule.
+/// </para>
+/// <para>
 /// Instances are immutable; every method returns a new selection. The same configuration can live in a
 /// <c>dca-archunit.properties</c> file next to the test assembly — see <see cref="FromFile"/>.
 /// </para>
@@ -32,6 +37,9 @@ public sealed class DcaRuleSelection
     /// <summary>Name of the properties file <see cref="FromDirectory"/> looks for.</summary>
     public const string DefaultFileName = "dca-archunit.properties";
 
+    /// <summary>The properties key that opts in to the experimental rules: <c>dca.rules.experimental = true</c>.</summary>
+    public const string ExperimentalKey = "dca.rules.experimental";
+
     private static readonly DcaRuleSelection Everything = new(null, null, new Dictionary<string, RuleSettings>(StringComparer.Ordinal));
 
     private readonly IReadOnlySet<string>? _includedSets;
@@ -43,13 +51,21 @@ public sealed class DcaRuleSelection
         IReadOnlySet<string>? includedSets,
         IReadOnlySet<string>? includedIds,
         IReadOnlyDictionary<string, RuleSettings> settings,
-        IReadOnlySet<string>? retiredReferences = null)
+        IReadOnlySet<string>? retiredReferences = null,
+        bool includesExperimental = false)
     {
         _includedSets = includedSets;
         _includedIds = includedIds;
         _settings = settings;
         _retiredReferences = retiredReferences ?? new HashSet<string>(StringComparer.Ordinal);
+        IncludesExperimental = includesExperimental;
     }
+
+    /// <summary>
+    /// Whether this selection opted in to the <see cref="DcaRuleMaturity.Experimental"/> rules — through
+    /// <see cref="WithExperimental"/> or <c>dca.rules.experimental = true</c>.
+    /// </summary>
+    public bool IncludesExperimental { get; }
 
     /// <summary>
     /// Retired rule identifiers this selection refers to (exclusions or severity settings of a consumer that
@@ -57,8 +73,19 @@ public sealed class DcaRuleSelection
     /// </summary>
     public IReadOnlyCollection<string> RetiredReferences => _retiredReferences.OrderBy(id => id, StringComparer.Ordinal).ToList();
 
-    /// <summary>Every rule of every set, all at <see cref="DcaSeverity.Error"/>.</summary>
+    /// <summary>
+    /// Every released rule of every set, all at <see cref="DcaSeverity.Error"/>. Experimental rules are
+    /// not part of it; <see cref="WithExperimental"/> adds them.
+    /// </summary>
     public static DcaRuleSelection All() => Everything;
+
+    /// <summary>
+    /// This selection with the <see cref="DcaRuleMaturity.Experimental"/> rules added, as far as its scope
+    /// reaches: <c>All().OnlySets("usecase").WithExperimental()</c> adds the experimental rules of that
+    /// set only. Severity settings and tolerated violations apply to them as to released rules.
+    /// </summary>
+    public DcaRuleSelection WithExperimental() =>
+        new(_includedSets, _includedIds, _settings, _retiredReferences, includesExperimental: true);
 
     /// <summary>Restricts the run to the named rule sets (<c>"tactical"</c>, <c>"hexagonal"</c>, …).</summary>
     public DcaRuleSelection OnlySets(params string[] ruleSetNames)
@@ -68,7 +95,7 @@ public sealed class DcaRuleSelection
             RequireKnownSet(name);
         }
 
-        return new DcaRuleSelection(ToSet(ruleSetNames), _includedIds, _settings, _retiredReferences);
+        return new DcaRuleSelection(ToSet(ruleSetNames), _includedIds, _settings, _retiredReferences, IncludesExperimental);
     }
 
     /// <summary>Restricts the run to the given rule identifiers.</summary>
@@ -84,7 +111,7 @@ public sealed class DcaRuleSelection
             }
         }
 
-        return new DcaRuleSelection(_includedSets, ToSet(ruleIds), _settings, _retiredReferences);
+        return new DcaRuleSelection(_includedSets, ToSet(ruleIds), _settings, _retiredReferences, IncludesExperimental);
     }
 
     /// <summary>Switches a rule off, recording why. The reason appears in the test report.</summary>
@@ -116,7 +143,7 @@ public sealed class DcaRuleSelection
             retired = new HashSet<string>(_retiredReferences, StringComparer.Ordinal) { ruleId };
         }
 
-        return new DcaRuleSelection(_includedSets, _includedIds, settings, retired);
+        return new DcaRuleSelection(_includedSets, _includedIds, settings, retired, IncludesExperimental);
     }
 
     /// <summary>
@@ -139,10 +166,13 @@ public sealed class DcaRuleSelection
         var current = Settings(ruleId);
         var patterns = current.IgnoredViolationPatterns.Append(regex).ToList();
         settings[ruleId] = new RuleSettings(current.Severity, current.Reason, patterns);
-        return new DcaRuleSelection(_includedSets, _includedIds, settings, _retiredReferences);
+        return new DcaRuleSelection(_includedSets, _includedIds, settings, _retiredReferences, IncludesExperimental);
     }
 
-    /// <summary>This selection with <paramref name="other"/> applied on top — <paramref name="other"/> wins per rule.</summary>
+    /// <summary>
+    /// This selection with <paramref name="other"/> applied on top — <paramref name="other"/> wins per rule.
+    /// The merge includes the experimental rules when either side opted in.
+    /// </summary>
     public DcaRuleSelection MergedWith(DcaRuleSelection other)
     {
         ArgumentNullException.ThrowIfNull(other);
@@ -158,7 +188,8 @@ public sealed class DcaRuleSelection
             other._includedSets ?? _includedSets,
             other._includedIds ?? _includedIds,
             settings,
-            retired);
+            retired,
+            IncludesExperimental || other.IncludesExperimental);
     }
 
     /// <summary>
@@ -181,12 +212,15 @@ public sealed class DcaRuleSelection
     /// dca.rule.DCA-STR-003.ignore = .*backoffice.*
     /// dca.rule.DCA-STR-003.ignore.1 = .*legacy.*
     /// dca.rule.DCA-STR-003.ignore.2 = Generated.{1,3}Client
+    /// dca.rules.experimental      = true
     /// </code>
     /// The value of an <c>.ignore</c> key is <em>one</em> regular expression, commas included; a second
     /// expression for the same rule uses an indexed key (<c>.ignore.1</c>, <c>.ignore.2</c>, …, applied
     /// after the unindexed one, in numeric order). Lists of rule ids and set names are comma-separated.
     /// An unknown rule identifier or set name fails immediately — a typo must not silently leave a rule
-    /// enforced. <c>dca.rules.freeze*</c> is not supported yet and fails with an explanatory message.
+    /// enforced. <c>dca.rules.experimental</c> takes <c>true</c> or <c>false</c> and opts in to the
+    /// experimental rules (see <see cref="WithExperimental"/>); any other value fails.
+    /// <c>dca.rules.freeze*</c> is not supported yet and fails with an explanatory message.
     /// </summary>
     public static DcaRuleSelection FromFile(string path) => FromProperties(ReadProperties(path));
 
@@ -202,6 +236,11 @@ public sealed class DcaRuleSelection
                 $"'{key}' is not supported yet: the rules of this library do not expose the ArchUnitNET rule "
                 + "behind them, so there is nothing for ArchUnitNET's FreezingArchRule to build a baseline "
                 + "from. Lower the rule to a warning (dca.rules.warn) instead.");
+        }
+
+        if (Experimental(properties))
+        {
+            selection = selection.WithExperimental();
         }
 
         var sets = Split(Value(properties, "dca.rules.sets"));
@@ -247,6 +286,20 @@ public sealed class DcaRuleSelection
         return selection;
     }
 
+    /// <summary>The value of <see cref="ExperimentalKey"/>; absent or blank means no opt-in.</summary>
+    private static bool Experimental(IReadOnlyDictionary<string, string> properties)
+    {
+        var value = Value(properties, ExperimentalKey)?.Trim();
+        if (string.IsNullOrEmpty(value))
+        {
+            return false;
+        }
+
+        return bool.TryParse(value, out var experimental)
+            ? experimental
+            : throw new ArgumentException($"{ExperimentalKey} must be true or false, not '{value}'.");
+    }
+
     /// <summary><c>dca.rule.&lt;id&gt;.ignore</c> and <c>dca.rule.&lt;id&gt;.ignore.&lt;n&gt;</c>.</summary>
     private static readonly Regex IgnoreKey = new(@"^dca\.rule\.(.+?)\.ignore(?:\.(\d+))?$", RegexOptions.CultureInvariant);
 
@@ -279,7 +332,10 @@ public sealed class DcaRuleSelection
         return byRule.Select(entry => (entry.Key, (IReadOnlyList<string>)entry.Value.Values.ToList()));
     }
 
-    /// <summary>Whether a rule of the given set takes part in the run at all.</summary>
+    /// <summary>
+    /// Whether a rule of the given set takes part in the run at all, judged by its set and identifier
+    /// alone. <see cref="Includes(string, IDcaRule)"/> also weighs the rule's maturity.
+    /// </summary>
     public bool Includes(string ruleSetName, string ruleId)
     {
         if (_includedSets is not null && !_includedSets.Contains(ruleSetName))
@@ -288,6 +344,16 @@ public sealed class DcaRuleSelection
         }
 
         return _includedIds is null || _includedIds.Contains(ruleId);
+    }
+
+    /// <summary>
+    /// Whether the rule takes part in the run: it is in scope, and it is released or this selection
+    /// opted in to the experimental rules.
+    /// </summary>
+    public bool Includes(string ruleSetName, IDcaRule rule)
+    {
+        ArgumentNullException.ThrowIfNull(rule);
+        return (rule.Maturity == DcaRuleMaturity.Released || IncludesExperimental) && Includes(ruleSetName, rule.Id);
     }
 
     /// <summary>The severity configured for a rule, <see cref="DcaSeverity.Error"/> unless lowered.</summary>
@@ -395,6 +461,11 @@ public sealed class DcaRuleSelection
         if (_includedIds is not null)
         {
             parts.Add("ids " + string.Join(",", _includedIds));
+        }
+
+        if (IncludesExperimental)
+        {
+            parts.Add("experimental");
         }
 
         if (_settings.Count > 0)

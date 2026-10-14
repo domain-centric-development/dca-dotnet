@@ -4,6 +4,21 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Added
+
+**Experimental rules.** A rule has a maturity beside its kind: `DcaRuleMaturity.Released` or
+`DcaRuleMaturity.Experimental` (`IDcaRule.Maturity`), declared where the rule is defined with
+`DcaRule.Of(...).Experimental()`. An experimental rule keeps its final id and its set, so releasing it
+removes that one call. `DcaRuleSelection.All()` keeps meaning every released rule; a project opts in
+with `WithExperimental()` — which composes with scope, severity and ignore settings, and survives
+`MergedWith` from either side — or with `dca.rules.experimental = true` in `dca-archunit.properties`
+(`true` or `false`, anything else fails). `DcaRules.AllExcept` and `DcaRules.Only` return released
+rules only; `DcaRules.All` stays the whole catalog. `DcaArchitectureTest` reports experimental rules
+as a group of their own, `experimental (n) / <id>`, after the rule sets — marked `[NOT OPTED IN]`
+and not run when the file does not opt in — and the summary line always reads
+`<n> enforced, <n> informational, <n> experimental`. `rules.json` carries `"maturity"` on every rule,
+right after `"status"`; every rule of the catalog is `released`.
+
 ## [0.7.0] - 2026-10-12
 
 **Migration from 0.6.0.** Three new rules, all `error`, can turn a suite red that was green: an

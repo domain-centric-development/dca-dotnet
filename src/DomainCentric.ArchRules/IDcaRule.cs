@@ -20,6 +20,12 @@ public interface IDcaRule
     /// <summary>Whether this entry asserts policy or only reports information.</summary>
     DcaRuleKind Kind => DcaRuleKind.Enforced;
 
+    /// <summary>
+    /// Whether this rule is released or experimental. An experimental rule runs only under a selection
+    /// that opted in (<see cref="DcaRuleSelection.WithExperimental"/>).
+    /// </summary>
+    DcaRuleMaturity Maturity => DcaRuleMaturity.Released;
+
     /// <summary>Stable identifier, e.g. <c>DCA-TAC-001</c>.</summary>
     string Id { get; }
 

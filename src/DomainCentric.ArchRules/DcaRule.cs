@@ -30,7 +30,6 @@ public static class DcaRule
     public static Undescribed Check(string id, string title, string rationale, Action<DcaArchitecture> check) =>
         new Undescribed(id, title, rationale, check ?? throw new ArgumentNullException(nameof(check)));
 
-    /// <summary>A diagnostic entry, counted separately from enforced rules.</summary>
     /// <summary>
     /// A diagnostic entry, counted separately from enforced rules. It asserts nothing, so it does not
     /// throw: what it observes it returns, and <see cref="DcaRuleExecution"/> carries the lines in the
@@ -51,10 +50,12 @@ public static class DcaRule
         private readonly string _rationale;
         private readonly Action<DcaArchitecture> _check;
         private readonly Func<DcaArchitecture, IReadOnlyList<string>>? _report;
+        private readonly DcaRuleMaturity _maturity;
 
-        internal Undescribed(string id, string title, string rationale, Action<DcaArchitecture> check, DcaRuleKind kind = DcaRuleKind.Enforced, Func<DcaArchitecture, IReadOnlyList<string>>? report = null)
+        internal Undescribed(string id, string title, string rationale, Action<DcaArchitecture> check, DcaRuleKind kind = DcaRuleKind.Enforced, Func<DcaArchitecture, IReadOnlyList<string>>? report = null, DcaRuleMaturity maturity = DcaRuleMaturity.Released)
         {
             _kind = kind;
+            _maturity = maturity;
             _report = report;
             _id = id ?? throw new ArgumentNullException(nameof(id));
             _title = title ?? throw new ArgumentNullException(nameof(title));
@@ -62,11 +63,18 @@ public static class DcaRule
             _check = check;
         }
 
+        /// <summary>
+        /// Declares the rule <see cref="DcaRuleMaturity.Experimental"/>: it keeps its identifier and its
+        /// set, and runs only under a selection that opted in. Releasing it means removing this call.
+        /// </summary>
+        public Undescribed Experimental() =>
+            new(_id, _title, _rationale, _check, _kind, _report, DcaRuleMaturity.Experimental);
+
         /// <summary>Names the types the rule looks at; see <see cref="IDcaRule.Selects"/>.</summary>
         public Selected Selecting(string selects) => new(this, RequireText(selects, "selects", _id));
 
         internal IDcaRule Complete(string selects, string checks) =>
-            new SimpleRule(_id, _title, _rationale, selects, RequireText(checks, "checks", _id), _check, _kind, _report);
+            new SimpleRule(_id, _title, _rationale, selects, RequireText(checks, "checks", _id), _check, _kind, _report, _maturity);
     }
 
     /// <summary>A rule with its selection described; <see cref="Checking"/> completes it.</summary>
@@ -159,9 +167,10 @@ public static class DcaRule
         private readonly Action<DcaArchitecture> _check;
         private readonly Func<DcaArchitecture, IReadOnlyList<string>>? _report;
 
-        internal SimpleRule(string id, string title, string rationale, string selects, string checks, Action<DcaArchitecture> check, DcaRuleKind kind, Func<DcaArchitecture, IReadOnlyList<string>>? report = null)
+        internal SimpleRule(string id, string title, string rationale, string selects, string checks, Action<DcaArchitecture> check, DcaRuleKind kind, Func<DcaArchitecture, IReadOnlyList<string>>? report, DcaRuleMaturity maturity)
         {
             Kind = kind;
+            Maturity = maturity;
             _report = report;
             Id = id ?? throw new ArgumentNullException(nameof(id));
             Title = title ?? throw new ArgumentNullException(nameof(title));
@@ -175,6 +184,8 @@ public static class DcaRule
             _report is null ? Array.Empty<string>() : _report(architecture);
 
         public DcaRuleKind Kind { get; }
+
+        public DcaRuleMaturity Maturity { get; }
 
         public string Id { get; }
 

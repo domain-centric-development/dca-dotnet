@@ -126,11 +126,16 @@ dca.rules.warn.sets         = naming
 dca.rule.DCA-STR-003.ignore = .*Legacy.*
 dca.rule.DCA-STR-003.ignore.1 = Generated.{1,3}Client
 dca.framework               = none
+dca.rules.experimental      = true
 ```
 
 `dca.framework` selects the framework preset by name — `aspnetcore` (the default) or `none`. An
 unknown name fails and lists the known ones. A layout that names its framework types in code with
 `WithFrameworkTypes(...)` always wins over the file.
+
+`dca.rules.experimental = true` (in code: `WithExperimental()`) opts in to the experimental rules — rules
+on trial that keep their final id and set and that no selection runs otherwise. `DcaArchitectureTest`
+reports them as their own group, `experimental (n) / <id>`, after the rule sets.
 
 An unknown rule id or set name fails the run immediately — a typo must never leave a rule silently
 enforced. The value of an `.ignore` key is **one** regular expression, commas included; a second
