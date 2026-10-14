@@ -4,6 +4,8 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-14
+
 ### Added
 
 **Experimental rules.** A rule has a maturity beside its kind: `DcaRuleMaturity.Released` or
