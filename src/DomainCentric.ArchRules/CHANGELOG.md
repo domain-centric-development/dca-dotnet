@@ -23,6 +23,14 @@ retired ids keep no public factory.
 property stays `[Obsolete]` so a with-expression written against 0.8.0 still compiles: it is always
 empty and an assignment is ignored. `AspNetCore()` no longer fills it.
 
+### Changed
+
+**`DCA-ERR-007` says what to do with a code held in a string.** The experimental diagnostic keeps
+listing a plain string field — the type does not tell a code from display text, and no name or
+shape does so reliably for every domain — and its `checks` text now names the remedy: a typed value
+for the code. A code already held in a value, an id or an enum passes, as before; new fixtures pin
+both cases. The same sentence in both libraries.
+
 ## [0.8.0] - 2026-10-14
 
 ### Added

@@ -329,7 +329,7 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
 
     /// <summary>
     /// DCA-ERR-007 (experimental, informational). A failure carries ids and figures, never what a page shows. A
-    /// plain string field may hold a code, so the rule observes rather than fails.
+    /// plain string field may hold a code, so the rule observes rather than fails; the remedy is a typed value.
     /// </summary>
     public IDcaRule FailuresCarryIdsAndValues() =>
         DcaRule.Informational(
@@ -372,7 +372,8 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                 "Informational diagnostic only: lists a field whose type is a plain string, or is assignable to"
                 + " IAggregateRoot or IEntity - directly, as an array element or as a generic type argument -"
                 + " and never fails. Ids, values, numbers and every other type pass. A string that holds a code"
-                + " rather than display text is listed as well; whether it should be a value stays with review.");
+                + " rather than display text is listed as well: the type does not tell the two apart, and the"
+                + " remedy is a typed value for the code.");
 
     /// <summary>What is wrong with a failure's field type, worded for the line, or <c>null</c>.</summary>
     private static string? FieldFinding(Type type, DcaMarkers markers)

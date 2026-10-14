@@ -1532,7 +1532,7 @@
       "title": "Diagnostic: failures that carry display data or objects instead of ids and figures",
       "rationale": "A failure carries ids and figures, never what a page shows: its fields are the typed identities and the values the rule compared. A name or a description of the thing the id refers to is resolved by the translation site, through the queries it already has; a failure that carries it decides for every surface what it shows, and one that carries the aggregate hands its state to every caller",
       "selects": "The project's own types below DomainException or UseCaseException, with their runtime type in the loaded assemblies, and the instance fields they and their project base types declare - the backing fields of auto-properties included.",
-      "checks": "Informational diagnostic only: lists a field whose type is a plain string, or is assignable to IAggregateRoot or IEntity - directly, as an array element or as a generic type argument - and never fails. Ids, values, numbers and every other type pass. A string that holds a code rather than display text is listed as well; whether it should be a value stays with review.",
+      "checks": "Informational diagnostic only: lists a field whose type is a plain string, or is assignable to IAggregateRoot or IEntity - directly, as an array element or as a generic type argument - and never fails. Ids, values, numbers and every other type pass. A string that holds a code rather than display text is listed as well: the type does not tell the two apart, and the remedy is a typed value for the code.",
       "implementation": "dotnet",
       "status": "informational",
       "maturity": "experimental"

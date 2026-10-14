@@ -93,4 +93,12 @@ public sealed class ErrorHandlingRulesTests
         Assert.Contains(observed, line => line.Contains("GuestAlreadyBookedException holds _guestName as a plain string", System.StringComparison.Ordinal));
         Assert.Contains(observed, line => line.Contains("GuestAlreadyBookedException holds Reservation as the aggregate Reservation", System.StringComparison.Ordinal));
     }
+
+    [Fact]
+    public void ACodeHeldInAPlainStringIsListed()
+    {
+        var observed = Rules(Bad).Rules.Single(r => r.Id == "DCA-ERR-007").Observe(Arch(Bad));
+        Assert.Contains(observed, line => line.Contains("FareMismatchException holds Left as a plain string", System.StringComparison.Ordinal));
+        Assert.Contains(observed, line => line.Contains("FareMismatchException holds Right as a plain string", System.StringComparison.Ordinal));
+    }
 }
