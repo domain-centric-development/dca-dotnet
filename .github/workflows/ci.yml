@@ -17,6 +17,9 @@ jobs:
             8.0.x
             10.0.x
       - run: dotnet restore
+      - name: Code is formatted
+        # The same check the build tool runs in dca-java (spotless); dotnet format fixes it locally.
+        run: dotnet format --verify-no-changes --no-restore
       # Architecture tests run against Debug builds on purpose: ArchUnitNET drops the struct-based
       # async state machines of Release builds (see README, "Run against Debug builds").
       - run: dotnet build --no-restore

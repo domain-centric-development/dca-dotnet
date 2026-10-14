@@ -34,6 +34,10 @@ These hold for anyone working in any of the DCA repositories — human or agent 
 - **Build:** `dotnet build` / `dotnet test` (Debug — ArchUnitNET drops optimized async state machines);
   `dotnet run --project tools/RulesCatalog -- .` regenerates `rules.json` / `RULES.md`, which the knowledge catalog
   merges. Commit them with every rule change.
+- **Format:** `dotnet format --verify-no-changes` is a CI step. Fix with `dotnet format`; when it reports
+  IDE0011 or other code fixes, check for `<<<<<<< TODO: …` markers afterwards — on the multi-targeted projects
+  the fixes of the two targets can fail to merge. Apply such fixes with one target (a temporary
+  `Directory.Build.targets` setting `TargetFrameworks` to `net10.0`) and delete it again.
 - **Same ids as Java.** A rule exists here with the id it has in `dca-archunit`, or it is listed in the set's
   `NotApplicable` with the reason. .NET-only rules are `DCA-NET-nnn`. Rule texts (`Selects`, `Checks`) use the same
   wording as Java wherever the reading is the same, and are framework- and domain-neutral.
