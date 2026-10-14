@@ -256,6 +256,17 @@
       "maturity": "experimental"
     },
     {
+      "set": "hexagonal",
+      "id": "DCA-HEX-016",
+      "title": "Diagnostic: adapters that publish an enum by its member name",
+      "rationale": "A value an adapter publishes from an enum is spelled explicitly - a code per value on the enum or a mapping in the adapter - never derived from the member's name: renaming a member is a refactoring inside the code and must not change what a client reads",
+      "selects": "Non-nested types in <module>.Adapter of every module root, incoming and outgoing, with their runtime type in the loaded assemblies, together with their nested, async state-machine and closure types; enums declared in a domain or application namespace of any module root.",
+      "checks": "Informational diagnostic only: lists a method that turns such an enum into its member name as the IL shows it - ToString in any overload, called through a constrained call or on the boxed value; the boxed value passed straight into a string-building call (concatenation, formatting, joining, appending); an interpolation hole of the enum type; Enum.GetName or Enum.GetNames over it - and never fails. Compiler-generated methods, such as a record's generated PrintMembers and ToString, are not read. A boxed value stored first and formatted later, a serializer that writes names, and a name read through a generic helper are not seen; whether the text reaches a client stays with review.",
+      "implementation": "dotnet",
+      "status": "informational",
+      "maturity": "experimental"
+    },
+    {
       "set": "tactical",
       "id": "DCA-TAC-001",
       "title": "Aggregate Roots must implement IAggregateRoot",
@@ -1186,6 +1197,17 @@
       "rationale": "A read never creates. A query has no side effect: it does not create, save or publish, and when nothing exists it answers none. Find-or-create is a command, called where the caller is about to change state; a caller that only shows what exists asks the query",
       "selects": "Concrete non-nested application operations selected by IInputPort marker or configured use-case suffix, with loadable runtime types, whose input ends in Query: the input type argument of an implemented IUseCase<TInput, TOutput>, or a parameter of a method that implements an IInputPort interface.",
       "checks": "No method of the class - async state machines and lambdas included - calls a repository write (IRepository.SaveAsync or DeleteByIdAsync, or a method of a repository or store port whose name starts with Save, Delete, Remove, Add, Insert, Update, Upsert, Put, Store, Write, Create, Append, Archive, Purge, Clear, Set or Mark), or any method of the domain-event or integration-event publisher. Only the class's own calls are read: a write reached through a helper class or a second port is not seen, and a store write under another verb passes. An empty selection passes.",
+      "implementation": "dotnet",
+      "status": "enforced",
+      "maturity": "experimental"
+    },
+    {
+      "set": "usecase",
+      "id": "DCA-USE-020",
+      "title": "Use cases must not parse raw input into an id",
+      "rationale": "The adapter turns raw input into the types the input port takes: an id arrives in the command as the id's value type, parsed at the edge or by the value type's own factory, never as text the use case parses. Text that does not parse is a malformed call the adapter answers itself; the use case never sees it",
+      "selects": "Non-nested types in <module>.Application of every module root with their runtime type in the loaded assemblies - use cases, helpers and application services alike - together with their nested, async state-machine and closure types.",
+      "checks": "No method calls the platform's parse API for a unique identifier: System.Guid.Parse, TryParse, ParseExact or TryParseExact, in any overload. Parsing a project's own id type, or an id held as a number or another text format, is not seen; the value type's own factory in the domain is outside the selection and may parse. An empty selection passes.",
       "implementation": "dotnet",
       "status": "enforced",
       "maturity": "experimental"

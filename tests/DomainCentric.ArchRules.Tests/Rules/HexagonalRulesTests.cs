@@ -13,10 +13,11 @@ public sealed class HexagonalRulesTests
 
     private static readonly IReadOnlyDictionary<string, string> NoNegativeFixture = new Dictionary<string, string>
     {
+        ["DCA-HEX-016"] = "informational diagnostic, never fails - EnumMemberNamesAreObservedOnTheBadFixtureOnly shows it",
 
     };
 
-    private static readonly string[] ExpectedIds = { "DCA-HEX-001", "DCA-HEX-002", "DCA-HEX-003", "DCA-HEX-004", "DCA-HEX-005", "DCA-HEX-006", "DCA-HEX-007", "DCA-HEX-008", "DCA-HEX-009", "DCA-HEX-010", "DCA-HEX-011", "DCA-HEX-012", "DCA-HEX-013", "DCA-HEX-014", "DCA-HEX-015" };
+    private static readonly string[] ExpectedIds = { "DCA-HEX-001", "DCA-HEX-002", "DCA-HEX-003", "DCA-HEX-004", "DCA-HEX-005", "DCA-HEX-006", "DCA-HEX-007", "DCA-HEX-008", "DCA-HEX-009", "DCA-HEX-010", "DCA-HEX-011", "DCA-HEX-012", "DCA-HEX-013", "DCA-HEX-014", "DCA-HEX-015", "DCA-HEX-016" };
 
     private static DcaArchitecture Arch(string ns) =>
         DcaArchitecture.Load(DcaLayout.ForRootNamespace(ns), typeof(HexagonalRulesTests).Assembly);
@@ -114,5 +115,20 @@ public sealed class HexagonalRulesTests
 
         var shared = DcaLayout.ForRootNamespace(Bad).WithFrameworkTypes(FrameworkTypes.AspNetCore() with { InstanceLocalStateTypes = System.Array.Empty<string>() });
         new HexagonalRules(shared).Rules.Single(r => r.Id == "DCA-HEX-015").Check(DcaArchitecture.Load(shared, typeof(HexagonalRulesTests).Assembly));
+    }
+
+    [Fact]
+    public void EnumMemberNamesAreObservedOnTheBadFixtureOnly()
+    {
+        Assert.Empty(Rules(Good).Rules.Single(r => r.Id == "DCA-HEX-016").Observe(Arch(Good)));
+
+        var observed = string.Join("\n", Rules(Bad).Rules.Single(r => r.Id == "DCA-HEX-016").Observe(Arch(Bad)));
+        Assert.Contains("OrderStatusText.Plain calls ToString on the enum", observed);
+        Assert.Contains("OrderStatusText.Formatted calls ToString on the enum", observed);
+        Assert.Contains("OrderStatusText.Interpolated interpolates the enum", observed);
+        // The compiler turns concatenation into a constrained ToString; composite formatting boxes the value.
+        Assert.Contains("OrderStatusText.Concatenated calls ToString on the enum", observed);
+        Assert.Contains("OrderStatusText.Composite formats into text (String.Format) the enum", observed);
+        Assert.Contains("OrderStatusText.Named calls Enum.GetName on the enum", observed);
     }
 }

@@ -31,6 +31,8 @@ without the opt-in runs exactly as before:
   not named `Set…` or `Update…` followed by the field.
 - `DCA-USE-018` (usecase) — in a module grouped into features, an incoming adapter class depends on the
   input ports of one feature only.
+- `DCA-USE-020` (usecase) — no type of the application layer parses raw input into an id with
+  `System.Guid.Parse`, `TryParse`, `ParseExact` or `TryParseExact`; the adapter or the id's value type parses.
 - `DCA-USE-019` (usecase) — a use case whose input ends in `Query` calls no repository or store write and no
   event publisher.
 - `DCA-HEX-014` (hexagonal) — a GET handler drives no input port that takes a `*Command`.
@@ -40,6 +42,9 @@ without the opt-in runs exactly as before:
   dependency of the context on that module (or its named interface). Reads the same
   `ModuleDeclarationAttributeTypes` role as `DCA-MAP-006` and selects nothing where none is configured —
   the default, since no preset names one.
+- `DCA-HEX-016` (hexagonal, informational) — lists adapter methods that turn an enum of the domain or
+  application layer into its member name, as the IL shows it: `ToString` (constrained or on the boxed value),
+  a boxed value passed into string concatenation or formatting, an interpolation hole, `Enum.GetName`.
 - `DCA-ERR-007` (errors, informational) — lists fields of domain and use-case exceptions that hold a plain
   string or an aggregate or entity instead of ids and values.
 

@@ -33,6 +33,7 @@ public sealed class UseCaseRulesTests
         "DCA-USE-017",
         "DCA-USE-018",
         "DCA-USE-019",
+        "DCA-USE-020",
     };
 
     /// <summary>Rules without a negative fixture (id → reason).</summary>
@@ -212,5 +213,14 @@ public sealed class UseCaseRulesTests
         Assert.Contains("FindOrPlaceOrderUseCase.ExecuteAsync takes a query and publishes events", message);
         Assert.DoesNotContain("PlaceOrderUseCase.ExecuteAsync takes", message.Replace("FindOrPlaceOrderUseCase", ""));
         Assert.DoesNotContain("ShowOrder", message);
+    }
+
+    [Fact]
+    public void AnIdParsedInTheApplicationIsReportedInAsyncBodiesAndHelpers()
+    {
+        var message = Assert.Throws<DcaRuleViolationException>(() => Rule(Bad, "DCA-USE-020").Check(Arch(Bad))).Message;
+
+        Assert.Contains("ShowOrderByTextUseCase.ExistsAsync parses an id with Guid.Parse", message);
+        Assert.Contains("OrderIdText.Read parses an id with Guid.TryParse", message);
     }
 }
