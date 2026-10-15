@@ -36,9 +36,18 @@ both cases. The same sentence in both libraries.
 GET, `<attribute>#<property>=<value>`; it matches when that property of the attribute holds the
 value — a string or a member of a sequence, ignoring case. `AspNetCore()` adds
 `Microsoft.AspNetCore.Mvc.AcceptVerbsAttribute#HttpMethods=GET`, so `[AcceptVerbs("GET")]` is
-selected like `[HttpGet]`; a `[Route]` without an HTTP method answers every method and stays
-unselected. A malformed attribute entry is refused. The Java twin reads
+selected like `[HttpGet]`. A malformed attribute entry is refused. The Java twin reads
 `RequestMapping#method=GET` the same way.
+
+**`DCA-HEX-014` counts an action that names no HTTP method as a GET handler.** Such an action answers
+every method, GET included, so a command behind it changes state on GET. A `GetMappingAttributeTypes`
+entry without a value, `<attribute>#<property>=`, matches a public instance method of a class recognised
+as a controller — not a page model, which routes by handler name — none of whose attributes of that type
+holds a value; carrying none counts. `AspNetCore()` adds
+`Microsoft.AspNetCore.Mvc.Routing.IActionHttpMethodProvider#HttpMethods=`, so an action with `[Route]`
+alone or reached by conventional routing is selected, one with `[HttpPost]` or `[AcceptVerbs("POST")]`
+is not. The new role `NonActionAttributeTypes` (`AspNetCore()`: `[NonAction]`) takes a public method
+out. The rule stays experimental. The Java twin selects `@RequestMapping` without a method the same way.
 
 **`DCA-MAP-014` reads an entry as the Java twin does.** An entry that names an edge of a `Planned`
 `[Upstream]` declaration is announced, not stale, and is skipped; an entry whose module is neither a

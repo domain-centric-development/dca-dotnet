@@ -25,6 +25,13 @@ public sealed class OrderLinkResource : ControllerBase
     [AcceptVerbs("GET", "HEAD")]
     public Task<PlaceOrderResult> Repeat(decimal amount, CancellationToken cancellationToken) => Submit(amount, cancellationToken);
 
+    // A route without an HTTP method answers every method, GET included.
+    [Route("orders/again")]
+    public Task<PlaceOrderResult> Again(decimal amount, CancellationToken cancellationToken) => Submit(amount, cancellationToken);
+
+    // Conventional routing: a public action without a verb attribute answers every method.
+    public Task<PlaceOrderResult> Renew(decimal amount, CancellationToken cancellationToken) => Submit(amount, cancellationToken);
+
     private Task<PlaceOrderResult> Submit(decimal amount, CancellationToken cancellationToken) =>
         _placeOrder.ExecuteAsync(new PlaceOrderCommand(new Money(amount, "EUR")), cancellationToken);
 }
@@ -41,4 +48,8 @@ public sealed class ReorderPage : PageModel
 
     public async Task OnGetAsync(CancellationToken cancellationToken) =>
         await _placeOrder.ExecuteAsync(new PlaceOrderCommand(new Money(1m, "EUR")), cancellationToken);
+
+    // A page model routes by handler name: a public method without the prefix is no handler.
+    public Task<PlaceOrderResult> Preview(CancellationToken cancellationToken) =>
+        _placeOrder.ExecuteAsync(new PlaceOrderCommand(new Money(1m, "EUR")), cancellationToken);
 }

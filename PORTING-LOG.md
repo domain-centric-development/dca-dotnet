@@ -518,8 +518,15 @@ libraries saw different things. Same ids, titles and rationales stay; what chang
   platform type; .NET lists only strings, aggregates and entities.
 - **`DCA-HEX-014`** — the GET-mapping role takes an entry `<attribute>#<property>=<value>` in both libraries.
   `AspNetCore()` adds `AcceptVerbsAttribute#HttpMethods=GET` (read from the attribute instance), Java's Spring
-  preset `RequestMapping#method=GET` (read from the annotation, meta-annotations included). A `[Route]` / a
-  mapping without an HTTP method answers every method and is not selected in either.
+  preset `RequestMapping#method=GET` (read from the annotation, meta-annotations included). A mapping that
+  names no HTTP method answers every method, GET included, and is selected in both (decision of 2026-10-15):
+  an entry without a value, `<type>#<attribute>=`, matches when the attribute holds none. The readings differ
+  where the frameworks do. Java: the method must carry the annotation (`RequestMapping#method=`; Spring makes no
+  method without a mapping a handler), and the same annotation on the class adds its values, as Spring combines
+  them. .NET: `IActionHttpMethodProvider#HttpMethods=` — every public instance method of a controller (not a
+  page model) is an action, so carrying no verb attribute counts; `NonActionAttributeTypes` (`[NonAction]`, no
+  Java counterpart) takes one out; verb attributes sit on methods only, so no class is read. JAX-RS gets no such
+  entry: a method with `@Path` and no HTTP-method annotation is a sub-resource locator.
 - **`DCA-HEX-016`** — .NET sees the bare enum value in a concatenation or a formatting call, because the C#
   compiler keeps the enum type in the IL; Java's compiler hands the value over as an `Object`, so Java lists
   only an explicit `name()` / `toString()`. The gap is named in Java's `checks` text and pinned by a fixture;

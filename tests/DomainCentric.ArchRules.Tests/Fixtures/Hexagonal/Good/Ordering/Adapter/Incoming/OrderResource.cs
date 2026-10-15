@@ -26,9 +26,15 @@ public sealed class OrderResource : ControllerBase
     public Task<PlaceOrderResult> PlaceAgain(decimal amount, CancellationToken cancellationToken) =>
         _placeOrder.ExecuteAsync(new PlaceOrderCommand(new Money(amount, "EUR")), cancellationToken);
 
-    // A route without an HTTP method answers every method and is not selected (documented in the rule).
-    [Route("orders/any")]
-    public Task<PlaceOrderResult> PlaceAnyhow(decimal amount, CancellationToken cancellationToken) =>
+    // A route with an HTTP method answers that method only.
+    [Route("orders/again")]
+    [HttpPost]
+    public Task<PlaceOrderResult> PlaceViaRoute(decimal amount, CancellationToken cancellationToken) =>
+        _placeOrder.ExecuteAsync(new PlaceOrderCommand(new Money(amount, "EUR")), cancellationToken);
+
+    // Taken out of routing: no action, so not a handler.
+    [NonAction]
+    public Task<PlaceOrderResult> PlaceDirectly(decimal amount, CancellationToken cancellationToken) =>
         _placeOrder.ExecuteAsync(new PlaceOrderCommand(new Money(amount, "EUR")), cancellationToken);
 
     [HttpGet]

@@ -108,6 +108,24 @@ public sealed class HexagonalRulesTests
     }
 
     [Fact]
+    public void AnActionThatNamesNoHttpMethodIsAGetHandler()
+    {
+        var message = Assert.Throws<DcaRuleViolationException>(() => Rules(Bad).Rules.Single(r => r.Id == "DCA-HEX-014").Check(Arch(Bad))).Message;
+
+        Assert.Contains("OrderLinkResource.Again handles GET and drives", message);
+        Assert.Contains("OrderLinkResource.Renew handles GET and drives", message);
+        Assert.DoesNotContain("ReorderPage.Preview", message);
+    }
+
+    [Fact]
+    public void TheGetMappingRoleTakesAnActionThatNamesNoHttpMethod()
+    {
+        Assert.Contains("Microsoft.AspNetCore.Mvc.Routing.IActionHttpMethodProvider#HttpMethods=", FrameworkTypes.AspNetCore().GetMappingAttributeTypes);
+        Assert.Contains("Microsoft.AspNetCore.Mvc.NonActionAttribute", FrameworkTypes.AspNetCore().NonActionAttributeTypes);
+        Assert.Empty(FrameworkTypes.None().NonActionAttributeTypes);
+    }
+
+    [Fact]
     public void WithoutGetRolesNoHandlerIsSelected()
     {
         var layout = DcaLayout.ForRootNamespace(Bad).WithFrameworkTypes(FrameworkTypes.AspNetCore() with

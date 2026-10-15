@@ -89,7 +89,7 @@ public sealed record FrameworkTypes(
     /// <summary>Full attribute type names that fix the protocol answer of the type they sit on — the role <c>DCA-ERR-004</c> forbids on the exceptions of the domain and application layers, because which status a failure earns is the incoming adapter's decision and a second adapter on another protocol has no use for it. Empty in every preset: the platform answers through a mapper type rather than through an attribute on the failure. A project that defines such an attribute itself adds it via a with-expression, and the Java library's <c>transportStatus</c> role is the same setting under the same rule.</summary>
     public IReadOnlyList<string> TransportStatusAttributeTypes { get; init; } = Array.Empty<string>();
 
-    /// <summary>Full attribute type names that map a handler method to an HTTP GET request (derived attributes included) — the counterpart of the Java library's <c>getMapping</c> role. <c>DCA-HEX-014</c> reads it: a GET handler drives no command. An entry may also name a general verb attribute together with the property value that makes it GET, as <c>&lt;attribute&gt;#&lt;property&gt;=&lt;value&gt;</c> (for example <c>Microsoft.AspNetCore.Mvc.AcceptVerbsAttribute#HttpMethods=GET</c>): it matches when that property of the attribute holds the value - a string or a member of a sequence, compared ignoring case. An attribute without such a property value, which answers every HTTP method, does not match. Only this role reads such entries. Empty in <see cref="None"/>.</summary>
+    /// <summary>Full attribute type names that map a handler method to an HTTP GET request (derived attributes included) — the counterpart of the Java library's <c>getMapping</c> role. <c>DCA-HEX-014</c> reads it: a GET handler drives no command. An entry may also name a general verb attribute together with the property value that makes it GET, as <c>&lt;attribute&gt;#&lt;property&gt;=&lt;value&gt;</c> (for example <c>Microsoft.AspNetCore.Mvc.AcceptVerbsAttribute#HttpMethods=GET</c>): it matches when that property of the attribute holds the value - a string or a member of a sequence, compared ignoring case. An entry without a value, <c>&lt;attribute&gt;#&lt;property&gt;=</c> (for example <c>Microsoft.AspNetCore.Mvc.Routing.IActionHttpMethodProvider#HttpMethods=</c>), stands for an action that names no HTTP method: such an action answers every method, GET included. It matches a public instance method of a class recognised as a controller - not a page model, which routes by handler name - that carries no <see cref="NonActionAttributeTypes"/> attribute and none of whose attributes of that type holds a value; carrying none counts, because a framework that routes every public controller method needs no attribute to make it an action. Only this role reads such entries. Empty in <see cref="None"/>.</summary>
     public IReadOnlyList<string> GetMappingAttributeTypes
     {
         get => _getMappingAttributeTypes;
@@ -98,9 +98,9 @@ public sealed record FrameworkTypes(
             ArgumentNullException.ThrowIfNull(value);
             foreach (var entry in value)
             {
-                if (entry.Contains('#', StringComparison.Ordinal) && !Regex.IsMatch(entry, @"^[^#=]+#\w+=[^#=]+$"))
+                if (entry.Contains('#', StringComparison.Ordinal) && !Regex.IsMatch(entry, @"^[^#=]+#\w+=[^#=]*$"))
                 {
-                    throw new ArgumentException($"GetMappingAttributeTypes entry '{entry}' must be an attribute type name or <attribute>#<property>=<value>", nameof(value));
+                    throw new ArgumentException($"GetMappingAttributeTypes entry '{entry}' must be an attribute type name or <attribute>#<property>=[<value>]", nameof(value));
                 }
             }
 
@@ -109,6 +109,9 @@ public sealed record FrameworkTypes(
     }
 
     private readonly IReadOnlyList<string> _getMappingAttributeTypes = Array.Empty<string>();
+
+    /// <summary>Full attribute type names that take a public method of a controller out of routing, so that it is no action (derived attributes included). <c>DCA-HEX-014</c> reads it with a <see cref="GetMappingAttributeTypes"/> entry without a value. The Java library has no counterpart: there a handler is a method that carries a mapping, so nothing has to opt out. Empty in <see cref="None"/>.</summary>
+    public IReadOnlyList<string> NonActionAttributeTypes { get; init; } = Array.Empty<string>();
 
     /// <summary>Method-name prefixes by which a framework maps a handler of a controller or page model to an HTTP GET request without an attribute. <c>DCA-HEX-014</c> treats such a method like one carrying a <see cref="GetMappingAttributeTypes"/> attribute. Empty in <see cref="None"/>.</summary>
     public IReadOnlyList<string> GetHandlerNamePrefixes { get; init; } = Array.Empty<string>();
@@ -130,7 +133,8 @@ public sealed record FrameworkTypes(
             PersistenceAttributeTypes = Array.AsReadOnly(new[] { "System.ComponentModel.DataAnnotations.KeyAttribute", "System.ComponentModel.DataAnnotations.TimestampAttribute", "System.ComponentModel.DataAnnotations.ConcurrencyCheckAttribute" }),
             InjectionAttributeNamespaces = Array.AsReadOnly(new[] { "Microsoft.Extensions.DependencyInjection" }),
             TransactionApiTypes = Array.AsReadOnly(new[] { "System.Transactions.CommittableTransaction", "System.Data.IDbTransaction", "System.Data.Common.DbTransaction", "Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction" }),
-            GetMappingAttributeTypes = Array.AsReadOnly(new[] { "Microsoft.AspNetCore.Mvc.HttpGetAttribute", "Microsoft.AspNetCore.Mvc.AcceptVerbsAttribute#HttpMethods=GET" }),
+            GetMappingAttributeTypes = Array.AsReadOnly(new[] { "Microsoft.AspNetCore.Mvc.HttpGetAttribute", "Microsoft.AspNetCore.Mvc.AcceptVerbsAttribute#HttpMethods=GET", "Microsoft.AspNetCore.Mvc.Routing.IActionHttpMethodProvider#HttpMethods=" }),
+            NonActionAttributeTypes = Array.AsReadOnly(new[] { "Microsoft.AspNetCore.Mvc.NonActionAttribute" }),
             GetHandlerNamePrefixes = Array.AsReadOnly(new[] { "OnGet" }),
         };
 
