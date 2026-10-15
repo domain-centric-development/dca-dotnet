@@ -4,6 +4,8 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-15
+
 ### Removed
 
 **`DCA-HEX-015` is retired.** The experimental rule "Incoming adapters must not keep state for a
