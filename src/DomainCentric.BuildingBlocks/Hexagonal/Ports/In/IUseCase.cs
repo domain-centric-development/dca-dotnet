@@ -4,24 +4,26 @@ using System.Threading.Tasks;
 namespace DomainCentric.BuildingBlocks.Hexagonal.Ports.In;
 
 /// <summary>
-/// Interface for Use Cases — Input Ports (Hexagonal Architecture) / Use Cases (Clean Architecture).
+/// The most common kind of <see cref="IInputPort"/>: one operation that takes a command or query and
+/// answers with a result — a Use Case in Clean Architecture terms.
 /// </summary>
 /// <remarks>
 /// <para>
-/// An input port represents an entry point to the application layer, defining a single use case or
-/// application feature. In Hexagonal Architecture, input ports are called by primary/driving
-/// adapters (e.g., REST controllers, event consumers, CLI handlers).
+/// Every use case is an input port; not every input port is a use case. An input port that only
+/// receives an incoming event or serves operations without a result model extends
+/// <see cref="IInputPort"/> directly. A use case is called by primary/driving adapters (e.g., REST
+/// controllers, event consumers, CLI handlers).
 /// </para>
-/// <para><b>Characteristics of Input Ports:</b></para>
+/// <para><b>Characteristics of a Use Case:</b></para>
 /// <list type="bullet">
-///   <item><description>Represent a single user action or system operation</description></item>
-///   <item><description>Define the interface that use cases implement</description></item>
-///   <item><description>Accept input models (Commands or Queries) as parameters</description></item>
-///   <item><description>Return output models, not domain entities</description></item>
+///   <item><description>Represents a single user action or system operation</description></item>
+///   <item><description>Is the interface the application-layer implementation implements</description></item>
+///   <item><description>Accepts an input model (Command or Query) as its parameter</description></item>
+///   <item><description>Returns an output model, not a domain entity</description></item>
 ///   <item><description>Technology-agnostic (no framework dependencies)</description></item>
 /// </list>
 /// <para>
-/// <b>Input/Output pattern:</b> input ports accept input models and return output models to
+/// <b>Input/Output pattern:</b> a use case accepts an input model and returns an output model to
 /// decouple the application layer from presentation and infrastructure concerns.
 /// </para>
 /// <para>
