@@ -272,6 +272,22 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                 + " way; whether it does is not visible in the type model",
             arch =>
             {
+                var domainException = arch.Layout.Markers.DomainException;
+                var useCaseException = arch.Layout.Markers.UseCaseException;
+                var anyFailureType = arch.Types.Any(t =>
+                    t.FullName != domainException && t.FullName != useCaseException
+                    && (IsAssignableTo(t, domainException) || IsAssignableTo(t, useCaseException)));
+                if (!anyFailureType)
+                {
+                    return new List<string>
+                    {
+                        $"no class of the scan is assignable to {domainException} or {useCaseException}, so no namespace "
+                        + "can be seen to name a failure - nothing is listed. Where the project has failure types of its "
+                        + "own, point the DomainException and UseCaseException roles at their base types "
+                        + "(DcaMarkers with-expression).",
+                    };
+                }
+
                 var observed = new List<string>();
                 var incoming = new Regex(DcaLayout.AnyOf(arch.AllIncomingAdapterPatterns()));
                 var driving = new SortedDictionary<string, List<string>>(StringComparer.Ordinal);
@@ -321,7 +337,9 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                 + "least one non-interface type depending on a type assignable to IInputPort - the "
                 + "namespaces that drive the application.")
             .Checking(
-                "Informational diagnostic only: lists a namespace when no type in it - a central exception "
+                "Informational diagnostic only: when no type of the scan is assignable to DomainException or "
+                + "UseCaseException, it lists no namespace and says once that it cannot see the failures; otherwise it "
+                + "lists a namespace when no type in it - a central exception "
                 + "handler beside the adapters included - depends on a type assignable to DomainException or "
                 + "UseCaseException, and never fails. A handler in a different namespace of the same module is "
                 + "not seen, and a caught type is not visible to the type model, so this does not establish "

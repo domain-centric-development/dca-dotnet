@@ -6,6 +6,9 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ### Changed
 
+**`DCA-ERR-006` stays quiet where it cannot see failures.** When no type of the scan is assignable to the
+`DomainException` or `UseCaseException` role, it lists no namespace and says once why — as in the Java library.
+
 **A rule that selected nothing says so.** A rule whose ArchUnitNET rules, evaluated through `DcaRule.Evaluate`
 or `EvaluateAll`, selected no type passes with the note `selected nothing` and its `Selects` text, printed as
 `INFO`. Rules that check imperatively cannot tell and stay silent. The same note as the Java library.

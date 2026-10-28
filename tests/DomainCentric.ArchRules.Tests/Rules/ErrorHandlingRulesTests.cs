@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using DomainCentric.ArchRules.Rules;
@@ -101,4 +102,22 @@ public sealed class ErrorHandlingRulesTests
         Assert.Contains(observed, line => line.Contains("FareMismatchException holds Left as a plain string", System.StringComparison.Ordinal));
         Assert.Contains(observed, line => line.Contains("FareMismatchException holds Right as a plain string", System.StringComparison.Ordinal));
     }
+
+    /// <summary>DCA-ERR-006 says once that it cannot see failures of a project's own types.</summary>
+    [Fact]
+    public void WithoutAnyFailureMarkerTypeTheDiagnosticListsNoNamespace()
+    {
+        const string own = Root + ".OwnFailures";
+        var observed = Rules(own).Rules.Single(r => r.Id == "DCA-ERR-006").Observe(Arch(own));
+
+        var line = Assert.Single(observed);
+        Assert.Contains("no class of the scan is assignable", line, StringComparison.Ordinal);
+    }
+
+    /// <summary>Where failure types derive from the markers, DCA-ERR-006 lists namespaces as before.</summary>
+    [Fact]
+    public void WithFailureMarkerTypesTheDiagnosticListsNamespaces() =>
+        Assert.DoesNotContain(
+            Rules(Bad).Rules.Single(r => r.Id == "DCA-ERR-006").Observe(Arch(Bad)),
+            line => line.Contains("no class of the scan is assignable", StringComparison.Ordinal));
 }
