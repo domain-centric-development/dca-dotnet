@@ -14,10 +14,11 @@ public sealed class HexagonalRulesTests
     private static readonly IReadOnlyDictionary<string, string> NoNegativeFixture = new Dictionary<string, string>
     {
         ["DCA-HEX-016"] = "informational diagnostic, never fails - EnumMemberNamesAreObservedOnTheBadFixtureOnly shows it",
+        ["DCA-HEX-017"] = "its roles are empty in every preset - ListenersThatDriveAnInputPort* configure them on the Listeners fixture",
 
     };
 
-    private static readonly string[] ExpectedIds = { "DCA-HEX-001", "DCA-HEX-002", "DCA-HEX-003", "DCA-HEX-004", "DCA-HEX-005", "DCA-HEX-006", "DCA-HEX-007", "DCA-HEX-008", "DCA-HEX-009", "DCA-HEX-010", "DCA-HEX-011", "DCA-HEX-012", "DCA-HEX-013", "DCA-HEX-014", "DCA-HEX-016" };
+    private static readonly string[] ExpectedIds = { "DCA-HEX-001", "DCA-HEX-002", "DCA-HEX-003", "DCA-HEX-004", "DCA-HEX-005", "DCA-HEX-006", "DCA-HEX-007", "DCA-HEX-008", "DCA-HEX-009", "DCA-HEX-010", "DCA-HEX-011", "DCA-HEX-012", "DCA-HEX-013", "DCA-HEX-014", "DCA-HEX-016", "DCA-HEX-017" };
 
     private static DcaArchitecture Arch(string ns) =>
         DcaArchitecture.Load(DcaLayout.ForRootNamespace(ns), typeof(HexagonalRulesTests).Assembly);
@@ -55,6 +56,41 @@ public sealed class HexagonalRulesTests
         var rule = Rules(Bad).Rules.Single(r => r.Id == id);
         var ex = Assert.Throws<DcaRuleViolationException>(() => rule.Check(Arch(Bad)));
         Assert.False(string.IsNullOrWhiteSpace(ex.Message));
+    }
+
+    private static DcaLayout ListenerLayout(string ns) => DcaLayout.ForRootNamespace(ns).WithFrameworkTypes(
+        FrameworkTypes.AspNetCore() with
+        {
+            EventListenerTypes = new[] { ns + ".Infrastructure.Events.IEventListener" },
+            TransactionalEventListenerTypes = new[] { ns + ".Infrastructure.Events.ITransactionalEventListener" },
+        });
+
+    private static void CheckListeners(string ns)
+    {
+        var layout = ListenerLayout(ns);
+        new HexagonalRules(layout).Rules.Single(r => r.Id == "DCA-HEX-017")
+            .Check(DcaArchitecture.Load(layout, typeof(HexagonalRulesTests).Assembly));
+    }
+
+    [Fact]
+    public void ASynchronousListenerThatDrivesAnInputPortIsReported()
+    {
+        const string ns = "DomainCentric.ArchRules.Tests.Fixtures.Listeners.Bad";
+        var message = Assert.Throws<DcaRuleViolationException>(() => CheckListeners(ns)).Message;
+
+        Assert.Contains("Listeners.Bad.Ledger.Adapter.Incoming.Event.PostingNotifier drives IUseCase.ExecuteAsync inside the transaction that raised the event", message);
+    }
+
+    [Fact]
+    public void ATransactionalListenerAndASynchronousTranslatorPass() =>
+        CheckListeners("DomainCentric.ArchRules.Tests.Fixtures.Listeners.Good");
+
+    [Fact]
+    public void TheListenerRolesAreEmptyInEveryPreset()
+    {
+        Assert.Empty(FrameworkTypes.AspNetCore().EventListenerTypes);
+        Assert.Empty(FrameworkTypes.AspNetCore().TransactionalEventListenerTypes);
+        Assert.Empty(FrameworkTypes.None().TransactionalEventListenerTypes);
     }
 
     [Fact]

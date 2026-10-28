@@ -4,6 +4,13 @@ All notable changes to this package. Format: [Keep a Changelog](https://keepacha
 
 ## [Unreleased]
 
+### Changed
+
+`IDomainEvent` XML documentation: a domain event has no published contract and no version number,
+but once an outbox stores it for a transactional listener, the next deployment reads what the
+previous one wrote — a change follows what a database migration needs. The former "can evolve
+freely without versioning concerns" held only for delivery that completes inside the transaction.
+
 ## [0.2.1] - 2026-09-22
 
 Documentation-only release: no type, signature or behaviour changed, binary-compatible with 0.2.0.

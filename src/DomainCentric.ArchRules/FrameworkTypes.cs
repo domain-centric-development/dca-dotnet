@@ -86,6 +86,12 @@ public sealed record FrameworkTypes(
     /// </summary>
     public IReadOnlyList<string> EventListenerAttributeNamespaces { get; init; } = Array.Empty<string>();
 
+    /// <summary>Full type names - interfaces or base classes - that make a class an in-process event listener, the counterpart of the Java library's <c>eventListener</c> role for a platform that subscribes in code. <c>DCA-HEX-017</c> selects the classes assignable to one of them. Empty in every preset: the platform has no standard listener type; a project names its own, or its messaging library's, with a with-expression.</summary>
+    public IReadOnlyList<string> EventListenerTypes { get; init; } = Array.Empty<string>();
+
+    /// <summary>Full type names - interfaces or base classes - that make a listener a transactional listener: delivered after the publishing transaction committed, in a transaction of its own, from an outbox. The counterpart of the Java library's <c>transactionalEventListener</c> role. <c>DCA-HEX-017</c> demands one of them on a listener that drives an input port. Empty in every preset; the rule then selects nothing.</summary>
+    public IReadOnlyList<string> TransactionalEventListenerTypes { get; init; } = Array.Empty<string>();
+
     /// <summary>Full attribute type names that fix the protocol answer of the type they sit on — the role <c>DCA-ERR-004</c> forbids on the exceptions of the domain and application layers, because which status a failure earns is the incoming adapter's decision and a second adapter on another protocol has no use for it. Empty in every preset: the platform answers through a mapper type rather than through an attribute on the failure. A project that defines such an attribute itself adds it via a with-expression, and the Java library's <c>transportStatus</c> role is the same setting under the same rule.</summary>
     public IReadOnlyList<string> TransportStatusAttributeTypes { get; init; } = Array.Empty<string>();
 

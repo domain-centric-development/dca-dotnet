@@ -256,6 +256,17 @@
       "maturity": "experimental"
     },
     {
+      "set": "hexagonal",
+      "id": "DCA-HEX-017",
+      "title": "Event listeners that drive an input port must run after the commit in their own transaction",
+      "rationale": "A reaction to an event changes state or performs an external effect through a use case. Run inside the transaction that raised the event, it changes a second aggregate in the first one's transaction, a failure in the reaction rolls back the fact that caused it, and a retry of the request runs the reaction again. A listener that only translates or measures calls output ports and may run in that transaction",
+      "selects": "Classes of every module root assignable to a type of the configured event-listener role and to none of the configured transactional-event-listener role. With either role empty - both are empty in every preset - nothing is selected and the rule passes.",
+      "checks": "No method of such a class - async state machines and lambdas included - calls a method of a type assignable to IInputPort. The rule reads the listener's kind, not whether an outbox backs it; an input port reached through a second class is not followed. An empty selection passes.",
+      "implementation": "dotnet",
+      "status": "enforced",
+      "maturity": "experimental"
+    },
+    {
       "set": "tactical",
       "id": "DCA-TAC-001",
       "title": "Aggregate Roots must implement IAggregateRoot",

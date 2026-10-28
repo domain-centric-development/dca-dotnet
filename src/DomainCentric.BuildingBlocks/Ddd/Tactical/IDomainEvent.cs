@@ -8,7 +8,9 @@ namespace DomainCentric.BuildingBlocks.Ddd.Tactical;
 /// <remarks>
 /// <para>
 /// Domain Events represent something that happened in the domain that domain experts care about.
-/// They are internal to a bounded context and can evolve freely without versioning concerns.
+/// They are internal to a bounded context: no published contract and no version number. Once an
+/// outbox stores them for a transactional listener, the next deployment reads what the previous one
+/// wrote, so a change follows what a database migration needs — tolerant reading, renames in two steps.
 /// </para>
 /// <para><b>Characteristics:</b></para>
 /// <list type="bullet">
@@ -17,7 +19,7 @@ namespace DomainCentric.BuildingBlocks.Ddd.Tactical;
 ///   <item><description>Include timestamp, unique ID, and event-specific data</description></item>
 ///   <item><description>Carry no framework attributes or dependencies</description></item>
 ///   <item><description>Part of the Ubiquitous Language</description></item>
-///   <item><description>Internal to a bounded context — no versioning needed</description></item>
+///   <item><description>Internal to a bounded context — no contract, but readable across one deployment</description></item>
 /// </list>
 /// <para><b>Use cases:</b></para>
 /// <list type="bullet">

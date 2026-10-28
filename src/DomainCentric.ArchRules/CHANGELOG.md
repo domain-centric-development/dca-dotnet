@@ -4,6 +4,16 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Added
+
+**`DCA-HEX-017` (experimental): event listeners that drive an input port must run after the commit
+in their own transaction** — the same id as in the Java library. A class assignable to a type of the
+new `EventListenerTypes` role and to none of `TransactionalEventListenerTypes` must not call an input
+port from any of its methods. Both roles are empty in every preset, because the platform has no
+standard listener type; a project names its own listener interfaces, or its messaging library's, with
+a with-expression, and the rule then selects. The Java rule reads the listener's annotations instead;
+both read the listener's kind, not whether an outbox backs it.
+
 ## [0.9.0] - 2026-10-15
 
 ### Removed
