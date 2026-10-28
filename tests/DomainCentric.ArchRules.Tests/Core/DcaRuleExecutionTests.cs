@@ -27,6 +27,32 @@ public sealed class DcaRuleExecutionTests
     public void ASatisfiedRulePasses() =>
         Assert.Equal(DcaRuleStatus.Passed, Execute(Good, DcaRuleSelection.All()).Status);
 
+    /// <summary>A rule that selected types passes without a note.</summary>
+    [Fact]
+    public void ASatisfiedRuleThatSelectedTypesCarriesNoNote() =>
+        Assert.Null(Execute(Good, DcaRuleSelection.All()).Message);
+
+    /// <summary>A rule whose selection is empty passes, and says that it held for nothing.</summary>
+    [Fact]
+    public void ARuleThatSelectedNothingPassesWithANote()
+    {
+        var architecture = Arch(Good);
+        var nothing = DcaRule.Of(
+                "DCA-TST-001",
+                "Classes nowhere must be public",
+                "A fixture rule whose selection matches no type",
+                arch => ArchUnitNET.Fluent.ArchRuleDefinition.Classes().That().ResideInNamespace("Nowhere.At.All").Should().BePublic())
+            .Selecting("Classes in a namespace named nowhere.")
+            .Checking("Each is public.");
+
+        var outcome = DcaRuleExecution.Execute(nothing, architecture, DcaRuleSelection.All());
+
+        Assert.Equal(DcaRuleStatus.Passed, outcome.Status);
+        Assert.Contains("DCA-TST-001", outcome.Message, StringComparison.Ordinal);
+        Assert.Contains("selected nothing", outcome.Message, StringComparison.Ordinal);
+        Assert.Contains("Classes in a namespace named nowhere.", outcome.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void AViolatedRuleFails() =>
         Assert.Equal(DcaRuleStatus.Failed, Execute(Bad, DcaRuleSelection.All()).Status);

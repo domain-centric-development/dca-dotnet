@@ -16,6 +16,14 @@ namespace DomainCentric.ArchRules;
 /// </remarks>
 public static class DcaRuleExecution
 {
+    /// <summary>
+    /// The note a passing rule carries when its selection was empty: no type of the scan matched what the
+    /// rule selects, so it held for nothing. Only rules that evaluate ArchUnitNET rules can say so.
+    /// </summary>
+    public const string SelectedNothing =
+        "selected nothing - no class of the scan matched, so the rule held for nothing; if the project"
+        + " has such classes, the layout or a framework role misses them.";
+
     /// <summary>Evaluates one rule under the given selection.</summary>
     public static DcaRuleOutcome Execute(IDcaRule rule, DcaArchitecture architecture, DcaRuleSelection selection)
     {
@@ -44,10 +52,24 @@ public static class DcaRuleExecution
         }
 
         var ignored = selection.IgnoredViolationPatterns(rule.Id).Select(p => new Regex(p, RegexOptions.Singleline)).ToList();
-        var violations = Evaluate(rule, architecture, ignored);
+        var probe = DcaRule.StartProbe();
+        string? violations;
+        try
+        {
+            violations = Evaluate(rule, architecture, ignored);
+        }
+        finally
+        {
+            DcaRule.EndProbe();
+        }
+
         if (violations is null)
         {
-            return new DcaRuleOutcome(rule.Id, DcaRuleStatus.Passed, null);
+            // A rule that evaluated its fluent rules and selected nothing held for nothing: it passes, but
+            // says so, because a selection a layout or a framework role misses passes in silence otherwise.
+            return probe.Evaluated > 0 && !probe.AnySelected
+                ? new DcaRuleOutcome(rule.Id, DcaRuleStatus.Passed, WithRuleId(SelectedNothing + " Selects: " + rule.Selects, rule.Id))
+                : new DcaRuleOutcome(rule.Id, DcaRuleStatus.Passed, null);
         }
 
         var reason = selection.ReasonFor(rule.Id);

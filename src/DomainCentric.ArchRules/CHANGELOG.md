@@ -4,6 +4,12 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Changed
+
+**A rule that selected nothing says so.** A rule whose ArchUnitNET rules, evaluated through `DcaRule.Evaluate`
+or `EvaluateAll`, selected no type passes with the note `selected nothing` and its `Selects` text, printed as
+`INFO`. Rules that check imperatively cannot tell and stay silent. The same note as the Java library.
+
 ### Added
 
 **`DCA-HEX-017` (experimental): event listeners that drive an input port must run after the commit

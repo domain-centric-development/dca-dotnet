@@ -115,13 +115,49 @@ public static class DcaRule
             throw new ArgumentNullException(nameof(rule));
         }
 
-        var failed = rule.Evaluate(arch.Architecture)
+        var results = rule.Evaluate(arch.Architecture).ToList();
+        Observe(results);
+        var failed = results
             .Where(r => !r.Passed && !IsEmptySelection(r.Description))
             .Select(r => r.Description)
             .ToList();
         if (failed.Count > 0)
         {
             throw DcaRuleViolationException.Of($"{title}\nbecause {rationale}", failed);
+        }
+    }
+
+    /// <summary>
+    /// What the ArchUnitNET rules a DCA rule evaluated selected, counted while
+    /// <see cref="DcaRuleExecution"/> runs it: how many were evaluated and whether any of them selected an
+    /// object. A rule that evaluated at least one and selected nothing passes with a note.
+    /// </summary>
+    internal sealed class SelectionProbe
+    {
+        public int Evaluated { get; set; }
+
+        public bool AnySelected { get; set; }
+    }
+
+    private static readonly System.Threading.AsyncLocal<SelectionProbe?> Probe = new();
+
+    /// <summary>Starts counting for one execution; <see cref="EndProbe"/> ends it.</summary>
+    internal static SelectionProbe StartProbe() => Probe.Value = new SelectionProbe();
+
+    internal static void EndProbe() => Probe.Value = null;
+
+    private static void Observe(IReadOnlyCollection<ArchUnitNET.Fluent.EvaluationResult> results)
+    {
+        var probe = Probe.Value;
+        if (probe is null)
+        {
+            return;
+        }
+
+        probe.Evaluated++;
+        if (results.Any(r => !IsEmptySelection(r.Description)))
+        {
+            probe.AnySelected = true;
         }
     }
 
@@ -142,7 +178,12 @@ public static class DcaRule
     public static void EvaluateAll(IEnumerable<IArchRule> rules, DcaArchitecture arch, string title, string rationale)
     {
         var failed = rules
-            .SelectMany(rule => rule.Evaluate(arch.Architecture))
+            .SelectMany(rule =>
+            {
+                var results = rule.Evaluate(arch.Architecture).ToList();
+                Observe(results);
+                return results;
+            })
             .Where(r => !r.Passed && !IsEmptySelection(r.Description))
             .Select(r => r.Description)
             .Distinct()
