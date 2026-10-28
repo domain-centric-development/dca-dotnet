@@ -4,6 +4,12 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Added
+
+**`DCA-HEX-018` (experimental): controllers must reside in an incoming adapter namespace** — the same id as in
+the Java library. A class deriving from the configured controller or page-model base, or carrying the API-controller
+attribute, resides in `<Module>.Adapter.Incoming`. Selected by framework type, never by name.
+
 ### Changed
 
 **`DCA-ERR-006` stays quiet where it cannot see failures.** When no type of the scan is assignable to the

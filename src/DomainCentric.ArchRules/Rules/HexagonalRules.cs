@@ -47,6 +47,7 @@ public sealed class HexagonalRules : IDcaRuleSet
             GetHandlersMustNotDriveCommands(),
             AdaptersPublishNoEnumMemberName(),
             ListenersThatDriveAnInputPortRunAfterTheCommit(),
+            ControllersResideInIncomingAdapters(),
         }.AsReadOnly();
     }
 
@@ -556,6 +557,45 @@ public sealed class HexagonalRules : IDcaRuleSet
             "No method of such a class - async state machines and lambdas included - calls a method of a type"
                 + " assignable to IInputPort. The rule reads the listener's kind, not whether an outbox backs it; an"
                 + " input port reached through a second class is not followed. An empty selection passes.");
+
+    /// <summary>
+    /// DCA-HEX-018 (experimental). A controller is an incoming adapter: it lives where the incoming adapters live, or
+    /// every rule that selects incoming adapters passes it by. Controllers are found through the framework types, not
+    /// by name.
+    /// </summary>
+    public IDcaRule ControllersResideInIncomingAdapters() =>
+        DcaRule.Check(
+            "DCA-HEX-018",
+            "Controllers must reside in an incoming adapter package",
+            "A controller turns a request into a command or a query and is an incoming adapter. Outside the incoming"
+                + " adapter packages it is outside the selection of every rule written for incoming adapters - the"
+                + " GET-handler rule, the controller naming rules, the boundary rules - and passes them all",
+            arch =>
+            {
+                var roles = arch.Layout.FrameworkTypes;
+                var incoming = new Regex(DcaLayout.AnyOf(arch.AllIncomingAdapterPatterns()));
+                var violations = arch.Classes
+                    .Where(c => !c.IsCompilerGenerated && c.IsAbstract != true
+                        && ((FrameworkTypes.IsSet(roles.ControllerBase) && c.IsAssignableTo(roles.ControllerBase))
+                            || (FrameworkTypes.IsSet(roles.PageModelBase) && c.IsAssignableTo(roles.PageModelBase))
+                            || (FrameworkTypes.IsSet(roles.ApiControllerAttribute) && c.Attributes.Any(a => a.FullName == roles.ApiControllerAttribute))))
+                    .Where(c => !incoming.IsMatch(c.Namespace?.FullName ?? ""))
+                    .Select(c => $"{c.FullName} is a controller outside the incoming adapters")
+                    .OrderBy(v => v, StringComparer.Ordinal)
+                    .ToList();
+                DcaRule.Fail(
+                    "Controllers must reside in an incoming adapter package",
+                    violations,
+                    "move the controller into the incoming adapter namespace of its module");
+            })
+        .Experimental()
+        .Selecting(
+            "Non-abstract classes of the scan that derive from the configured controller or page-model base or carry"
+                + " the configured API-controller attribute. A class is not selected for its name. In the None() preset"
+                + " every role is empty and nothing is selected.")
+        .Checking(
+            "Each resides in <Module>.Adapter.Incoming of some module root. Where in the incoming adapters it sits -"
+                + " which protocol segment - is not checked.");
 
     /// <summary>
     /// DCA-HEX-016 (experimental, informational). A value an adapter publishes from an enum is spelled explicitly,

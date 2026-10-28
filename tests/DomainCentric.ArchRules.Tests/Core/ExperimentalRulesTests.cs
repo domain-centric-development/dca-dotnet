@@ -33,7 +33,7 @@ public sealed class ExperimentalRulesTests
     /// <summary>The catalog's experimental rules — every other rule of the catalog is released.</summary>
     private static readonly string[] CatalogExperimentalIds =
     {
-        "DCA-ERR-007", "DCA-HEX-014", "DCA-HEX-016", "DCA-HEX-017", "DCA-MAP-014", "DCA-NAM-012", "DCA-NAM-013", "DCA-TAC-024", "DCA-USE-018", "DCA-USE-019", "DCA-USE-020",
+        "DCA-ERR-007", "DCA-HEX-014", "DCA-HEX-016", "DCA-HEX-017", "DCA-HEX-018", "DCA-MAP-014", "DCA-NAM-012", "DCA-NAM-013", "DCA-TAC-024", "DCA-USE-018", "DCA-USE-019", "DCA-USE-020",
     };
 
     [Fact]

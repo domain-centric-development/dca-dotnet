@@ -267,6 +267,17 @@
       "maturity": "experimental"
     },
     {
+      "set": "hexagonal",
+      "id": "DCA-HEX-018",
+      "title": "Controllers must reside in an incoming adapter package",
+      "rationale": "A controller turns a request into a command or a query and is an incoming adapter. Outside the incoming adapter packages it is outside the selection of every rule written for incoming adapters - the GET-handler rule, the controller naming rules, the boundary rules - and passes them all",
+      "selects": "Non-abstract classes of the scan that derive from the configured controller or page-model base or carry the configured API-controller attribute. A class is not selected for its name. In the None() preset every role is empty and nothing is selected.",
+      "checks": "Each resides in <Module>.Adapter.Incoming of some module root. Where in the incoming adapters it sits - which protocol segment - is not checked.",
+      "implementation": "dotnet",
+      "status": "enforced",
+      "maturity": "experimental"
+    },
+    {
       "set": "tactical",
       "id": "DCA-TAC-001",
       "title": "Aggregate Roots must implement IAggregateRoot",

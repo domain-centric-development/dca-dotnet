@@ -15,10 +15,11 @@ public sealed class HexagonalRulesTests
     {
         ["DCA-HEX-016"] = "informational diagnostic, never fails - EnumMemberNamesAreObservedOnTheBadFixtureOnly shows it",
         ["DCA-HEX-017"] = "its roles are empty in every preset - ListenersThatDriveAnInputPort* configure them on the Listeners fixture",
+        ["DCA-HEX-018"] = "negative fixture in ControllerPlace - AControllerOutsideTheIncomingAdaptersIsReported",
 
     };
 
-    private static readonly string[] ExpectedIds = { "DCA-HEX-001", "DCA-HEX-002", "DCA-HEX-003", "DCA-HEX-004", "DCA-HEX-005", "DCA-HEX-006", "DCA-HEX-007", "DCA-HEX-008", "DCA-HEX-009", "DCA-HEX-010", "DCA-HEX-011", "DCA-HEX-012", "DCA-HEX-013", "DCA-HEX-014", "DCA-HEX-016", "DCA-HEX-017" };
+    private static readonly string[] ExpectedIds = { "DCA-HEX-001", "DCA-HEX-002", "DCA-HEX-003", "DCA-HEX-004", "DCA-HEX-005", "DCA-HEX-006", "DCA-HEX-007", "DCA-HEX-008", "DCA-HEX-009", "DCA-HEX-010", "DCA-HEX-011", "DCA-HEX-012", "DCA-HEX-013", "DCA-HEX-014", "DCA-HEX-016", "DCA-HEX-017", "DCA-HEX-018" };
 
     private static DcaArchitecture Arch(string ns) =>
         DcaArchitecture.Load(DcaLayout.ForRootNamespace(ns), typeof(HexagonalRulesTests).Assembly);
@@ -92,6 +93,27 @@ public sealed class HexagonalRulesTests
         Assert.Empty(FrameworkTypes.AspNetCore().TransactionalEventListenerTypes);
         Assert.Empty(FrameworkTypes.None().TransactionalEventListenerTypes);
     }
+
+    private static void CheckControllerPlace(string ns)
+    {
+        var layout = DcaLayout.ForRootNamespace(ns);
+        new HexagonalRules(layout).Rules.Single(r => r.Id == "DCA-HEX-018")
+            .Check(DcaArchitecture.Load(layout, typeof(HexagonalRulesTests).Assembly));
+    }
+
+    [Fact]
+    public void AControllerOutsideTheIncomingAdaptersIsReported()
+    {
+        var message = Assert.Throws<DcaRuleViolationException>(
+            () => CheckControllerPlace("DomainCentric.ArchRules.Tests.Fixtures.ControllerPlace.Bad")).Message;
+
+        Assert.Contains("Application.Shared.LedgerController is a controller outside the incoming adapters", message);
+        Assert.Contains("Infrastructure.LedgerResource is a controller outside the incoming adapters", message);
+    }
+
+    [Fact]
+    public void ControllersInTheIncomingAdaptersPass() =>
+        CheckControllerPlace("DomainCentric.ArchRules.Tests.Fixtures.ControllerPlace.Good");
 
     [Fact]
     public void DomainServiceRuleNamesInjectedAndStaticUse()
