@@ -82,27 +82,34 @@ public sealed class NamingRules : IDcaRuleSet
         // .NET interfaces additionally carry the customary 'I' prefix: IPlaceOrderInputPort.
         DcaRule.Check(
             "DCA-NAM-003",
-            "InputPort interfaces must end with 'InputPort'",
+            $"InputPort interfaces must end with '{layout.InputPortSuffix}'",
             "Input port interfaces should follow consistent naming conventions (Hexagonal Architecture)",
             arch =>
             {
+                var suffix = arch.Layout.InputPortSuffix;
+                var markers = arch.Layout.Markers;
                 var violations = arch.Interfaces
                     .Where(i => InNamespace(i, DcaLayout.AnyOf(arch.AllApplicationPatterns()))
-                        && IsAssignableTo(arch, i, arch.Layout.Markers.InputPort)
+                        && IsAssignableTo(arch, i, markers.InputPort)
                         && !IsBaseInputPortName(i.Name)
-                        && !(i.Name.StartsWith("I", StringComparison.Ordinal) && i.Name.EndsWith("InputPort", StringComparison.Ordinal)))
-                    .Select(i => $"{i.FullName} is an input port but is not named I*InputPort")
+                        && !IsRoleType(i, markers.InputPort)
+                        && !IsRoleType(i, markers.UseCase)
+                        && !(i.Name.StartsWith("I", StringComparison.Ordinal) && i.Name.Split('`')[0].EndsWith(suffix, StringComparison.Ordinal)))
+                    .Select(i => $"{i.FullName} is an input port but is not named I*{suffix}")
                     .ToList();
                 DcaRule.Fail(
-                    "InputPort interfaces must end with 'InputPort'",
+                    $"InputPort interfaces must end with '{suffix}'",
                     violations,
-                    "rename the interface to I<UseCaseName>InputPort");
+                    $"rename the interface to I<UseCaseName>{suffix}");
             })
         .Selecting(
             "Interfaces in <module>.Application of every module root that are assignable to"
-                + " IInputPort, except those named exactly InputPort, IInputPort, UseCase or IUseCase.")
+                + " IInputPort, except the types the InputPort and UseCase roles name and those named"
+                + " exactly InputPort, IInputPort, UseCase or IUseCase.")
         .Checking(
-            "The name starts with I and ends with InputPort (IPlaceOrderInputPort). The I prefix is the"
+            "The name starts with I and ends with the configured input-port suffix ("
+                + layout.InputPortSuffix
+                + ", by default InputPort: IPlaceOrderInputPort). The I prefix is the"
                 + " platform convention and is checked here only: the Java twin requires the suffix and"
                 + " nothing else, because Java interfaces carry no prefix. Classes and records are not"
                 + " selected, and an interface extending IInputPort outside an application namespace is"
@@ -409,7 +416,7 @@ public sealed class NamingRules : IDcaRuleSet
             plain = plain[1..];
         }
 
-        foreach (var suffix in new[] { "InputPort", layout.UseCaseSuffix })
+        foreach (var suffix in new[] { "InputPort", layout.InputPortSuffix, layout.UseCaseSuffix }.Distinct(StringComparer.Ordinal))
         {
             if (suffix.Length > 0 && plain.Length > suffix.Length && plain.EndsWith(suffix, StringComparison.Ordinal))
             {
@@ -448,6 +455,10 @@ public sealed class NamingRules : IDcaRuleSet
 
     private static bool IsBaseInputPortName(string name) =>
         name is "InputPort" or "IInputPort" or "UseCase" or "IUseCase";
+
+    /// <summary>Whether the type is the role's own type, a generic definition's arity suffix included.</summary>
+    private static bool IsRoleType(IType type, string role) =>
+        type.FullName == role || type.FullName.StartsWith(role + "`", StringComparison.Ordinal);
 
     /// <summary>
     /// Whether the class carries the configured use-case role - by reflection on the runtime type when the

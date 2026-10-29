@@ -263,13 +263,21 @@ public sealed class UseCaseRules : IDcaRuleSet
                 Interfaces()
                     .That()
                     .HaveNameMatching("^I?InputPort$")
+                    .And()
+                    .FollowCustomPredicate(t => t.FullName != arch.Layout.Markers.InputPort, "are not the type the InputPort role names")
                     .Should()
-                    .ResideInNamespaceMatching(DcaLayout.Exactly(DcaLayout.BuildingBlocksPortsInNamespace)))
+                    .ResideInNamespaceMatching(DcaLayout.AnyOf(
+                        new[] { DcaLayout.BuildingBlocksPortsInNamespace }
+                            .Concat(arch.Layout.Markers.DeclaringNamespacesOf(new[] { nameof(DcaMarkers.InputPort) }))
+                            .Distinct(StringComparer.Ordinal)
+                            .Select(DcaLayout.Exactly))))
         .Selecting(
-            "Interfaces named InputPort or IInputPort anywhere in the loaded assemblies.")
+            "Interfaces named InputPort or IInputPort anywhere in the loaded assemblies - except the type the"
+                + " InputPort role names.")
         .Checking(
-            "The interface resides in the building-blocks namespace Hexagonal.Ports.In - the"
-                + " generic contract is not redeclared in the project.");
+            "The interface resides in the building-blocks namespace Hexagonal.Ports.In or in the namespace of"
+                + " the configured InputPort role - the generic contract is declared once, by the vocabulary in"
+                + " use, and not redeclared elsewhere in the project.");
 
     public static IDcaRule CommandsResideInApplication(DcaLayout layout) =>
         DcaRule.Of(
@@ -343,15 +351,21 @@ public sealed class UseCaseRules : IDcaRuleSet
                     .ResideInNamespaceMatching(DcaLayout.Below(layout.RootNamespace))
                     .And()
                     .FollowCustomPredicate(t => !t.IsAssignableTo(arch.Layout.Markers.Value), "are not value objects")
+                    .And()
+                    .FollowCustomPredicate(t => !IsClosedDomainOutcome(arch, t), "are not a closed domain outcome")
                     .Should()
                     .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllApplicationPatterns())))
         .Selecting(
-            "Types under the root namespace whose name ends with Result and that do not"
-                + " implement IValue.")
+            "Types under the root namespace whose name ends with Result, that do not implement IValue and"
+                + " that are not a closed domain outcome - in a domain namespace, an abstract class or record"
+                + " whose constructors are all private or private protected, so that no other assembly can derive"
+                + " from it, or a direct case of one.")
         .Checking(
             "Each resides in an application namespace of some module root"
                 + " (<module>.Application). A domain value object named *Result is exempt because it"
-                + " implements IValue.");
+                + " implements IValue, and a closed outcome type of the domain - a sum type whose cases the"
+                + " domain returns, the C# reading of a Java sealed type - is exempt because it is part of the"
+                + " model.");
 
     public static IDcaRule ResultsAreImmutable(DcaLayout layout) =>
         DcaRule.Check(
@@ -533,6 +547,7 @@ public sealed class UseCaseRules : IDcaRuleSet
             .Select(m => m.DeclaringType)
             .Where(t => t is not null && DcaMarkers.IsAssignableToByName(t, markers.OutputPort))
             .Where(t => !transactional.Any(role => DcaMarkers.IsAssignableToByName(t, role)))
+            .Where(t => !arch.Layout.LocalOutputPorts.Any(local => DcaMarkers.IsAssignableToByName(t, local)))
             .Select(t => t!.Name)
             .Distinct(StringComparer.Ordinal)
             .OrderBy(n => n, StringComparer.Ordinal);
@@ -703,7 +718,7 @@ public sealed class UseCaseRules : IDcaRuleSet
                     + " ITransactionBoundary.InTransactionAsync(...) around the transactional part only");
             })
         .Selecting("Concrete application operations selected by IInputPort marker or configured use-case suffix, with loadable runtime types. Nothing at all while no transactional attribute is configured, which is the default: neither .NET preset names one, because ASP.NET Core has no ambient transaction attribute.")
-        .Checking("Every code unit that runs under the configured transactional attribute - on the class, on itself, or on an entry point that reaches it within the class - calls no output port other than IRepository, IStore, IDomainEventPublisher or IIntegrationEventPublisher. A use case without such an attribute (an explicit ITransactionBoundary, or none) is selected but never reported, and with no attribute configured nothing is ever reported - the rule then carries the id without checking anything, as the Java twin does where no framework annotation is on the class path. What happens inside an InTransactionAsync block is not inspected; the explicit boundary is the developer's own and its extent is visible at the call site.");
+        .Checking("Every code unit that runs under the configured transactional attribute - on the class, on itself, or on an entry point that reaches it within the class - calls no output port other than IRepository, IStore, IDomainEventPublisher, IIntegrationEventPublisher or a port the layout declares local (a hasher, a clock, an id source - DcaLayout.WithLocalOutputPorts). A use case without such an attribute (an explicit ITransactionBoundary, or none) is selected but never reported, and with no attribute configured nothing is ever reported - the rule then carries the id without checking anything, as the Java twin does where no framework annotation is on the class path. What happens inside an InTransactionAsync block is not inspected; the explicit boundary is the developer's own and its extent is visible at the call site.");
 
     public static IDcaRule UseCasePackagesUseOneDepth(DcaLayout layout) =>
         DcaRule.Check(
@@ -941,8 +956,47 @@ public sealed class UseCaseRules : IDcaRuleSet
     /// <summary>The simple name of a configured marker, for a message a reader has to recognise.</summary>
     private static string SimpleName(string fullName) => fullName[(fullName.LastIndexOf('.') + 1)..];
 
+    /// <summary>
+    /// A closed outcome type in a domain namespace, or a direct case of one: a sum type the domain returns,
+    /// whatever it is named. C# has no sealed hierarchy for classes; the closest honest reading is an abstract
+    /// class (or record) whose instance constructors are all private or private protected — then no other
+    /// assembly can derive from it, and with private ones only its nested types. A record's compiler-generated copy constructor is protected and is
+    /// ignored: a type outside could derive through it only by copying an existing case, which no one does by
+    /// accident. Interfaces cannot be closed in C# and are never exempt.
+    /// </summary>
+    private static bool IsClosedDomainOutcome(DcaArchitecture arch, IType type)
+    {
+        if (type.Namespace is null || !Matches(type.Namespace.FullName, DcaLayout.AnyOf(arch.AllDomainPatterns())))
+        {
+            return false;
+        }
+
+        var runtime = arch.RuntimeType(type);
+        return runtime is not null && (IsClosed(runtime) || (runtime.BaseType is { } baseType && IsClosed(baseType)));
+    }
+
+    private static bool IsClosed(Type type)
+    {
+        if (!type.IsClass || !type.IsAbstract || type.IsSealed)
+        {
+            return false;
+        }
+
+        var constructors = type.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+            .Where(c => !IsRecordCopyConstructor(type, c))
+            .ToList();
+        return constructors.Count > 0 && constructors.All(c => c.IsPrivate || c.IsFamilyAndAssembly);
+    }
+
+    private static bool IsRecordCopyConstructor(Type type, ConstructorInfo constructor) =>
+        constructor.GetParameters() is { Length: 1 } parameters
+        && parameters[0].ParameterType == type
+        && type.GetMethod("<Clone>$", BindingFlags.Public | BindingFlags.Instance) is not null;
+
     private static void ImmutableApplicationModels(DcaArchitecture arch, string suffix)
     {
+        // Selects classes and structs only: an enum is its own kind in the type model and immutable by
+        // construction - its one instance field, the underlying value, is not readonly.
         var violations = arch.Types.Where(t => t is Class or Struct)
             .Where(c => c.Namespace is not null
                 && Matches(c.Namespace.FullName, DcaLayout.AnyOf(arch.AllApplicationPatterns()))

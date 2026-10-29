@@ -191,7 +191,8 @@ public abstract class DcaArchitectureTest
     }
 
     /// <summary>
-    /// The two facts of the layout worth seeing in the report: the framework preset the rules
+    /// The facts of the layout worth seeing in the report: the namespaces left out of the architecture,
+    /// a root namespace that resolves as a module root next to others, the framework preset the rules
     /// resolved their attributes with, and the vocabulary they resolved their building blocks with.
     /// The wording matches the <c>layout</c> container of the Java carrier, so a run is
     /// self-describing on both stacks.
@@ -200,6 +201,16 @@ public abstract class DcaArchitectureTest
     public void LayoutDiagnostics()
     {
         var layout = EffectiveLayout;
+        if (layout.ExcludedNamespaces.Count > 0)
+        {
+            Console.Out.WriteLine($"excluded namespaces: {string.Join(", ", layout.ExcludedNamespaces)}");
+        }
+
+        if (Architecture.RootModuleRootNotice() is { } notice)
+        {
+            Console.Out.WriteLine($"module roots: {notice}");
+        }
+
         Console.Out.WriteLine($"framework annotations: {layout.FrameworkTypesReport()}");
         Console.Out.WriteLine($"building block markers: {layout.MarkersReport()}");
     }

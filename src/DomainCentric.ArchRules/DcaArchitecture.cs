@@ -23,7 +23,10 @@ namespace DomainCentric.ArchRules;
 /// <para>Context-level declarations (<c>[BoundedContext]</c>, <c>[SharedKernel]</c>, <c>[Upstream]</c>, …)
 /// are read with reflection from a <em>marker class</em> that resides directly in the context's root
 /// namespace — the .NET stand-in for Java's <c>package-info</c>. Therefore the assemblies passed to
-/// <see cref="Load(DcaLayout, Assembly[])"/> must be the loaded runtime assemblies.</para>
+/// <see cref="Load(DcaLayout, Assembly[])"/> must be the loaded runtime assemblies. The context and
+/// shared-kernel attributes are matched by the full type name their marker role names
+/// (<see cref="DcaMarkers.BoundedContext"/>, <see cref="DcaMarkers.SharedKernel"/>), so a project's own
+/// attribute serves like the library's.</para>
 /// </remarks>
 public sealed class DcaArchitecture
 {
@@ -39,8 +42,34 @@ public sealed class DcaArchitecture
     private DcaArchitecture(DcaLayout layout, Architecture architecture, IReadOnlyList<Assembly> assemblies)
     {
         Layout = layout ?? throw new ArgumentNullException(nameof(layout));
-        Architecture = architecture ?? throw new ArgumentNullException(nameof(architecture));
+        Architecture = WithoutExcludedNamespaces(layout, architecture ?? throw new ArgumentNullException(nameof(architecture)));
         _assemblies = assemblies;
+    }
+
+    /// <summary>
+    /// The architecture without the types of <see cref="DcaLayout.ExcludedNamespaces"/>. They stay known as
+    /// referenced types, so a dependency on them is still a dependency; they are only no longer checked.
+    /// </summary>
+    private static Architecture WithoutExcludedNamespaces(DcaLayout layout, Architecture architecture)
+    {
+        if (layout.ExcludedNamespaces.Count == 0)
+        {
+            return architecture;
+        }
+
+        bool Excluded(IType type) => layout.IsExcluded(type.Namespace?.FullName);
+        var types = architecture.Types.Where(t => !Excluded(t)).ToList();
+        var namespaces = architecture.Namespaces
+            .Where(ns => !layout.IsExcluded(ns.FullName))
+            .Select(ns => new Namespace(ns.FullName, ns.Types.Where(t => !Excluded(t)).ToList()))
+            .ToList();
+        return new Architecture(
+            architecture.Assemblies,
+            namespaces,
+            types,
+            architecture.GenericParameters,
+            architecture.ReferencedTypes.Concat(architecture.Types.Where(Excluded)).ToList(),
+            true);
     }
 
     /// <summary>
@@ -212,14 +241,25 @@ public sealed class DcaArchitecture
     public string[] BoundedContextPatternsExcluding(string contextNamespace) =>
         BoundedContexts.Keys.Where(p => p != contextNamespace).Select(DcaLayout.Below).ToArray();
 
-    /// <summary>The namespace, at whatever depth below the root, whose marker class carries <c>[SharedKernel]</c>.</summary>
+    /// <summary>
+    /// The namespace, at whatever depth below the root, whose marker class carries <c>[SharedKernel]</c> — or
+    /// the attribute the <see cref="DcaMarkers.SharedKernel"/> role names. Where no namespace carries it, the
+    /// conventional namespace <c>Root.&lt;SharedKernelSegment&gt;</c> is the shared kernel when it holds types: a
+    /// project that has not declared its kernel yet still gets the kernel's exemption from module isolation.
+    /// </summary>
     public string? SharedKernelNamespace
     {
         get
         {
             if (!_sharedKernelResolved)
             {
-                _sharedKernelNamespace = ContextRoots().FirstOrDefault(r => NamespaceAttribute<SharedKernelAttribute>(r) is not null);
+                _sharedKernelNamespace = ContextRoots().FirstOrDefault(r => HasNamespaceAttribute(r, Layout.Markers.SharedKernel));
+                if (_sharedKernelNamespace is null
+                    && RootTypes().Any(t => DcaLayout.IsBelow(t.Namespace!, Layout.SharedKernelNamespace)))
+                {
+                    _sharedKernelNamespace = Layout.SharedKernelNamespace;
+                }
+
                 _sharedKernelResolved = true;
             }
 
@@ -306,8 +346,8 @@ public sealed class DcaArchitecture
     {
         if (!_contextRootCache.TryGetValue(ns, out var isRoot))
         {
-            isRoot = NamespaceAttribute<BoundedContextAttribute>(ns) is not null
-                || NamespaceAttribute<SharedKernelAttribute>(ns) is not null;
+            isRoot = HasNamespaceAttribute(ns, Layout.Markers.BoundedContext)
+                || HasNamespaceAttribute(ns, Layout.Markers.SharedKernel);
             _contextRootCache[ns] = isRoot;
         }
 
@@ -431,6 +471,35 @@ public sealed class DcaArchitecture
     }
 
     /// <summary>
+    /// A finding about the layout itself, or <c>null</c>: the root namespace resolves as a module root next to
+    /// other module roots. That happens when a namespace directly below the root namespace is named like a
+    /// layer — a host in <c>Root.Application</c>, say — and it makes every module a neighbour of every other,
+    /// because each one lies inside the root namespace. <see cref="DcaLayout.WithExcludedNamespaces"/> leaves
+    /// such a module out.
+    /// </summary>
+    public string? RootModuleRootNotice()
+    {
+        var root = Layout.RootNamespace;
+        var roots = ModuleRoots();
+        if (!roots.Contains(root) || roots.Count < 2)
+        {
+            return null;
+        }
+
+        var layerNamespaces = Types
+            .Select(t => t.Namespace!.FullName)
+            .Where(ns => ModuleRootOf(ns) == root)
+            .Select(ns => root + "." + ns.Substring(root.Length + 1).Split('.')[0])
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(ns => ns, StringComparer.Ordinal)
+            .ToList();
+        return $"the root namespace {root} is a module root next to {roots.Count - 1} others, because of types in "
+            + string.Join(", ", layerNamespaces)
+            + " - every module then lies inside it. If that is a module that only assembles the application,"
+            + " leave it out with DcaLayout.WithExcludedNamespaces(..)";
+    }
+
+    /// <summary>
     /// The module roots the isolation rules govern: every module root except the shared kernel. The
     /// shared kernel is a module root too (it may own <c>Domain</c>, <c>Application</c> and <c>Adapter</c>
     /// namespaces), but everyone may depend on it, and what <em>it</em> may depend on is <c>DCA-STR-002</c>'s
@@ -479,12 +548,48 @@ public sealed class DcaArchitecture
     /// All attributes of type <typeparamref name="T"/> declared on classes residing exactly in
     /// <paramref name="ns"/> (repeatable attributes such as <c>[Upstream]</c>).
     /// </summary>
+    /// <remarks>
+    /// For <see cref="BoundedContextAttribute"/> and <see cref="SharedKernelAttribute"/> the attribute looked for
+    /// is the one the layout's marker role names (<see cref="DcaMarkers.BoundedContext"/>,
+    /// <see cref="DcaMarkers.SharedKernel"/>), matched by full type name; a project's own attribute is then
+    /// answered as the library type, its members read by name (<see cref="NamespaceDeclarations"/>).
+    /// </remarks>
     public IReadOnlyList<T> NamespaceAttributes<T>(string ns)
-        where T : Attribute =>
+        where T : Attribute
+    {
+        var declared = DeclaredAttributeName(typeof(T));
+        if (declared == typeof(T).FullName)
+        {
+            return RootTypes()
+                .Where(t => t.Namespace == ns)
+                .SelectMany(t => t.GetCustomAttributes<T>(inherit: false))
+                .ToList();
+        }
+
+        return DeclaredAttributes(ns, declared)
+            .Select(attribute => (T)NamespaceDeclarations.As(typeof(T), attribute, ns))
+            .ToList();
+    }
+
+    /// <summary>Whether a marker class residing exactly in <paramref name="ns"/> carries the attribute of that full name.</summary>
+    private bool HasNamespaceAttribute(string ns, string attributeName) => DeclaredAttributes(ns, attributeName).Any();
+
+    private IEnumerable<object> DeclaredAttributes(string ns, string attributeName) =>
         RootTypes()
             .Where(t => t.Namespace == ns)
-            .SelectMany(t => t.GetCustomAttributes<T>(inherit: false))
-            .ToList();
+            .SelectMany(t => t.GetCustomAttributes(inherit: false))
+            .Where(a => a.GetType().FullName == attributeName);
+
+    /// <summary>The full name of the attribute the layout declares for the given library attribute.</summary>
+    private string DeclaredAttributeName(Type attributeType)
+    {
+        if (attributeType == typeof(BoundedContextAttribute))
+        {
+            return Layout.Markers.BoundedContext;
+        }
+
+        return attributeType == typeof(SharedKernelAttribute) ? Layout.Markers.SharedKernel : attributeType.FullName!;
+    }
 
     /// <summary>The runtime <see cref="Type"/>s of the loaded assemblies below the root namespace.</summary>
     public IReadOnlyList<Type> RuntimeTypes() => RootTypes();
@@ -500,7 +605,9 @@ public sealed class DcaArchitecture
         {
             _rootTypes = _assemblies
                 .SelectMany(SafeGetTypes)
-                .Where(t => t.Namespace is not null && DcaLayout.IsBelow(t.Namespace, Layout.RootNamespace))
+                .Where(t => t.Namespace is not null
+                    && DcaLayout.IsBelow(t.Namespace, Layout.RootNamespace)
+                    && !Layout.IsExcluded(t.Namespace))
                 .ToList();
         }
 

@@ -732,9 +732,13 @@ public sealed class TacticalPatternRules : IDcaRuleSet
             arch =>
             {
                 var violations = new List<string>();
+                var adapterOrInfrastructure = DcaLayout.AnyOf(arch.AllAdapterPatterns().Concat(arch.AllInfrastructurePatterns()));
                 foreach (var candidate in arch.Interfaces)
                 {
-                    if (!HasSuffixButIsNotMarker(candidate, arch.Layout.StoreSuffix))
+                    if (!HasSuffixButIsNotMarker(candidate, arch.Layout.StoreSuffix)
+                        || candidate.FullName == arch.Layout.Markers.Store
+                        || (candidate.Namespace is not null
+                            && Regex.IsMatch(candidate.Namespace.FullName, adapterOrInfrastructure)))
                     {
                         continue;
                     }
@@ -753,8 +757,10 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 DcaRule.Fail("Store interfaces must extend IStore and must not extend IRepository.", violations);
             })
             .Selecting(
-                "Interfaces below the root namespace whose name ends with Store; interfaces "
-                + "named exactly Store or IStore excluded.")
+                "Interfaces below the root namespace whose name ends with Store, those named exactly Store or"
+                + " IStore and the type the Store role names excluded, outside every adapter and"
+                + " infrastructure namespace - an interface there is an adapter's own abstraction, never a"
+                + " port.")
             .Checking(
                 "The interface is assignable to the IStore marker and not assignable to "
                 + "IRepository; both must hold, and each failing alone is reported. An "

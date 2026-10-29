@@ -77,7 +77,10 @@ public sealed class DcaLayout
         string factorySuffix = "Factory",
         string specificationSuffix = "Specification",
         IReadOnlyList<string>? timestampTypes = null,
-        DcaMarkers? markers = null)
+        DcaMarkers? markers = null,
+        string inputPortSuffix = "InputPort",
+        IReadOnlyList<string>? excludedNamespaces = null,
+        IReadOnlyList<string>? localOutputPorts = null)
     {
         RootNamespace = RequireSegment(rootNamespace, nameof(rootNamespace));
         SharedKernelSegment = RequireSegment(sharedKernelSegment, nameof(sharedKernelSegment));
@@ -105,6 +108,7 @@ public sealed class DcaLayout
         }
 
         UseCaseSuffix = RequireSegment(useCaseSuffix, nameof(useCaseSuffix));
+        InputPortSuffix = RequireSegment(inputPortSuffix, nameof(inputPortSuffix));
         ControllerSuffix = RequireSegment(controllerSuffix, nameof(controllerSuffix));
         RestControllerSuffix = RequireSegment(restControllerSuffix, nameof(restControllerSuffix));
         AggregateRootSuffix = RequireSegment(aggregateRootSuffix, nameof(aggregateRootSuffix));
@@ -116,6 +120,24 @@ public sealed class DcaLayout
         ThirdPartyNamespacesAllowedInDomain = thirdPartyNamespacesAllowedInDomain.ToArray();
         FrameworkTypes = frameworkTypes ?? throw new ArgumentNullException(nameof(frameworkTypes));
         Markers = (markers ?? DcaMarkers.Dca()).Validate();
+        ExcludedNamespaces = Array.AsReadOnly((excludedNamespaces ?? Array.Empty<string>()).ToArray());
+        foreach (var excluded in ExcludedNamespaces)
+        {
+            RequireSegment(excluded, nameof(excludedNamespaces));
+            if (!excluded.StartsWith(RootNamespace + ".", StringComparison.Ordinal))
+            {
+                throw new ArgumentException(
+                    $"An excluded namespace lies below the root namespace '{RootNamespace}', was '{excluded}'"
+                    + " - excluding the root namespace itself would leave nothing to check",
+                    nameof(excludedNamespaces));
+            }
+        }
+
+        LocalOutputPorts = Array.AsReadOnly((localOutputPorts ?? Array.Empty<string>()).ToArray());
+        foreach (var port in LocalOutputPorts)
+        {
+            RequireSegment(port, nameof(localOutputPorts));
+        }
     }
 
     /// <summary>The DCA default layout for the given root namespace.</summary>
@@ -213,6 +235,18 @@ public sealed class DcaLayout
 
     /// <summary>Suffix of use-case implementations, e.g. <c>UseCase</c> or <c>ApplicationService</c>.</summary>
     public string UseCaseSuffix { get; }
+
+    /// <summary>Name suffix of an input-port interface, <c>InputPort</c> by default; read by <c>DCA-NAM-003</c>.</summary>
+    public string InputPortSuffix { get; }
+
+    /// <summary>The namespaces <see cref="WithExcludedNamespaces"/> left out of the architecture under test.</summary>
+    public IReadOnlyList<string> ExcludedNamespaces { get; }
+
+    /// <summary>The types <see cref="WithLocalOutputPorts"/> declared local.</summary>
+    public IReadOnlyList<string> LocalOutputPorts { get; }
+
+    /// <summary>Whether a namespace is one of <see cref="ExcludedNamespaces"/> or lies below one.</summary>
+    public bool IsExcluded(string? ns) => ns is not null && ExcludedNamespaces.Any(excluded => IsBelow(ns, excluded));
 
     /// <summary>Organisational namespace segments ignored when measuring operation depth.</summary>
     public IReadOnlyList<string> OperationContainers { get; }
@@ -339,6 +373,32 @@ public sealed class DcaLayout
 
     public DcaLayout WithUseCaseSuffix(string value) => Copy(useCaseSuffix: value);
 
+    /// <summary>
+    /// Suffix of input-port interfaces, <c>InputPort</c> by default — read by <c>DCA-NAM-003</c>, which
+    /// requires the platform's <c>I</c> prefix on top. A project that names its input ports
+    /// <c>I*UseCase</c> and their implementations <c>*ApplicationService</c> sets this to <c>UseCase</c> and
+    /// <see cref="WithUseCaseSuffix"/> to <c>ApplicationService</c>.
+    /// </summary>
+    public DcaLayout WithInputPortSuffix(string value) => Copy(inputPortSuffix: value);
+
+    /// <summary>
+    /// Namespaces below the root namespace whose types are not part of the architecture under test — each
+    /// namespace with everything below it. Meant for a module that only assembles the application (the entry
+    /// point, the wiring) and is named like a layer: a host in <c>Root.Application</c> would otherwise make
+    /// the root namespace itself a module root, and every context would count as a neighbour of every other.
+    /// <see cref="DcaArchitecture.Load(DcaLayout, System.Reflection.Assembly[])"/> and
+    /// <see cref="DcaArchitecture.Of"/> leave the types out; a dependency on them is still a dependency.
+    /// </summary>
+    public DcaLayout WithExcludedNamespaces(params string[] namespaces) => Copy(excludedNamespaces: namespaces);
+
+    /// <summary>
+    /// Output ports that never leave the process — a hasher, a clock, an id source, a metrics counter. Each
+    /// name is a type matched by assignability: a single port, or a project's own supertype that all its
+    /// local ports extend. <c>DCA-USE-013</c> counts them with the transactional resources instead of
+    /// reporting them as remote-capable.
+    /// </summary>
+    public DcaLayout WithLocalOutputPorts(params string[] typeNames) => Copy(localOutputPorts: typeNames);
+
     public DcaLayout WithControllerSuffix(string value) => Copy(controllerSuffix: value);
 
     public DcaLayout WithRestControllerSuffix(string value) => Copy(restControllerSuffix: value);
@@ -441,7 +501,10 @@ public sealed class DcaLayout
         string? factorySuffix = null,
         string? specificationSuffix = null,
         DcaMarkers? markers = null,
-        FrameworkTypesOrigin? frameworkTypesSource = null) =>
+        FrameworkTypesOrigin? frameworkTypesSource = null,
+        string? inputPortSuffix = null,
+        IReadOnlyList<string>? excludedNamespaces = null,
+        IReadOnlyList<string>? localOutputPorts = null) =>
         new(
             RootNamespace,
             sharedKernel ?? SharedKernelSegment,
@@ -469,7 +532,10 @@ public sealed class DcaLayout
             factorySuffix ?? FactorySuffix,
             specificationSuffix ?? SpecificationSuffix,
             timestampTypes ?? TimestampTypes,
-            markers ?? Markers)
+            markers ?? Markers,
+            inputPortSuffix ?? InputPortSuffix,
+            excludedNamespaces ?? ExcludedNamespaces,
+            localOutputPorts ?? LocalOutputPorts)
         {
             FrameworkTypesSource = frameworkTypesSource ?? FrameworkTypesSource,
         };

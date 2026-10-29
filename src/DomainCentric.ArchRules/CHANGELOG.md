@@ -6,6 +6,47 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ### Added
 
+**Retrofit with an own vocabulary: names and conventions become configuration** — the twin of the Java
+library's change, same rule ids. A project that keeps its own markers, attributes and naming no longer needs
+`dca.rules.off` or ignore patterns for them:
+
+- **Attribute roles.** `DcaMarkers` gains `BoundedContext`, `SharedKernel` and `IntegrationEventType`. They
+  name attributes, not supertypes, and are matched by full type name, never by a type literal. A project's own
+  context or shared-kernel attribute on its context marker class is answered as the library attribute — the
+  API stays `IReadOnlyDictionary<string, BoundedContextAttribute> BoundedContexts` — with `Name` and
+  `Description` read as properties by name; an attribute without `Name` fails naming the namespace and the
+  member. `DCA-ADV-005` accepts the attribute the `IntegrationEventType` role names. The relationship
+  attributes (`[Upstream]` and its siblings) stay the library's own.
+- **The conventional shared kernel.** Where no namespace declares one, `Root.<SharedKernelSegment>` is the
+  shared kernel when it holds types, so its exemption from module isolation holds before it is declared.
+- **`DcaLayout.WithExcludedNamespaces(..)`** leaves namespaces below the root namespace out of the
+  architecture under test — meant for a host named like a layer (`Root.Application`), which would make the
+  root namespace a module root and every context a neighbour of every other. Applied in `Load` and `Of`; the
+  types stay known as referenced types. `DcaArchitecture.RootModuleRootNotice()` names the cause when the root
+  namespace resolves as a module root next to others, and the `LayoutDiagnostics` fact prints it with the
+  excluded namespaces.
+- **`DcaLayout.WithInputPortSuffix(..)`** (default `InputPort`) is read by `DCA-NAM-003`, which keeps the
+  platform's `I` prefix on top and exempts the types the `InputPort` and `UseCase` roles name.
+- **`DcaLayout.WithLocalOutputPorts(..)`** names output ports that never leave the process, by
+  assignability — one own supertype covers them all. `DCA-USE-013` counts them with the transactional
+  resources.
+
+### Changed
+
+**`DCA-USE-001` accepts the vocabulary in use.** The interface the `InputPort` role names is exempt, and an
+`IInputPort` in that role's namespace is not a redeclaration.
+
+**`DCA-TAC-018` selects outside adapter and infrastructure namespaces** and exempts the type the `Store` role
+names: an interface there is an adapter's own abstraction, never a port.
+
+**`DCA-USE-006` exempts closed domain outcomes.** C# has no sealed hierarchy for classes; the reading taken is
+an abstract class or record in a domain namespace whose instance constructors are all private or private
+protected (a record's generated copy constructor ignored), so that no other assembly derives from it — that
+type and its direct cases pass. Interfaces are never exempt. `DCA-USE-004/005/007` never selected enums here —
+an enum is its own kind in the type model — and a test now holds that.
+
+### Added
+
 **`DCA-HEX-019` (experimental): output port implementations must reside in an outgoing adapter namespace.** Every
 class assignable to `IOutputPort` — not only repositories and stores, which `DCA-TAC-015`/`-020` already hold — lives
 in `<Module>.Adapter.Outgoing`. The configuration in infrastructure wires an implementation to its port and holds none

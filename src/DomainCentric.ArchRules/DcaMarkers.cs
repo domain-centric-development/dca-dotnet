@@ -25,10 +25,15 @@ namespace DomainCentric.ArchRules;
 /// library's own type while <c>Repository</c> points elsewhere reports every port of the project's
 /// vocabulary. A vocabulary that has no common port supertype cannot express that here — switch
 /// <c>DCA-HEX-009</c> off rather than pointing the role at an unrelated type.</para>
-/// <para>What the roles do <em>not</em> cover are the strategic attributes (<c>[BoundedContext]</c>,
-/// <c>[Upstream]</c>, <c>[Partnership]</c> and their siblings). The rules do not only select on them, they
-/// read their members — the context a relationship names, the dependencies a module allows — and a name
-/// alone does not carry members. Those attributes stay the library's own.</para>
+/// <para><b>Three roles name attributes</b>, not supertypes: <c>BoundedContext</c> and <c>SharedKernel</c> on a
+/// context marker class, <c>IntegrationEventType</c> on an integration event. They are matched by full type
+/// name, never by a type literal, and the members the rules read are read by name: a project's own
+/// <c>[BoundedContext(name, Description = …)]</c> serves like the library's. A member the rules need and the
+/// attribute lacks is reported by name.</para>
+/// <para>What the roles do <em>not</em> cover are the relationship attributes (<c>[Upstream]</c>,
+/// <c>[ExternalUpstream]</c>, <c>[Partnership]</c>, <c>[OpenHostService]</c>). The rules read their nested values
+/// and enum members — the channels a relationship consumes, its translation and its status — and those stay
+/// the library's own.</para>
 /// <para><b>A role names a type, never a method.</b> Four method names are fixed, and pointing a role at
 /// your own type does not rename them: <c>SaveAsync</c> and <c>DeleteByIdAsync</c> on the repository role,
 /// <c>PublishAndClearEventsAsync</c> on the domain-event-publisher role, and <c>RegisterEvent</c> on the
@@ -89,7 +94,14 @@ public sealed record DcaMarkers(string Name)
     /// <summary>The base type of every incoming (driving) port.</summary>
     public string InputPort { get; init; } = DcaBuildingBlocks + ".Hexagonal.Ports.In.IInputPort";
 
-    /// <summary>The input port that takes a command or query and answers with a result.</summary>
+    /// <summary>
+    /// The input port that takes a command or query and answers with a result. Read by <c>DCA-NAM-001</c>, by
+    /// <c>DCA-NET-003</c>, which checks the contract's signature, and where a rule looks for an operation's
+    /// input type; every other use-case rule selects through <see cref="InputPort"/> or the use-case suffix. A
+    /// vocabulary with several use-case shapes (one that answers, one that answers nothing) points this role at
+    /// their common supertype, which may be the input port; the input type is then taken from the parameters of
+    /// the input port's methods.
+    /// </summary>
     public string UseCase { get; init; } = DcaBuildingBlocks + ".Hexagonal.Ports.In.IUseCase";
 
     /// <summary>The base type of every outgoing (driven) port.</summary>
@@ -105,13 +117,29 @@ public sealed record DcaMarkers(string Name)
     public string DomainEventPublisher { get; init; } = DcaBuildingBlocks + ".Hexagonal.Ports.Out.IDomainEventPublisher";
 
     /// <summary>
-    /// The outgoing port that publishes an integration event. No rule of this library reads it today: the one
-    /// rule that does — <c>DCA-USE-013</c>, which separates the output ports that live inside the transaction
-    /// from those that may leave the process — is <c>NotApplicable</c> here, because containment in an explicit
-    /// delegate boundary is not visible in this type model. The role exists so that the configuration surface
-    /// is the same in both libraries and stays correct when that rule arrives.
+    /// The outgoing port that publishes an integration event. Read by <c>DCA-USE-013</c>, which separates the
+    /// output ports that live inside the transaction from those that may leave the process.
     /// </summary>
     public string IntegrationEventPublisher { get; init; } = DcaBuildingBlocks + ".Hexagonal.Ports.Out.IIntegrationEventPublisher";
+
+    /// <summary>
+    /// The attribute that declares a bounded context on a context marker class. The rules read its members
+    /// <c>Name</c> and <c>Description</c> by name, as public properties, so the project's own attribute must
+    /// carry <c>Name</c>; <c>Description</c> may be absent.
+    /// </summary>
+    public string BoundedContext { get; init; } = DcaBuildingBlocks + ".Ddd.Strategic.BoundedContextAttribute";
+
+    /// <summary>
+    /// The attribute that declares the shared kernel on a context marker class. Only its presence is read; a
+    /// member <c>Description</c> is read when the attribute has one.
+    /// </summary>
+    public string SharedKernel { get; init; } = DcaBuildingBlocks + ".Ddd.Strategic.Relationships.SharedKernelAttribute";
+
+    /// <summary>
+    /// The attribute that gives an integration event its contract identity. <c>DCA-ADV-005</c> reads only its
+    /// presence on the event type.
+    /// </summary>
+    public string IntegrationEventType { get; init; } = DcaBuildingBlocks + ".Ddd.Tactical.IntegrationEventTypeAttribute";
 
     /// <summary>The markers of <c>DomainCentric.BuildingBlocks</c> — the default of <see cref="DcaLayout"/>.</summary>
     public static DcaMarkers Dca() => new("dca");
@@ -159,6 +187,9 @@ public sealed record DcaMarkers(string Name)
             new KeyValuePair<string, string>(nameof(Store), Store),
             new KeyValuePair<string, string>(nameof(DomainEventPublisher), DomainEventPublisher),
             new KeyValuePair<string, string>(nameof(IntegrationEventPublisher), IntegrationEventPublisher),
+            new KeyValuePair<string, string>(nameof(BoundedContext), BoundedContext),
+            new KeyValuePair<string, string>(nameof(SharedKernel), SharedKernel),
+            new KeyValuePair<string, string>(nameof(IntegrationEventType), IntegrationEventType),
         };
         foreach (var role in roles)
         {

@@ -212,14 +212,14 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 Violations(
                     arch,
                     t => t is not Interface && IsIntegrationEvent(t, arch.Layout.Markers),
-                    t => !t.HasAttribute(typeof(IntegrationEventTypeAttribute).FullName!),
+                    t => !t.HasAttribute(arch.Layout.Markers.IntegrationEventType),
                     t => $"{t.FullName} is not annotated with [IntegrationEventType]")))
             .Selecting(
                 "Non-interface types anywhere under scan that are assignable to IIntegrationEvent - "
                 + "records, structs and abstract classes included.")
             .Checking(
-                "The type itself carries [IntegrationEventType]. An attribute on a supertype does not "
-                + "count; the attribute's name and version values are not checked. An empty selection "
+                "The type itself carries [IntegrationEventType] - or the attribute the IntegrationEventType "
+                + "marker role names. An attribute on a supertype does not count; the attribute's name and version values are not checked. An empty selection "
                 + "passes.");
 
     public IDcaRule IntegrationEventsHaveNoVersionField() =>
