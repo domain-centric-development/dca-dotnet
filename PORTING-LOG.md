@@ -572,3 +572,13 @@ differently:
   interfaces' names before) — the same with the default vocabulary, the role's reading where a project points it
   elsewhere. `DCA-USE-019`'s text still says "whose input ends in Query" in both libraries although it reads the
   query role; Java left it, so did this port.
+- **`DcaMarkers.Is` refuses a generic parameter:** ArchUnitNET answers assignability for a type parameter with yes,
+  which made every generic shared-kernel type "use the transaction boundary" in `DCA-LAY-004` once that rule asked
+  the role (found by the .NET shop; the library fixtures have no generic type depending on its own parameter there).
+- **`DCA-HEX-019`** names the layer and how the type was placed: `(type|namespace|assembly|path <namespace>)` —
+  Java's `class`/`package` read `type`/`namespace` here, plus `assembly` for decision (a).
+- **`DCA-LAY-007`** says "types" where Java says "classes" (records, structs and interfaces are selected alike) and
+  passes over compiler-generated types as Java passes over synthetic ones; the context marker class sits in the module
+  root's own namespace and is not listed.
+- **`DCA-TAC-025`** counts a type's instance fields by reflection, a record's backing fields included, as the
+  wrapper test always has; the nested-type exemption walks `DeclaringType`.

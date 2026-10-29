@@ -36,6 +36,25 @@ the application layer". Every role check in the rules goes through `DcaMarkers.I
 reflected type). The report names every role recognised otherwise. A rule that reads a role's generic arguments or
 method names still reads them from the role's type.
 
+**`DCA-LAY-007` (experimental, informational): types of a module that sit in no layer.** Lists every type below a
+module root that the layout places in no layer — a mapper or a persistence entity beside the adapter namespaces, a type
+whose layer is declared only on a neighbour. Not listed: types directly in the module root's namespace (the context
+marker class among them), its published namespaces (`Api`, `Events`), its own `Infrastructure` namespace and
+compiler-generated types. The id `DCA-LAY-006` stays retired.
+
+### Changed
+
+**`DCA-HEX-019` (experimental): an output port implementation is placed in no layer but the outgoing adapters.** An
+implementation is an outgoing adapter by the port it implements; the rule now reports one the layout places in another
+layer — domain, application, incoming adapter, infrastructure (the bridge to a second use case still passes) — by path
+or by attribute, and names the layer and how it was placed. A type in no layer is `DCA-LAY-007`'s.
+
+**`DCA-TAC-025` (experimental) passes over failures and a value's own error shapes, and explains a one-field type
+(WP-161).** Not selected: a type of the domain-exception or use-case-exception role — a failure reports what was
+refused — and a type declared inside a value or an id, such as its error records carrying the refused input. A reported
+type with exactly one instance field that carries no value or id role is told to carry one to count as a wrapper,
+naming how the layout recognises the value role.
+
 ## [0.10.0] - 2026-10-29
 
 ### Added

@@ -14,10 +14,11 @@ public sealed class LayeredRulesTests
     private static readonly IReadOnlyDictionary<string, string> NoNegativeFixture = new Dictionary<string, string>
     {
         ["DCA-LAY-001"] = "diagnostic rule, never fails",
+        ["DCA-LAY-007"] = "a diagnostic, lists and never fails",
         ["DCA-LAY-005"] = "consumer implementation negative is imported explicitly in RetirementTests",
     };
 
-    private static readonly string[] ExpectedIds = { "DCA-LAY-001", "DCA-LAY-002", "DCA-LAY-003", "DCA-LAY-004", "DCA-LAY-005" };
+    private static readonly string[] ExpectedIds = { "DCA-LAY-001", "DCA-LAY-002", "DCA-LAY-003", "DCA-LAY-004", "DCA-LAY-005", "DCA-LAY-007" };
 
     private static DcaArchitecture Arch(string ns) =>
         DcaArchitecture.Load(DcaLayout.ForRootNamespace(ns), typeof(LayeredRulesTests).Assembly);

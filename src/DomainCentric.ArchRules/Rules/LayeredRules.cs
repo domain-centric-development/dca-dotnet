@@ -29,6 +29,7 @@ public sealed class LayeredRules : IDcaRuleSet
             ApplicationMustNotUseInfrastructureImplementations(),
             TransactionBoundariesBelongToApplicationLayer(),
             OutputPortMarkersMustBeInterfaces(),
+            TypesSitInALayer(),
         }.AsReadOnly();
     }
 
@@ -60,6 +61,54 @@ public sealed class LayeredRules : IDcaRuleSet
             .Checking(
                 "Informational - selects nothing and never fails; it carries doctrine only. The "
                 + "dependency direction is enforced by the hexagonal rules.");
+
+    /// <summary>
+    /// DCA-LAY-007 (experimental, informational). A type of a module in no layer escapes every rule written for a
+    /// layer - typically a helper of an adapter (a mapper, a persistence entity) lying beside the layer namespaces, or a
+    /// type whose layer is declared only on a neighbour.
+    /// </summary>
+    public IDcaRule TypesSitInALayer() =>
+        DcaRule.Informational(
+            "DCA-LAY-007",
+            "Diagnostic: types of a module that sit in no layer",
+            "Every rule written for a layer selects by the layer a type is placed in. A type of a module that sits"
+                + " in none - a mapper or a persistence entity beside the adapter namespaces, a type whose layer is"
+                + " declared only on its neighbour - is seen by none of them",
+            arch =>
+            {
+                var published = new HashSet<string>(arch.Layout.PublishedSegments, StringComparer.Ordinal);
+                var roots = arch.ModuleRoots();
+                var observed = new List<string>();
+                foreach (var type in arch.Types.Where(t => !t.IsCompilerGenerated))
+                {
+                    var ns = type.Namespace?.FullName ?? "";
+                    var root = roots.Where(r => DcaLayout.IsBelow(ns, r)).OrderByDescending(r => r.Length).FirstOrDefault();
+                    if (root is null || ns == root || arch.PlacementOf(type) is not null)
+                    {
+                        continue;
+                    }
+
+                    var below = ns.Substring(root.Length + 1).Split('.')[0];
+                    if (published.Contains(below) || below == arch.Layout.InfrastructureSegment)
+                    {
+                        continue;
+                    }
+
+                    observed.Add($"{type.FullName} (module {root})");
+                }
+
+                return observed.OrderBy(o => o, StringComparer.Ordinal).ToList();
+            })
+            .Experimental()
+            .Selecting(
+                "Types under a module root, below its own namespace, that the layout places in no layer - neither by a"
+                + " layer attribute on the type, its namespace or its assembly nor by the namespace path; compiler-"
+                + "generated types are not selected. Not selected: types directly in the module root's namespace,"
+                + " the published namespaces (Api, Events) of a module and its own Infrastructure namespace - the"
+                + " shared kernel's included, which is shared support rather than a layer.")
+            .Checking(
+                "Informational - lists every selected type and never fails. Place each in a layer: move it into the"
+                + " layer namespace it belongs to, or declare its namespace's layer.");
 
     public IDcaRule DomainMustNotDependOnInfrastructure() =>
         DcaRule.Of(

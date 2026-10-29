@@ -45,6 +45,52 @@ public sealed class LayerMarkerTests
         Assert.Empty(arch.LayerNotices());
     }
 
+    private static IDcaRule Rule(DcaLayout layout, string id) => DcaRules.All(layout).Single(r => r.Id == id);
+
+    [Fact]
+    public void WithoutTheAttributesTheDeclaredNamespaceIsInNoLayerAndTheDiagnosticNamesIt()
+    {
+        var layout = DcaLayout.ForRootNamespace(App);
+        var arch = Arch(layout);
+
+        Rule(layout, "DCA-HEX-019").Check(arch);
+        var unplaced = Rule(layout, "DCA-LAY-007").Observe(arch);
+        Assert.Contains(Billing + ".Out.Persistence.JdbcInvoiceStore (module " + Billing + ")", unplaced);
+        Assert.DoesNotContain(unplaced, u => u.StartsWith(Billing + ".BillingContext", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void AnOutputPortImplementationPlacedInAnotherLayerIsReported()
+    {
+        var layout = DcaLayout.ForRootNamespace(App)
+            .WithIncomingAdapter(DcaMarker.AnyOf(
+                DcaMarker.OfNamespace("Adapter.Incoming"),
+                DcaMarker.OfAttribute(Vocabulary + "OutgoingLayerAttribute")));
+        var error = Assert.Throws<DcaRuleViolationException>(() => Rule(layout, "DCA-HEX-019").Check(Arch(layout)));
+
+        Assert.Contains(
+            Billing + ".Lone.MailGateway implements an output port but is placed in the incomingAdapter layer (type "
+                + Billing + ".Lone)",
+            error.Message,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            Billing + ".Out.Persistence.JdbcInvoiceStore implements an output port but is placed in the incomingAdapter"
+                + " layer (namespace " + Billing + ".Out)",
+            error.Message,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TheOutputPortImplementationsAreInTheOutgoingAdaptersOnceDeclared()
+    {
+        var layout = NamespaceAndAttributes();
+
+        Rule(layout, "DCA-HEX-019").Check(Arch(layout));
+        Assert.DoesNotContain(
+            Rule(layout, "DCA-LAY-007").Observe(Arch(layout)),
+            u => u.StartsWith(Billing + ".Out.", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void ANamespaceDeclarationHoldsForItsSubtree()
     {

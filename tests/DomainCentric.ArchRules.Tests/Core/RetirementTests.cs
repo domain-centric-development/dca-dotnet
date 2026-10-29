@@ -79,7 +79,7 @@ public class RetirementTests
     [Fact]
     public void InformationalEntriesHaveExplicitKind()
     {
-        Assert.Equal(new[] { "DCA-ERR-006", "DCA-ERR-007", "DCA-HEX-016", "DCA-LAY-001", "DCA-MAP-013", "DCA-NAM-012", "DCA-STR-001", "DCA-STR-010" }, DcaRules.All(DcaLayout.ForRootNamespace("Example")).Where(r => r.Kind == DcaRuleKind.Informational).Select(r => r.Id).OrderBy(x => x));
+        Assert.Equal(new[] { "DCA-ERR-006", "DCA-ERR-007", "DCA-HEX-016", "DCA-LAY-001", "DCA-LAY-007", "DCA-MAP-013", "DCA-NAM-012", "DCA-STR-001", "DCA-STR-010" }, DcaRules.All(DcaLayout.ForRootNamespace("Example")).Where(r => r.Kind == DcaRuleKind.Informational).Select(r => r.Id).OrderBy(x => x));
     }
     [Fact]
     public void OnlyInformationalTitlesCarryTheDiagnosticPrefix()

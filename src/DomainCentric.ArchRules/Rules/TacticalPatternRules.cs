@@ -983,7 +983,8 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                     .OrderBy(t => t.FullName, StringComparer.Ordinal))
                 {
                     var runtime = arch.RuntimeType(type);
-                    if (runtime is null || IsWrapperValue(runtime, markers))
+                    if (runtime is null || IsWrapperValue(runtime, markers) || IsFailure(runtime, markers)
+                        || NestedInWrapperOrValue(runtime, markers))
                     {
                         continue;
                     }
@@ -1050,7 +1051,10 @@ public sealed class TacticalPatternRules : IDcaRuleSet
 
                     if (bare.Count > 0)
                     {
-                        violations.Add($"{type.FullName}: {string.Join("; ", bare.OrderBy(b => b, StringComparer.Ordinal))}");
+                        violations.Add($"{type.FullName}: {string.Join("; ", bare.OrderBy(b => b, StringComparer.Ordinal))}"
+                            + (InstanceFieldCount(runtime) == 1
+                                ? $" - it has one field: mark it as a value or an id ({markers.Marker(nameof(DcaMarkers.Value))}) to count as a wrapper"
+                                : ""));
                     }
                 }
 
@@ -1065,7 +1069,9 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 + " kernel's domain included, with their runtime type in the loaded assemblies - their declared"
                 + " instance fields and properties and their declared methods, private ones included; constructors"
                 + " are not selected, the members they fill are. Not selected: a wrapper value - a type assignable"
-                + " to IValue or IId with exactly one instance field - with everything it declares; compiler-"
+                + " to IValue or IId with exactly one instance field - with everything it declares; a type declared"
+                + " inside a value or an id, such as the value's own error shapes, which carry the input it refused;"
+                + " a failure - a type of the domain-exception or use-case-exception role; compiler-"
                 + " generated members (a property's backing field, a record's EqualityContract, Deconstruct,"
                 + " PrintMembers); property accessors and operators; Equals, GetHashCode, ToString and CompareTo; an"
                 + " enum's members; a member that implements a building block's, such as a domain event's OccurredOn"
@@ -1077,12 +1083,38 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 + " an identifier says whose it is through a typed id - nullable"
                 + " and generic arguments and arrays included, so IReadOnlyList<string> counts. decimal, TimeSpan"
                 + " and the project's own types pass. A value object with several components is checked like"
-                + " any other type: each component is a value object itself. An empty selection passes.");
+                + " any other type: each component is a value object itself. A reported type with exactly one"
+                + " instance field that is no value or id is told to carry the value or id role to count as a"
+                + " wrapper. An empty selection passes.");
 
     /// <summary>A value or an identifier of exactly one instance field: it wraps that field's primitive.</summary>
     private static bool IsWrapperValue(Type runtime, DcaMarkers markers) =>
         (markers.Is(nameof(DcaMarkers.Value), runtime) || markers.Is(nameof(DcaMarkers.Id), runtime))
-        && runtime.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance).Length == 1;
+        && InstanceFieldCount(runtime) == 1;
+
+    private static int InstanceFieldCount(Type runtime) =>
+        runtime.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance).Length;
+
+    /// <summary>A failure reports what was refused - the raw input included - and is no value itself.</summary>
+    private static bool IsFailure(Type runtime, DcaMarkers markers) =>
+        markers.Is(nameof(DcaMarkers.DomainException), runtime) || markers.Is(nameof(DcaMarkers.UseCaseException), runtime);
+
+    /// <summary>
+    /// A type declared inside a value or an id - the value's own error shapes, which carry the input it refused.
+    /// "With everything it declares" holds for its nested types too.
+    /// </summary>
+    private static bool NestedInWrapperOrValue(Type runtime, DcaMarkers markers)
+    {
+        for (var enclosing = runtime.DeclaringType; enclosing is not null; enclosing = enclosing.DeclaringType)
+        {
+            if (markers.Is(nameof(DcaMarkers.Value), enclosing) || markers.Is(nameof(DcaMarkers.Id), enclosing))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     /// <summary>The names of the members a building block the type implements or derives from declares.</summary>
     private static HashSet<string> BuildingBlockMemberNames(Type runtime, HashSet<string> blockNamespaces)

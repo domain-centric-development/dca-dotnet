@@ -597,47 +597,57 @@ public sealed class HexagonalRules : IDcaRuleSet
                 + " which protocol segment - is not checked.");
 
     /// <summary>
-    /// DCA-HEX-019 (experimental). Every implementation of an output port is an outgoing adapter. The composition root
-    /// wires an implementation to its port and holds none itself - except the bridge that hands a port a second use
-    /// case: it implements an output port and drives an input port, so it is wiring. C# cannot implement an interface
-    /// with a lambda, so here the bridge is always a small class.
+    /// DCA-HEX-019 (experimental). Every implementation of an output port is an outgoing adapter - the implemented port
+    /// says so - so the layout may place it in no other layer. The composition root wires an implementation to its port
+    /// and holds none itself - except the bridge that hands a port a second use case: it implements an output port and
+    /// drives an input port, so it is wiring. C# cannot implement an interface with a lambda, so here the bridge is
+    /// always a small class. A class in no layer is <c>DCA-LAY-007</c>'s.
     /// </summary>
     public IDcaRule OutputPortImplementationsResideInOutgoingAdapters() =>
         DcaRule.Check(
             "DCA-HEX-019",
-            "Output port implementations must reside in an outgoing adapter package",
+            "Output port implementations are placed in no layer but the outgoing adapters",
             "An output port is what the application needs from outside; whatever implements it is an outgoing"
-                + " adapter. An implementation in the infrastructure namespace, the application or the domain is"
-                + " outside the selection of every rule written for outgoing adapters, and infrastructure then"
-                + " holds behaviour instead of wiring alone",
+                + " adapter - the implemented port says so. An implementation placed in the infrastructure namespace,"
+                + " the application or the domain is outside the selection of every rule written for outgoing"
+                + " adapters, and infrastructure then holds behaviour instead of wiring alone",
             arch =>
             {
                 var violations = new List<string>();
-                foreach (var type in arch.Classes.Where(c => !c.IsCompilerGenerated
-                    && IsRole(arch, c, nameof(DcaMarkers.OutputPort)) && !arch.InOutgoingAdapter(c)))
+                foreach (var type in arch.Classes.Where(c => !c.IsCompilerGenerated && IsRole(arch, c, nameof(DcaMarkers.OutputPort))))
                 {
-                    if (arch.InInfrastructure(type) && DependsOnAnInputPort(arch, type))
+                    var placement = arch.PlacementOf(type);
+                    if (placement is null || placement.Layer == DcaLayout.Layer.OutgoingAdapter)
                     {
                         continue;
                     }
 
-                    violations.Add($"{type.FullName} implements an output port outside the outgoing adapters");
+                    if (placement.Layer == DcaLayout.Layer.Infrastructure && DependsOnAnInputPort(arch, type))
+                    {
+                        continue;
+                    }
+
+                    violations.Add($"{type.FullName} implements an output port but is placed in the {DcaLayout.RoleOf(placement.Layer)}"
+                        + $" layer ({placement.Source.ToString().ToLowerInvariant()} {placement.LayerNamespace})");
                 }
 
                 DcaRule.Fail(
-                    "Output port implementations must reside in an outgoing adapter package",
+                    "Output port implementations are placed in no layer but the outgoing adapters",
                     violations.OrderBy(v => v, StringComparer.Ordinal).ToList(),
-                    "move the implementation into the outgoing adapter namespace of its module; the configuration in infrastructure only wires it to its port");
+                    "move the implementation into the outgoing adapter layer of its module; the configuration in infrastructure only wires it to its port");
             })
         .Experimental()
         .Selecting(
             "Classes of the scan assignable to IOutputPort - repositories, stores, event publishers and every other"
-                + " output port alike, abstract base classes included; compiler-generated classes are not selected."
-                + " Not selected: a class in an infrastructure namespace that depends on a type assignable to"
-                + " IInputPort - the bridge that hands an output port a second use case, which is wiring.")
+                + " output port alike, abstract base classes included; compiler-generated classes are not selected -"
+                + " that the layout places in a layer: by a layer attribute on the class, on its namespace or its"
+                + " assembly, or by the namespace path. A class in no layer is not selected. Not selected: a class in"
+                + " an infrastructure namespace that depends on a type assignable to IInputPort - the bridge that"
+                + " hands an output port a second use case, which is wiring.")
         .Checking(
-            "Each resides in <Module>.Adapter.Outgoing of some module root. DCA-TAC-015 and DCA-TAC-020 hold"
-                + " repositories and stores the same way in the tactical set.");
+            "Each is placed in the outgoing adapter layer - by default <Module>.Adapter.Outgoing, or wherever the"
+                + " layout's outgoing-adapter marker places it. DCA-TAC-015 and DCA-TAC-020 hold repositories and"
+                + " stores the same way in the tactical set.");
 
     /// <summary>Whether a class depends on an input port: by a member it references or a constructor parameter.</summary>
     private static bool DependsOnAnInputPort(DcaArchitecture arch, IType type)

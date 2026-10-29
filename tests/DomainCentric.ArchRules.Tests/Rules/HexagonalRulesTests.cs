@@ -125,8 +125,8 @@ public sealed class HexagonalRulesTests
         var message = Assert.Throws<DcaRuleViolationException>(
             () => CheckPortPlace("DomainCentric.ArchRules.Tests.Fixtures.PortPlace.Bad")).Message;
 
-        Assert.Contains("Infrastructure.SmtpMailer implements an output port outside the outgoing adapters", message);
-        Assert.Contains("Application.Shared.ConsoleMailer implements an output port outside the outgoing adapters", message);
+        Assert.Contains("Infrastructure.SmtpMailer implements an output port but is placed in the infrastructure layer", message);
+        Assert.Contains("Application.Shared.ConsoleMailer implements an output port but is placed in the application layer", message);
     }
 
     /// <summary>An implementation in an outgoing adapter passes, and so does the bridge to a second use case.</summary>

@@ -103,4 +103,23 @@ public sealed class RoleMarkerTests
         Assert.True(DcaMarkers.Dca().IsDefault);
         Assert.False(DcaMarkers.Dca().WithQuery(DcaMarker.OfSuffix("Read")).IsDefault);
     }
+
+    [Fact]
+    public void TheBarePrimitiveRulePassesOverFailuresAndAValuesOwnErrorShapesAndExplainsAOneFieldType()
+    {
+        const string app = "DomainCentric.ArchRules.Tests.Fixtures.BareValues.App";
+        const string model = app + ".Orders.Domain.Model.";
+        var layout = DcaLayout.ForRootNamespace(app);
+        var message = Assert.Throws<DcaRuleViolationException>(() => Rule(layout, "DCA-TAC-025").Check(Arch(layout))).Message;
+
+        Assert.DoesNotContain("OrderRefused", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("EmptyError", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("TooLongError", message, StringComparison.Ordinal);
+        Assert.DoesNotContain(model + "PostalCode:", message, StringComparison.Ordinal);
+        Assert.Contains(
+            model + "Street: property Name is String - it has one field: mark it as a value or an id"
+                + " (OfType(DomainCentric.BuildingBlocks.Ddd.Tactical.IValue)) to count as a wrapper",
+            message,
+            StringComparison.Ordinal);
+    }
 }

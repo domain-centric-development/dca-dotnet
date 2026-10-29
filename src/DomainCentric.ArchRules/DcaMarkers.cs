@@ -301,6 +301,12 @@ public sealed record DcaMarkers(string Name)
     /// <summary>Whether the imported type is one the marker recognises.</summary>
     public static bool Matches(DcaMarker marker, ArchUnitNET.Domain.IType type)
     {
+        // A generic parameter stands for any type; ArchUnitNET answers assignability for it with yes.
+        if (type.IsGenericParameter)
+        {
+            return false;
+        }
+
         foreach (var alternative in marker.Alternatives)
         {
             var name = alternative.Value!;
@@ -323,6 +329,11 @@ public sealed record DcaMarkers(string Name)
     /// <summary>Whether the reflected type is one the marker recognises.</summary>
     public static bool Matches(DcaMarker marker, Type type)
     {
+        if (type.IsGenericParameter)
+        {
+            return false;
+        }
+
         foreach (var alternative in marker.Alternatives)
         {
             var name = alternative.Value!;
