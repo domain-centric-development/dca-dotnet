@@ -41,9 +41,9 @@ internal static class DomainMetadata
         var roles = arch.Layout.FrameworkTypes;
         var violations = new List<string>();
         foreach (var type in arch.Types.Where(t => t is not Interface && Owner(arch, t) == id
-            && Regex.IsMatch(t.Namespace?.FullName ?? "", DcaLayout.AnyOf(arch.AllDomainPatterns()))))
+            && arch.InDomain(t)))
         {
-            if (id == "DCA-ONI-003" && !Regex.IsMatch(type.Namespace?.FullName ?? "", DcaLayout.AnyOf(arch.AllDomainModelPatterns())))
+            if (id == "DCA-ONI-003" && !arch.InDomainModel(type))
             {
                 continue;
             }

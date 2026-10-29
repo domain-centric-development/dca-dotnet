@@ -185,7 +185,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 .And()
                 .FollowCustomPredicate(t => t is not Interface, "are not interfaces")
                 .Should()
-                .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns())))
+                .FollowCustomCondition(LayerConditions.PlacedIn(arch.InDomain, "the domain layer"), "be in the domain layer"))
             .Selecting(
                 "Non-interface types anywhere under scan that are assignable to IDomainEvent.")
             .Checking(
@@ -307,7 +307,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 .And()
                 .FollowCustomPredicate(t => t is not Interface, "are not interfaces")
                 .Should()
-                .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns())))
+                .FollowCustomCondition(LayerConditions.PlacedIn(arch.InDomain, "the domain layer"), "be in the domain layer"))
             .Selecting(
                 "Non-interface types anywhere under scan that are assignable to IDomainService.")
             .Checking(
@@ -376,7 +376,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 .And()
                 .FollowCustomPredicate(t => t is not Interface, "are not interfaces")
                 .Should()
-                .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns())))
+                .FollowCustomCondition(LayerConditions.PlacedIn(arch.InDomain, "the domain layer"), "be in the domain layer"))
             .Selecting(
                 "Non-interface types anywhere under scan that are assignable to IFactory.")
             .Checking(
@@ -430,7 +430,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                             || t.Name.EndsWith(arch.Layout.SpecificationSuffix, StringComparison.Ordinal)),
                     "are specifications")
                 .Should()
-                .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns())))
+                .FollowCustomCondition(LayerConditions.PlacedIn(arch.InDomain, "the domain layer"), "be in the domain layer"))
             .Selecting(
                 "Non-interface types anywhere under scan that are assignable to the configured "
                 + "specification role or whose simple name ends with Specification, the role's own type "
@@ -470,8 +470,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 || type.ImplementsInterface(arch.Layout.Markers.Specification);
     }
 
-    private static bool InDomain(DcaArchitecture arch, IType type) =>
-        type.Namespace is not null && Regex.IsMatch(type.Namespace.FullName, DcaLayout.AnyOf(arch.AllDomainPatterns()));
+    private static bool InDomain(DcaArchitecture arch, IType type) => arch.InDomain(type);
 
     private static bool IsDomainEvent(IType type, DcaMarkers markers) => type.IsAssignableTo(markers.DomainEvent);
 

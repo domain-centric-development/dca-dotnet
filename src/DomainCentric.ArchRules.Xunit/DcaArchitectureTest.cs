@@ -192,8 +192,10 @@ public abstract class DcaArchitectureTest
 
     /// <summary>
     /// The facts of the layout worth seeing in the report: the namespaces left out of the architecture,
-    /// a root namespace that resolves as a module root next to others, the framework preset the rules
-    /// resolved their attributes with, and the vocabulary they resolved their building blocks with.
+    /// a root namespace that resolves as a module root next to others, the layer notices (an attribute that
+    /// overrides the path, a namespace that declares another layer than one above it), the framework preset
+    /// the rules resolved their attributes with, how each layer is recognised, and the vocabulary they
+    /// resolved their building blocks with.
     /// The wording matches the <c>layout</c> container of the Java carrier, so a run is
     /// self-describing on both stacks.
     /// </summary>
@@ -211,7 +213,14 @@ public abstract class DcaArchitectureTest
             Console.Out.WriteLine($"module roots: {notice}");
         }
 
+        foreach (var layerNotice in Architecture.LayerNotices())
+        {
+            // diagnostic only - the attribute holds; the notice names where it overrides
+            Console.Out.WriteLine($"layers: {layerNotice}");
+        }
+
         Console.Out.WriteLine($"framework annotations: {layout.FrameworkTypesReport()}");
+        Console.Out.WriteLine($"layers: {layout.LayersReport()}");
         Console.Out.WriteLine($"building block markers: {layout.MarkersReport()}");
     }
 

@@ -92,7 +92,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 {
                     if (!type.Name.EndsWith(arch.Layout.AggregateRootSuffix, StringComparison.Ordinal)
                         || type.Name == arch.Layout.AggregateRootSuffix
-                        || !ResidesInAny(type, arch.AllDomainModelPatterns()))
+                        || !arch.InDomainModel(type))
                     {
                         continue;
                     }
@@ -392,7 +392,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 foreach (var valueObject in arch.Classes)
                 {
                     if (valueObject.IsCompilerGenerated
-                        || !ResidesInAny(valueObject, arch.AllDomainModelPatterns())
+                        || !arch.InDomainModel(valueObject)
                         || !IsAssignableTo(arch, valueObject, arch.Layout.Markers.Value))
                     {
                         continue;
@@ -540,7 +540,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 var violations = new List<string>();
                 foreach (var candidate in arch.Interfaces)
                 {
-                    if (!ResidesInAny(candidate, arch.AllApplicationPatterns())
+                    if (!arch.InApplication(candidate)
                         || !HasSuffixButIsNotMarker(candidate, arch.Layout.RepositorySuffix))
                     {
                         continue;
@@ -566,7 +566,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
             "DCA-TAC-014",
             "Repository interfaces must reside in the application layer (local to a use case or shared)",
             "Repository interfaces are output ports in the application layer (Hexagonal Architecture)",
-            arch => RequireNamespace(RepositoryInterfaces(arch), DcaLayout.AnyOf(arch.AllApplicationPatterns()), "Repository interfaces", "an application namespace of its module (use-case-local or Shared)"))
+            arch => RequireNamespace(RepositoryInterfaces(arch), arch.InApplication, "Repository interfaces", "an application namespace of its module (use-case-local or Shared)"))
             .Selecting(
                 "Interfaces below the root namespace assignable to IRepository, whatever "
                 + "their name; an interface named exactly Repository excluded.")
@@ -582,7 +582,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
             "Repository implementations are outgoing adapters in bounded contexts",
             arch => RequireNamespace(
                 ConcreteTypesAssignableTo(arch, arch.Layout.Markers.Repository),
-                DcaLayout.AnyOf(arch.AllOutgoingAdapterPatterns()), "Repository implementations", "the outgoing adapter namespace"))
+                arch.InOutgoingAdapter, "Repository implementations", "the outgoing adapter namespace"))
             .Selecting(
                 "Non-interface types below the root namespace assignable to IRepository, "
                 + "abstract base classes included.")
@@ -732,13 +732,12 @@ public sealed class TacticalPatternRules : IDcaRuleSet
             arch =>
             {
                 var violations = new List<string>();
-                var adapterOrInfrastructure = DcaLayout.AnyOf(arch.AllAdapterPatterns().Concat(arch.AllInfrastructurePatterns()));
                 foreach (var candidate in arch.Interfaces)
                 {
                     if (!HasSuffixButIsNotMarker(candidate, arch.Layout.StoreSuffix)
                         || candidate.FullName == arch.Layout.Markers.Store
-                        || (candidate.Namespace is not null
-                            && Regex.IsMatch(candidate.Namespace.FullName, adapterOrInfrastructure)))
+                        || arch.InAdapter(candidate)
+                        || arch.InInfrastructure(candidate))
                     {
                         continue;
                     }
@@ -771,7 +770,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
             "DCA-TAC-019",
             "Store interfaces must reside in the application layer (local to a use case or shared)",
             "Store interfaces are output ports in the application layer (Hexagonal Architecture)",
-            arch => RequireNamespace(StoreInterfaces(arch), DcaLayout.AnyOf(arch.AllApplicationPatterns()), "Store interfaces", "an application namespace of its module (use-case-local or Shared)"))
+            arch => RequireNamespace(StoreInterfaces(arch), arch.InApplication, "Store interfaces", "an application namespace of its module (use-case-local or Shared)"))
             .Selecting(
                 "Interfaces below the root namespace assignable to IStore, whatever their "
                 + "name; an interface named exactly Store excluded.")
@@ -787,7 +786,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
             "Store implementations are outgoing adapters in bounded contexts",
             arch => RequireNamespace(
                 ConcreteTypesAssignableTo(arch, arch.Layout.Markers.Store),
-                DcaLayout.AnyOf(arch.AllOutgoingAdapterPatterns()), "Store implementations", "the outgoing adapter namespace"))
+                arch.InOutgoingAdapter, "Store implementations", "the outgoing adapter namespace"))
             .Selecting(
                 "Non-interface types below the root namespace assignable to IStore, abstract "
                 + "base classes included.")
@@ -980,7 +979,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                     .ToHashSet(StringComparer.Ordinal);
                 var violations = new List<string>();
                 foreach (var type in arch.Types
-                    .Where(t => !t.IsCompilerGenerated && ResidesInAny(t, arch.AllDomainPatterns()))
+                    .Where(t => !t.IsCompilerGenerated && arch.InDomain(t))
                     .OrderBy(t => t.FullName, StringComparer.Ordinal))
                 {
                     var runtime = arch.RuntimeType(type);
@@ -1470,10 +1469,10 @@ public sealed class TacticalPatternRules : IDcaRuleSet
         return method is not null && method.DeclaringType != typeof(object) && method.DeclaringType != typeof(ValueType);
     }
 
-    private static void RequireNamespace(IEnumerable<IType> types, string pattern, string subject, string location)
+    private static void RequireNamespace(IEnumerable<IType> types, Func<IType, bool> placed, string subject, string location)
     {
         var violations = types
-            .Where(t => !Regex.IsMatch(NamespaceOf(t), pattern))
+            .Where(t => !placed(t))
             .Select(t => $"{t.FullName} resides in {NamespaceOf(t)}")
             .ToList();
         DcaRule.Fail($"{subject} must reside in {location}.", violations);

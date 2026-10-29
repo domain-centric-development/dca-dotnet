@@ -62,9 +62,8 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                 + " properly",
             arch =>
             {
-                var domain = new Regex(DcaLayout.AnyOf(arch.AllDomainPatterns()));
                 var violations = ProjectExceptions(arch)
-                    .Where(t => domain.IsMatch(t.Namespace?.FullName ?? ""))
+                    .Where(arch.InDomain)
                     .Where(t => !IsAssignableTo(t, arch.Layout.Markers.DomainException))
                     .Select(t => $"{t.FullName} does not extend DomainException")
                     .ToList();
@@ -89,18 +88,15 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                 + " reports",
             arch =>
             {
-                var domain = new Regex(DcaLayout.AnyOf(arch.AllDomainPatterns()));
-                var application = new Regex(DcaLayout.AnyOf(arch.AllApplicationPatterns()));
                 var violations = new List<string>();
                 foreach (var type in ProjectExceptions(arch))
                 {
-                    var ns = type.Namespace?.FullName ?? "";
-                    if (IsAssignableTo(type, arch.Layout.Markers.DomainException) && !domain.IsMatch(ns))
+                    if (IsAssignableTo(type, arch.Layout.Markers.DomainException) && !arch.InDomain(type))
                     {
                         violations.Add($"{type.FullName} is a domain exception outside the domain layer");
                     }
 
-                    if (IsAssignableTo(type, arch.Layout.Markers.UseCaseException) && !application.IsMatch(ns))
+                    if (IsAssignableTo(type, arch.Layout.Markers.UseCaseException) && !arch.InApplication(type))
                     {
                         violations.Add($"{type.FullName} is a use-case exception outside the application layer");
                     }
@@ -127,9 +123,8 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                 + " outcome onto a different one",
             arch =>
             {
-                var application = new Regex(DcaLayout.AnyOf(arch.AllApplicationPatterns()));
                 var violations = ProjectExceptions(arch)
-                    .Where(t => application.IsMatch(t.Namespace?.FullName ?? ""))
+                    .Where(arch.InApplication)
                     // A subtype of DomainException here is misplaced, not mis-based: DCA-ERR-002 owns it
                     // and says to move it to the domain. This rule's remedy would turn a broken rule of
                     // the model into a use-case failure.
@@ -289,13 +284,12 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                 }
 
                 var observed = new List<string>();
-                var incoming = new Regex(DcaLayout.AnyOf(arch.AllIncomingAdapterPatterns()));
                 var driving = new SortedDictionary<string, List<string>>(StringComparer.Ordinal);
                 var namespacesThatName = new HashSet<string>(StringComparer.Ordinal);
                 foreach (var type in arch.Types)
                 {
                     var ns = type.Namespace?.FullName ?? "";
-                    if (!incoming.IsMatch(ns))
+                    if (!arch.InIncomingAdapter(type))
                     {
                         continue;
                     }

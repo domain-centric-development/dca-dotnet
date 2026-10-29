@@ -136,7 +136,7 @@ public sealed class StrategicPatternRules : IDcaRuleSet
                     // Dependencies, not accesses: a field, parameter or record component of a foreign
                     // type is a dependency even without a method call.
                     perModule.Add(
-                        Types().That().ResideInNamespaceMatching(Layout.ApplicationPatternOf(source))
+                        Types().That().FollowCustomPredicate(arch.InLayerOf(DcaLayout.Layer.Application, source), "are in the application layer of " + source)
                             .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(AnyOf(forbidden))
                             .Because("The application layer of module '" + arch.ContextName(source)
                                 + "' must not access other modules directly - define output ports and use adapters instead"));
@@ -181,7 +181,7 @@ public sealed class StrategicPatternRules : IDcaRuleSet
                     }
 
                     perModule.Add(
-                        Types().That().ResideInNamespaceMatching(Layout.DomainPatternOf(source))
+                        Types().That().FollowCustomPredicate(arch.InLayerOf(DcaLayout.Layer.Domain, source), "are in the domain layer of " + source)
                             .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(AnyOf(forbidden))
                             .Because("The domain layer of module '" + arch.ContextName(source)
                                 + "' must depend on nothing outside its own module and the shared kernel"));
@@ -263,7 +263,7 @@ public sealed class StrategicPatternRules : IDcaRuleSet
                     // Foreign internals = anything in another module except its published Api/Events namespaces.
                     var internals = "(?!" + AnyOf(arch.PublishedPatternsExcluding(source)) + ")(?:" + AnyOf(foreign) + ")";
                     perModule.Add(
-                        Types().That().ResideInNamespaceMatching(Layout.OutgoingAdapterPatternOf(source))
+                        Types().That().FollowCustomPredicate(arch.InLayerOf(DcaLayout.Layer.OutgoingAdapter, source), "are in the outgoing adapters of " + source)
                             .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(internals)
                             .Because("Outgoing adapters in module '" + arch.ContextName(source)
                                 + "' must not access another module's internals - use its api/ or events/ packages instead"));

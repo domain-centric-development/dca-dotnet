@@ -4,6 +4,26 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Added
+
+**Layers recognised by the project's own attributes (WP-160)** — the twin of the Java library's change.
+`DcaMarker` names how a layer or a role is recognised — `OfNamespace`, `OfAttribute`, `OfType`, `OfSuffix`, or
+`AnyOf` several (nested `AnyOf` flattened). `DcaLayout.WithDomain`, `WithApplication`, `WithIncomingAdapter`,
+`WithOutgoingAdapter` and `WithInfrastructure` take `OfNamespace`, `OfAttribute` or both; the default stays the
+namespace path, unchanged. An adapter layer's namespace stays below the adapter segment (`"Adapter.Out"`); a layer
+given only by attribute has no path. A layer attribute the layout names places a type: on the type itself first;
+then an assembly attribute of that type whose first constructor argument names the type's namespace or one above it
+(the nearest wins, a declaration holds for its whole subtree) — the .NET stand-in for a `package-info`; then the
+attribute on the type's own assembly, naming no namespace (a project with one assembly per layer); then the path.
+The library ships no attributes of its own — the layout names the project's. The rules select through
+`DcaArchitecture.InDomain`, `InApplication`, `InIncomingAdapter`, `InOutgoingAdapter`, `InAdapter`,
+`InInfrastructure`, `InDomainModel`, `InSharedOutputPorts` and `InLayerOf(layer, moduleRoot)` instead of namespace
+patterns; with the default layout they select exactly what the patterns did. `PlacementOf(IType)` (and
+`PlacementOf(Type)` for reflected types) says where and how a type was placed. The `LayoutDiagnostics` fact prints
+the layers recognised otherwise (`layers: …`) and, as notices, a namespace whose attribute overrides its path and a
+namespace that declares another layer than one above it or than its assembly. The sub-namespaces of a layer
+(`Shared`, `Model`, `Api`, `Events`, `Web`, `Event`) stay segments below the layer's namespace.
+
 ## [0.10.0] - 2026-10-29
 
 ### Added

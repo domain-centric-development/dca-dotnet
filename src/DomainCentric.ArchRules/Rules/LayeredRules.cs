@@ -70,8 +70,8 @@ public sealed class LayeredRules : IDcaRuleSet
             "Domain must not have dependencies on Infrastructure",
             "Domain should not depend on infrastructure concerns (Dependency Inversion Principle)",
             // The global infrastructure namespace and every isolated module's own.
-            arch => Types().That().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns()))
-                .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllInfrastructurePatterns())))
+            arch => Types().That().FollowCustomPredicate(arch.InDomain, "are in the domain layer")
+                .Should().NotDependOnAnyTypesThat().FollowCustomPredicate(arch.InInfrastructure, "are in the infrastructure"))
             .Selecting(
                 "Types in <module>.Domain of every module root, the shared kernel's domain included.")
             .Checking(
@@ -86,7 +86,7 @@ public sealed class LayeredRules : IDcaRuleSet
             "Application Services must only use outbound ports (not infrastructure implementations)",
             "Application services should only use outbound ports declared as interfaces (Ports.Out), not"
                 + " infrastructure implementation details",
-            arch => Types().That().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllApplicationPatterns()))
+            arch => Types().That().FollowCustomPredicate(arch.InApplication, "are in the application layer")
                 .Should().NotDependOnAnyTypesThat()
                 .FollowCustomPredicate(arch.IsInfrastructureImplementation, "are infrastructure implementations"))
             .Selecting(
@@ -120,11 +120,13 @@ public sealed class LayeredRules : IDcaRuleSet
                 // ITransactionBoundary port is wiring and plumbing as well: the composition root (the global
                 // infrastructure namespace) and the shared kernel's infrastructure may do that too. The boundary's
                 // implementations are exempt wherever they live.
-                var allowed = new Regex(DcaLayout.AnyOf(arch.AllApplicationPatterns().Concat(arch.AllOutgoingAdapterPatterns())));
-                var wiringAllowed = new Regex(DcaLayout.AnyOf(
-                    arch.AllApplicationPatterns().Concat(arch.AllOutgoingAdapterPatterns())
-                        .Append(Layout.InfrastructurePattern)
-                        .Append(DcaLayout.Below($"{Layout.SharedKernelNamespace}.{Layout.InfrastructureSegment}"))));
+                bool Allowed(IType t) => arch.InApplication(t) || arch.InOutgoingAdapter(t);
+                var wiringNamespaces = new Regex(DcaLayout.AnyOf(new[]
+                {
+                    Layout.InfrastructurePattern,
+                    DcaLayout.Below($"{Layout.SharedKernelNamespace}.{Layout.InfrastructureSegment}"),
+                }));
+                bool WiringAllowed(IType t) => Allowed(t) || (t.Namespace is not null && wiringNamespaces.IsMatch(t.Namespace.FullName));
                 var types = Layout.FrameworkTypes;
                 var transactionApis = new HashSet<string>(types.TransactionApiTypes, StringComparer.Ordinal);
                 if (FrameworkTypes.IsSet(types.TransactionScope))
@@ -136,13 +138,13 @@ public sealed class LayeredRules : IDcaRuleSet
                 bool IsBoundary(IType t) => t.FullName == BoundaryPort || t.ImplementsInterface(BoundaryPort);
                 bool UsesApi(IType target) => transactionApis.Contains(target.FullName);
                 bool ManagerOrBoundary(IType target) => transactionManagers.Contains(target.FullName) || IsBoundary(target);
-                IEnumerable<string> Findings(Regex allowedHere, Func<IType, bool> programmatic) => arch.Types
-                    .Where(t => t.Namespace is null || !allowedHere.IsMatch(t.Namespace.FullName))
+                IEnumerable<string> Findings(Func<IType, bool> allowedHere, Func<IType, bool> programmatic) => arch.Types
+                    .Where(t => !allowedHere(t))
                     .Where(t => !IsBoundary(t))
                     .SelectMany(t => t.Dependencies.Select(d => d.Target).Where(programmatic).Select(target => target.FullName).Distinct()
                         .Select(target => $"{t.FullName} uses {target} outside the application layer"));
-                var violations = Findings(allowed, UsesApi).Concat(Findings(wiringAllowed, ManagerOrBoundary))
-                    .Concat(DeclarativeFindings(arch, allowed, types.TransactionalAttribute))
+                var violations = Findings(Allowed, UsesApi).Concat(Findings(WiringAllowed, ManagerOrBoundary))
+                    .Concat(DeclarativeFindings(arch, Allowed, types.TransactionalAttribute))
                     .ToList();
                 DcaRule.Fail($"Transaction boundaries belong to the application layer\nbecause {rationale}", violations);
             })
@@ -181,14 +183,14 @@ public sealed class LayeredRules : IDcaRuleSet
     /// boundary, so it belongs where the transaction API belongs. Empty until a project configures an
     /// attribute — neither shipped preset does, because ASP.NET Core has no ambient transaction attribute.
     /// </summary>
-    private static IEnumerable<string> DeclarativeFindings(DcaArchitecture arch, Regex allowed, string attributeName)
+    private static IEnumerable<string> DeclarativeFindings(DcaArchitecture arch, Func<IType, bool> allowed, string attributeName)
     {
         if (!FrameworkTypes.IsSet(attributeName))
         {
             yield break;
         }
 
-        foreach (var type in arch.Types.Where(t => t.Namespace is null || !allowed.IsMatch(t.Namespace.FullName)))
+        foreach (var type in arch.Types.Where(t => !allowed(t)))
         {
             var runtime = arch.RuntimeType(type);
             if (runtime is null)

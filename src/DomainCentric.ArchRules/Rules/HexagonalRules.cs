@@ -82,8 +82,8 @@ public sealed class HexagonalRules : IDcaRuleSet
             "DCA-HEX-001",
             "Classes from the domain should not access port adapters",
             "Domain should not depend on adapters (ports and adapters pattern)",
-            arch => Types().That().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainModelPatterns()))
-                .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllAdapterPatterns())))
+            arch => Types().That().FollowCustomPredicate(arch.InDomainModel, "are in the domain model")
+                .Should().NotDependOnAnyTypesThat().FollowCustomPredicate(arch.InAdapter, "are in an adapter"))
         .Selecting(
             "Types in <module>.Domain.Model of every module root - the domain model"
                 + " namespace, not the whole domain layer.")
@@ -97,8 +97,8 @@ public sealed class HexagonalRules : IDcaRuleSet
             "DCA-HEX-002",
             "Application Services should not access port adapters",
             "Application services should only depend on domain and outbound ports, not adapters",
-            arch => Types().That().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllApplicationPatterns()))
-                .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllAdapterPatterns())))
+            arch => Types().That().FollowCustomPredicate(arch.InApplication, "are in the application layer")
+                .Should().NotDependOnAnyTypesThat().FollowCustomPredicate(arch.InAdapter, "are in an adapter"))
         .Selecting(
             "Types in <module>.Application of every module root, Application.Shared"
                 + " included.")
@@ -131,7 +131,7 @@ public sealed class HexagonalRules : IDcaRuleSet
             "Incoming Adapters must only use outbound ports (not infrastructure implementations)",
             "Incoming adapters should only use outbound ports declared as interfaces (Ports.Out), not"
                 + " infrastructure implementation details",
-            arch => Types().That().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllIncomingAdapterPatterns()))
+            arch => Types().That().FollowCustomPredicate(arch.InIncomingAdapter, "are in the incoming adapters")
                 .Should().NotDependOnAnyTypesThat()
                 .FollowCustomPredicate(arch.IsInfrastructureImplementation, "are infrastructure implementations"))
         .Selecting(
@@ -147,10 +147,10 @@ public sealed class HexagonalRules : IDcaRuleSet
         DcaRule.Check("DCA-HEX-005", "Outgoing adapters must not use another module's infrastructure",
             "Technical infrastructure reuse preserves module isolation",
             arch => DcaRule.Fail("Another module's infrastructure is forbidden",
-                arch.Types.Where(t => Regex.IsMatch(t.Namespace?.FullName ?? "", DcaLayout.AnyOf(arch.AllOutgoingAdapterPatterns())))
+                arch.Types.Where(arch.InOutgoingAdapter)
                     .SelectMany(adapter => adapter.Dependencies.Select(d => d.Target)
                         .Where(target => arch.IsInfrastructureImplementation(target)
-                            && arch.IsolatedModuleRoots().Any(root => root != arch.ModuleRootOf(adapter.Namespace?.FullName ?? "")
+                            && arch.IsolatedModuleRoots().Any(root => root != arch.ModuleRootOf(adapter)
                                 && DcaLayout.IsBelow(target.Namespace?.FullName ?? "", root + "." + Layout.InfrastructureSegment)))
                         .Select(target => $"{adapter.FullName} depends on {target.FullName}")).ToList()))
         .Selecting("Types in every module's outgoing adapter namespace.")
@@ -163,9 +163,9 @@ public sealed class HexagonalRules : IDcaRuleSet
                 + " within the same context",
             "Port adapters should communicate through application services, not directly (event"
                 + " consumers are the exception)",
-            arch => Types().That().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllIncomingAdapterPatterns()))
+            arch => Types().That().FollowCustomPredicate(arch.InIncomingAdapter, "are in the incoming adapters")
                 .And().DoNotResideInNamespaceMatching(EventConsumerPattern())
-                .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllOutgoingAdapterPatterns())))
+                .Should().NotDependOnAnyTypesThat().FollowCustomPredicate(arch.InOutgoingAdapter, "are in the outgoing adapters"))
         .Selecting(
             "Types in <module>.Adapter.Incoming of every module root, excluding those"
                 + " below the configured event-consumer segment (Adapter.Incoming.Event by default).")
@@ -202,7 +202,7 @@ public sealed class HexagonalRules : IDcaRuleSet
                     }
 
                     perModule.Add(
-                        Types().That().ResideInNamespaceMatching(Layout.IncomingAdapterPatternOf(module))
+                        Types().That().FollowCustomPredicate(arch.InLayerOf(DcaLayout.Layer.IncomingAdapter, module), "are in the incoming adapters of " + module)
                             .And().DoNotResideInNamespaceMatching(EventConsumerPattern())
                             .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(AnyOf(otherModules))
                             .Because("Incoming adapters in module '" + arch.ContextName(module)
@@ -232,7 +232,7 @@ public sealed class HexagonalRules : IDcaRuleSet
             "Classes named *Repository must reside in the outgoing adapter namespace (name-based discovery of unmarked repositories)",
             "Repository implementations are secondary adapters (outgoing ports)",
             arch => Classes().That().HaveNameEndingWith("Repository")
-                .Should().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllOutgoingAdapterPatterns())))
+                .Should().FollowCustomCondition(LayerConditions.PlacedIn(arch.InOutgoingAdapter, "the outgoing adapters"), "be in the outgoing adapters"))
         .Selecting(
             "Classes anywhere in the loaded assemblies whose name ends with Repository -"
                 + " implementations and abstract base classes alike. The IRepository port interfaces"
@@ -249,7 +249,7 @@ public sealed class HexagonalRules : IDcaRuleSet
             "Top-level interfaces in Application.Shared are output ports and must extend IOutputPort to"
                 + " be part of the port hierarchy. Nested interfaces (e.g. IIdentityProvider.Identity)"
                 + " are part of their enclosing port's contract, not ports themselves",
-            arch => Interfaces().That().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllSharedOutputPortPatterns()))
+            arch => Interfaces().That().FollowCustomPredicate(arch.InSharedOutputPorts, "are shared output ports")
                 .And().FollowCustomPredicate(i => !i.IsNested, "are top-level interfaces")
                 .Should().FollowCustomCondition(
                     i => new ConditionResult(i, i.IsAssignableTo(arch.Layout.Markers.OutputPort), $"{i.FullName} is not assignable to {arch.Layout.Markers.OutputPort}"),
@@ -275,7 +275,8 @@ public sealed class HexagonalRules : IDcaRuleSet
             "output ports (IRepository, IStore, IOutputPort) are an application-layer concern and must live"
                 + " in Application/Shared/, not Domain/",
             arch => Interfaces().That().FollowCustomPredicate(i => i.IsAssignableTo(arch.Layout.Markers.OutputPort), "are output ports")
-                .Should().NotResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns())))
+                .Should().FollowCustomCondition(
+                    i => new ConditionResult(i, !arch.InDomain(i), $"{i.FullName} is in the domain layer"), "not be in the domain layer"))
         .Selecting(
             "Interfaces anywhere in the loaded assemblies that are assignable to"
                 + " IOutputPort - the building-block port interfaces themselves included.")
@@ -295,7 +296,7 @@ public sealed class HexagonalRules : IDcaRuleSet
             arch =>
             {
                 var violations = arch.Classes
-                    .Where(c => InNamespace(c, DcaLayout.AnyOf(arch.AllIncomingAdapterPatterns())))
+                    .Where(arch.InIncomingAdapter)
                     .SelectMany(c => c.Dependencies
                         .Select(d => d.Target)
                         .Where(t => IsUseCaseImplementation(arch, t))
@@ -334,9 +335,8 @@ public sealed class HexagonalRules : IDcaRuleSet
                 + " while implementing output ports",
             arch =>
             {
-                var incoming = DcaLayout.AnyOf(arch.AllIncomingAdapterPatterns());
                 var violations = new List<string>();
-                foreach (var adapter in arch.Classes.Where(c => InNamespace(c, incoming)))
+                foreach (var adapter in arch.Classes.Where(arch.InIncomingAdapter))
                 {
                     var services = adapter.Dependencies
                         .Select(d => d.Target)
@@ -388,9 +388,8 @@ public sealed class HexagonalRules : IDcaRuleSet
                 + " the first one's outgoing edge",
             arch =>
             {
-                var outgoing = DcaLayout.AnyOf(arch.AllOutgoingAdapterPatterns());
                 var violations = new List<string>();
-                foreach (var adapter in arch.Classes.Where(c => InNamespace(c, outgoing)))
+                foreach (var adapter in arch.Classes.Where(arch.InOutgoingAdapter))
                 {
                     var ports = adapter.Dependencies
                         .Select(d => d.Target)
@@ -440,9 +439,8 @@ public sealed class HexagonalRules : IDcaRuleSet
             arch =>
             {
                 var roles = arch.Layout.FrameworkTypes;
-                var incoming = DcaLayout.AnyOf(arch.AllIncomingAdapterPatterns());
                 var violations = new List<string>();
-                foreach (var adapter in arch.Classes.Where(c => !c.IsCompilerGenerated && InNamespace(c, incoming)).OrderBy(c => c.FullName, StringComparer.Ordinal))
+                foreach (var adapter in arch.Classes.Where(c => !c.IsCompilerGenerated && arch.InIncomingAdapter(c)).OrderBy(c => c.FullName, StringComparer.Ordinal))
                 {
                     var runtime = arch.RuntimeType(adapter);
                     if (runtime is null)
@@ -574,13 +572,12 @@ public sealed class HexagonalRules : IDcaRuleSet
             arch =>
             {
                 var roles = arch.Layout.FrameworkTypes;
-                var incoming = new Regex(DcaLayout.AnyOf(arch.AllIncomingAdapterPatterns()));
                 var violations = arch.Classes
                     .Where(c => !c.IsCompilerGenerated && c.IsAbstract != true
                         && ((FrameworkTypes.IsSet(roles.ControllerBase) && c.IsAssignableTo(roles.ControllerBase))
                             || (FrameworkTypes.IsSet(roles.PageModelBase) && c.IsAssignableTo(roles.PageModelBase))
                             || (FrameworkTypes.IsSet(roles.ApiControllerAttribute) && c.Attributes.Any(a => a.FullName == roles.ApiControllerAttribute))))
-                    .Where(c => !incoming.IsMatch(c.Namespace?.FullName ?? ""))
+                    .Where(c => !arch.InIncomingAdapter(c))
                     .Select(c => $"{c.FullName} is a controller outside the incoming adapters")
                     .OrderBy(v => v, StringComparer.Ordinal)
                     .ToList();
@@ -614,13 +611,11 @@ public sealed class HexagonalRules : IDcaRuleSet
                 + " holds behaviour instead of wiring alone",
             arch =>
             {
-                var outgoing = DcaLayout.AnyOf(arch.AllOutgoingAdapterPatterns());
-                var infrastructure = DcaLayout.AnyOf(arch.AllInfrastructurePatterns());
                 var violations = new List<string>();
                 foreach (var type in arch.Classes.Where(c => !c.IsCompilerGenerated
-                    && IsAssignableTo(arch, c, arch.Layout.Markers.OutputPort) && !InNamespace(c, outgoing)))
+                    && IsAssignableTo(arch, c, arch.Layout.Markers.OutputPort) && !arch.InOutgoingAdapter(c)))
                 {
-                    if (InNamespace(type, infrastructure) && DependsOnAnInputPort(arch, type))
+                    if (arch.InInfrastructure(type) && DependsOnAnInputPort(arch, type))
                     {
                         continue;
                     }
@@ -674,12 +669,11 @@ public sealed class HexagonalRules : IDcaRuleSet
                 + " refactoring inside the code and must not change what a client reads",
             arch =>
             {
-                var inner = new Regex(DcaLayout.AnyOf(arch.AllDomainPatterns().Concat(arch.AllApplicationPatterns())));
-                bool InnerEnum(Type? type) => type is { IsEnum: true, Namespace: { } ns } && inner.IsMatch(ns);
+                bool InnerEnum(Type? type) =>
+                    type is { IsEnum: true } && (arch.InLayer(type, DcaLayout.Layer.Domain) || arch.InLayer(type, DcaLayout.Layer.Application));
 
-                var adapters = DcaLayout.AnyOf(arch.AllAdapterPatterns());
                 var observed = new List<string>();
-                foreach (var adapter in arch.Types.Where(t => InNamespace(t, adapters)).OrderBy(t => t.FullName, StringComparer.Ordinal))
+                foreach (var adapter in arch.Types.Where(arch.InAdapter).OrderBy(t => t.FullName, StringComparer.Ordinal))
                 {
                     var runtime = arch.RuntimeType(adapter);
                     if (runtime is null || runtime.IsNested)
@@ -848,9 +842,6 @@ public sealed class HexagonalRules : IDcaRuleSet
     /// <summary>A use case implementation: a class (never an interface) behind an <see cref="IInputPort"/>.</summary>
     private static bool IsUseCaseImplementation(DcaArchitecture arch, IType type) =>
         type is Class && !type.IsGenericParameter && IsAssignableTo(arch, type, arch.Layout.Markers.InputPort);
-
-    private static bool InNamespace(IType type, string pattern) =>
-        type.Namespace is not null && Regex.IsMatch(type.Namespace.FullName, pattern);
 
     private static bool IsAssignableTo(DcaArchitecture arch, IType type, string marker)
     {

@@ -58,9 +58,8 @@ public sealed class DotnetRules : IDcaRuleSet
             "The transaction boundary of a use case is drawn by a decorator around IUseCase or by ITransactionBoundary (an application-layer execution abstraction implemented in infrastructure), never by DbContext, SaveChanges, TransactionScope or IDbTransaction in the use case itself. Framework types in the application layer bind use cases to one persistence technology and hide where the boundary is; the ITransactionBoundary implementation is the single place that knows how to open and commit a transaction",
             arch =>
             {
-                var application = arch.AllApplicationPatterns().Select(p => new Regex(p)).ToList();
                 var violations = new List<string>();
-                foreach (var type in arch.Types.Where(t => application.Any(r => r.IsMatch(t.Namespace.FullName))))
+                foreach (var type in arch.Types.Where(arch.InApplication))
                 {
                     var frameworks = type.Dependencies
                         .Select(d => d.Target.FullName)
@@ -111,9 +110,8 @@ public sealed class DotnetRules : IDcaRuleSet
             "Async is an I/O concern of ports and adapters; a synchronous domain model stays testable, deterministic and free of sync-over-async hazards",
             arch =>
             {
-                var domain = arch.AllDomainPatterns().Select(p => new Regex(p)).ToList();
                 var violations = new List<string>();
-                foreach (var type in arch.Types.Where(t => domain.Any(r => r.IsMatch(t.Namespace.FullName))))
+                foreach (var type in arch.Types.Where(arch.InDomain))
                 {
                     var async = type.Dependencies
                         .Select(d => d.Target.FullName)
@@ -236,9 +234,8 @@ public sealed class DotnetRules : IDcaRuleSet
             "A struct is copied by value but its fields stay assignable unless the struct is declared readonly, so a mutating method silently changes a copy and leaves the original behind. readonly makes the compiler enforce what a Value Object promises. Whether a value object is a record, a class or a struct is not prescribed here - DCA-TAC-012 accepts any immutable type with value equality",
             arch =>
             {
-                var domain = arch.AllDomainPatterns().Select(p => new Regex(p)).ToList();
                 var violations = new List<string>();
-                foreach (var type in arch.Types.Where(t => domain.Any(r => r.IsMatch(t.Namespace.FullName))))
+                foreach (var type in arch.Types.Where(arch.InDomain))
                 {
                     var runtime = arch.RuntimeType(type);
                     if (runtime is null || runtime.IsInterface || runtime.IsAbstract || !DcaMarkers.IsAssignableToByName(runtime, arch.Layout.Markers.Value))

@@ -40,8 +40,8 @@ public sealed class OnionRules : IDcaRuleSet
             "DCA-ONI-001",
             "Domain must not access Application Services (Onion Architecture - Domain is innermost layer)",
             "Domain is the innermost layer in onion architecture and should not depend on application services",
-            arch => Types().That().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns()))
-                .Should().NotDependOnAnyTypesThat().ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllApplicationPatterns())))
+            arch => Types().That().FollowCustomPredicate(arch.InDomain, "are in the domain layer")
+                .Should().NotDependOnAnyTypesThat().FollowCustomPredicate(arch.InApplication, "are in the application layer"))
             .Selecting(
                 "Types whose namespace lies under <Module>.Domain of every module root - "
                 + "declared bounded contexts, the shared kernel when it owns a domain layer, "
@@ -67,7 +67,6 @@ public sealed class OnionRules : IDcaRuleSet
             rationale,
             arch =>
             {
-                var domain = new Regex(DcaLayout.AnyOf(arch.AllDomainPatterns()));
                 // The layout's allow-list may name the whole building-blocks namespace (the default does, so
                 // that attribute rules accept every marker); for *dependencies* only the namespaces the
                 // configured vocabulary declares its domain-facing roles in belong in the domain - the
@@ -78,14 +77,15 @@ public sealed class OnionRules : IDcaRuleSet
                     .Where(p => !DcaLayout.IsBelow(p, DcaLayout.BuildingBlocksNamespace))
                     .Concat(Layout.Markers.DeclaringNamespacesOf(DcaMarkers.DomainFacingRoles))
                     .ToList();
-                bool Allowed(string ns) => domain.IsMatch(ns) || allowedPrefixes.Any(p => DcaLayout.IsBelow(ns, p));
+                bool Allowed(IType target) =>
+                    arch.InDomain(target) || allowedPrefixes.Any(p => DcaLayout.IsBelow(target.Namespace.FullName, p));
 
                 var violations = arch.Types
-                    .Where(t => t.Namespace is not null && domain.IsMatch(t.Namespace.FullName))
+                    .Where(t => t.Namespace is not null && arch.InDomain(t))
                     .SelectMany(t => t.Dependencies
                         .Select(d => d.Target)
                         .Where(target => target.Namespace is not null && !string.IsNullOrEmpty(target.Namespace.FullName))
-                        .Where(target => !Allowed(target.Namespace.FullName))
+                        .Where(target => !Allowed(target))
                         .Select(target => $"{t.FullName} depends on {target.FullName}"))
                     .Distinct()
                     .ToList();

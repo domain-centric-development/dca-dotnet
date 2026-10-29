@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using ArchUnitNET.Domain;
@@ -38,6 +39,35 @@ public sealed class DcaArchitecture
     private IReadOnlyList<string>? _moduleRoots;
     private readonly Dictionary<string, string?> _rootContextCache = new(StringComparer.Ordinal);
     private readonly Dictionary<string, bool> _contextRootCache = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Placement?> _placementCache = new(StringComparer.Ordinal);
+    private IReadOnlyList<string>? _infrastructureNamespaces;
+    private IReadOnlyList<NamespaceDeclaration>? _namespaceDeclarations;
+    private readonly Dictionary<string, (DcaLayout.Layer Layer, string LayerNamespace)?> _assemblyDeclarations = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Where a type sits: its layer, the namespace that placed it there — the namespace an assembly attribute
+    /// names, the type's own namespace for an attribute on the type, the namespace the assembly's types share
+    /// for an attribute on the assembly, <c>&lt;root&gt;.&lt;segment&gt;</c> for the path — and how.
+    /// </summary>
+    public sealed record Placement(DcaLayout.Layer Layer, string LayerNamespace, PlacementSource Source);
+
+    /// <summary>How a <see cref="Placement"/> was found, in precedence order.</summary>
+    public enum PlacementSource
+    {
+        /// <summary>A layer attribute on the type itself.</summary>
+        Type,
+
+        /// <summary>An assembly attribute whose first constructor argument names the type's namespace or one above it — the nearest wins.</summary>
+        Namespace,
+
+        /// <summary>A layer attribute on the type's assembly, naming no namespace.</summary>
+        Assembly,
+
+        /// <summary>The namespace path below a module root.</summary>
+        Path,
+    }
+
+    private sealed record NamespaceDeclaration(string Namespace, DcaLayout.Layer Layer, string AssemblyName);
 
     private DcaArchitecture(DcaLayout layout, Architecture architecture, IReadOnlyList<Assembly> assemblies)
     {
@@ -189,6 +219,15 @@ public sealed class DcaArchitecture
     /// <summary>Imported types below the root namespace (ArchUnitNET model, referenced types excluded).</summary>
     public IEnumerable<IType> Types =>
         Architecture.Types.Where(t => t.Namespace is not null && DcaLayout.IsBelow(t.Namespace.FullName, Layout.RootNamespace));
+
+    /// <summary>The imported type of that full name below the root namespace, or <c>null</c> — to place a reflected type.</summary>
+    public IType? TypeNamed(string? fullName)
+    {
+        _typesByName ??= Types.GroupBy(t => t.FullName, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+        return fullName is not null && _typesByName.TryGetValue(fullName, out var type) ? type : null;
+    }
+
+    private Dictionary<string, IType>? _typesByName;
 
     /// <summary>Imported classes below the root namespace.</summary>
     public IEnumerable<Class> Classes => Types.OfType<Class>();
@@ -433,6 +472,22 @@ public sealed class DcaArchitecture
                 }
             }
 
+            if (Layout.HasLayerAttributes)
+            {
+                foreach (var type in Types)
+                {
+                    var placement = AttributePlacement(type);
+                    if (placement is not null && placement.Layer != DcaLayout.Layer.Infrastructure)
+                    {
+                        var root = AttributedModuleRoot(placement);
+                        if (root is not null && seen.Add(root))
+                        {
+                            roots.Add(root);
+                        }
+                    }
+                }
+            }
+
             _moduleRoots = roots;
         }
 
@@ -440,8 +495,26 @@ public sealed class DcaArchitecture
     }
 
     /// <summary>The layer segments of this layout: <c>Domain</c>, <c>Application</c>, <c>Adapter</c>.</summary>
-    public ISet<string> LayerSegments() =>
-        new HashSet<string>(new[] { Layout.DomainSegment, Layout.ApplicationSegment, Layout.AdapterSegment }, StringComparer.Ordinal);
+    public ISet<string> LayerSegments()
+    {
+        var segments = new HashSet<string>(StringComparer.Ordinal);
+        if (Layout.LayerHasNamespace(DcaLayout.Layer.Domain))
+        {
+            segments.Add(Layout.DomainSegment);
+        }
+
+        if (Layout.LayerHasNamespace(DcaLayout.Layer.Application))
+        {
+            segments.Add(Layout.ApplicationSegment);
+        }
+
+        if (Layout.LayerHasNamespace(DcaLayout.Layer.IncomingAdapter) || Layout.LayerHasNamespace(DcaLayout.Layer.OutgoingAdapter))
+        {
+            segments.Add(Layout.AdapterSegment);
+        }
+
+        return segments;
+    }
 
     /// <summary>
     /// The module root of a namespace, or <c>null</c> when the namespace carries no layer segment — the
@@ -531,6 +604,448 @@ public sealed class DcaArchitecture
             .Where(root => root != moduleRoot)
             .SelectMany(root => Layout.PublishedSegments.Select(segment => DcaLayout.Below(root + "." + segment)))
             .ToArray();
+
+    // ---------------------------------------------------------------------------------------------
+    // Layer placement — attribute on the type, then on its namespace or assembly, then the path
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// The layer a type sits in, or <c>null</c>. A layer attribute the layout names on the type wins; then an
+    /// assembly attribute of that type whose first constructor argument names the type's namespace or the
+    /// nearest namespace above it (a declaration holds for its whole subtree); then the attribute on the
+    /// type's own assembly; then the path below its module root. Without layer attributes in the layout this
+    /// is the path alone, exactly the namespaces the <c>All…Patterns</c> name.
+    /// </summary>
+    public Placement? PlacementOf(IType type)
+    {
+        if (!_placementCache.TryGetValue(type.FullName, out var placement))
+        {
+            placement = AttributePlacement(type) ?? PathPlacement(type.Namespace?.FullName);
+            _placementCache[type.FullName] = placement;
+        }
+
+        return placement;
+    }
+
+    /// <summary>
+    /// The placement of a reflected type — the same answer as <see cref="PlacementOf(IType)"/>, for a rule that walks
+    /// runtime types (a result's members, an enum an adapter formats).
+    /// </summary>
+    public Placement? PlacementOf(Type type)
+    {
+        if (type.FullName is null)
+        {
+            return null;
+        }
+
+        if (TypeNamed(type.FullName) is { } imported)
+        {
+            return PlacementOf(imported);
+        }
+
+        if (!_placementCache.TryGetValue(type.FullName, out var placement))
+        {
+            IEnumerable<string?> attributes;
+            try
+            {
+                attributes = type.GetCustomAttributesData().Select(a => a.AttributeType.FullName).ToList();
+            }
+            catch (Exception e) when (e is TypeLoadException or FileNotFoundException or FileLoadException)
+            {
+                attributes = Array.Empty<string?>();
+            }
+
+            placement = AttributePlacement(attributes, type.Namespace ?? "", type.Assembly.FullName) ?? PathPlacement(type.Namespace);
+            _placementCache[type.FullName] = placement;
+        }
+
+        return placement;
+    }
+
+    /// <summary>The placement by attribute alone — needs no module root, so module discovery can ask it.</summary>
+    private Placement? AttributePlacement(IType type) =>
+        Layout.HasLayerAttributes
+            ? AttributePlacement(type.Attributes.Select(a => (string?)a.FullName), type.Namespace?.FullName ?? "", type.Assembly?.FullName)
+            : null;
+
+    private Placement? AttributePlacement(IEnumerable<string?> attributeNames, string ns, string? assemblyName)
+    {
+        if (!Layout.HasLayerAttributes)
+        {
+            return null;
+        }
+
+        foreach (var attribute in attributeNames)
+        {
+            var layer = LayerAttributedBy(attribute);
+            if (layer is not null)
+            {
+                return new Placement(layer.Value, ns, PlacementSource.Type);
+            }
+        }
+
+        var declared = NamespaceDeclarationOf(ns);
+        if (declared is not null)
+        {
+            return declared;
+        }
+
+        if (assemblyName is not null && AssemblyDeclaration(assemblyName) is { } assembly)
+        {
+            return new Placement(assembly.Layer, assembly.LayerNamespace, PlacementSource.Assembly);
+        }
+
+        return null;
+    }
+
+    /// <summary>The nearest namespace at or above <paramref name="ns"/> that an assembly attribute declares a layer for.</summary>
+    private Placement? NamespaceDeclarationOf(string ns)
+    {
+        NamespaceDeclaration? nearest = null;
+        foreach (var declaration in LayerDeclarationsByNamespace())
+        {
+            if (DcaLayout.IsBelow(ns, declaration.Namespace)
+                && (nearest is null || declaration.Namespace.Length > nearest.Namespace.Length))
+            {
+                nearest = declaration;
+            }
+        }
+
+        return nearest is null ? null : new Placement(nearest.Layer, nearest.Namespace, PlacementSource.Namespace);
+    }
+
+    /// <summary>
+    /// The layer declarations of the loaded assemblies that name a namespace: an assembly attribute of a type the
+    /// layout names for a layer whose first constructor argument is a string — the .NET stand-in for a layer
+    /// declared on a <c>package-info</c>.
+    /// </summary>
+    private IReadOnlyList<NamespaceDeclaration> LayerDeclarationsByNamespace()
+    {
+        if (_namespaceDeclarations is null)
+        {
+            var declarations = new List<NamespaceDeclaration>();
+            if (Layout.HasLayerAttributes)
+            {
+                foreach (var assembly in _assemblies)
+                {
+                    foreach (var data in AssemblyAttributes(assembly))
+                    {
+                        var layer = LayerAttributedBy(data.AttributeType.FullName);
+                        if (layer is not null && NamedNamespace(data) is { } ns)
+                        {
+                            declarations.Add(new NamespaceDeclaration(ns, layer.Value, assembly.GetName().Name ?? ""));
+                        }
+                    }
+                }
+            }
+
+            _namespaceDeclarations = declarations;
+        }
+
+        return _namespaceDeclarations;
+    }
+
+    /// <summary>The layer an assembly declares for all its types — a layer attribute naming no namespace — and the namespace its types share.</summary>
+    private (DcaLayout.Layer Layer, string LayerNamespace)? AssemblyDeclaration(string assemblyFullName)
+    {
+        if (_assemblyDeclarations.TryGetValue(assemblyFullName, out var cached))
+        {
+            return cached;
+        }
+
+        (DcaLayout.Layer, string)? result = null;
+        var assembly = _assemblies.FirstOrDefault(a => a.FullName == assemblyFullName);
+        if (assembly is not null)
+        {
+            foreach (var data in AssemblyAttributes(assembly))
+            {
+                var layer = LayerAttributedBy(data.AttributeType.FullName);
+                if (layer is not null && NamedNamespace(data) is null)
+                {
+                    result = (layer.Value, CommonNamespace(assembly));
+                    break;
+                }
+            }
+        }
+
+        _assemblyDeclarations[assemblyFullName] = result;
+        return result;
+    }
+
+    /// <summary>The longest namespace every type of the assembly below the root namespace lies in.</summary>
+    private string CommonNamespace(Assembly assembly)
+    {
+        string? common = null;
+        foreach (var type in RootTypes().Where(t => t.Assembly == assembly))
+        {
+            var ns = type.Namespace!;
+            if (common is null)
+            {
+                common = ns;
+                continue;
+            }
+
+            while (!DcaLayout.IsBelow(ns, common))
+            {
+                var dot = common.LastIndexOf('.');
+                if (dot < 0)
+                {
+                    return Layout.RootNamespace;
+                }
+
+                common = common.Substring(0, dot);
+            }
+        }
+
+        return common ?? Layout.RootNamespace;
+    }
+
+    private static IEnumerable<CustomAttributeData> AssemblyAttributes(Assembly assembly)
+    {
+        try
+        {
+            return assembly.GetCustomAttributesData();
+        }
+        catch (Exception e) when (e is TypeLoadException or FileNotFoundException or FileLoadException)
+        {
+            return Array.Empty<CustomAttributeData>();
+        }
+    }
+
+    private static string? NamedNamespace(CustomAttributeData data) =>
+        data.ConstructorArguments.Count > 0 && data.ConstructorArguments[0].Value is string ns && !string.IsNullOrWhiteSpace(ns)
+            ? ns.Trim()
+            : null;
+
+    private DcaLayout.Layer? LayerAttributedBy(string? attributeName)
+    {
+        if (attributeName is null)
+        {
+            return null;
+        }
+
+        foreach (var layer in System.Enum.GetValues<DcaLayout.Layer>())
+        {
+            if (Layout.LayerAttributes(layer).Contains(attributeName))
+            {
+                return layer;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>The layer the path alone gives a namespace — what the <c>All…Patterns</c> have always meant.</summary>
+    private Placement? PathPlacement(string? ns)
+    {
+        if (ns is null)
+        {
+            return null;
+        }
+
+        if (Layout.LayerHasNamespace(DcaLayout.Layer.Infrastructure))
+        {
+            foreach (var infrastructure in InfrastructureNamespaces())
+            {
+                if (DcaLayout.IsBelow(ns, infrastructure))
+                {
+                    return new Placement(DcaLayout.Layer.Infrastructure, infrastructure, PlacementSource.Path);
+                }
+            }
+        }
+
+        var root = ModuleRootOf(ns);
+        if (root is null)
+        {
+            return null;
+        }
+
+        foreach (var layer in new[] { DcaLayout.Layer.Domain, DcaLayout.Layer.Application, DcaLayout.Layer.IncomingAdapter, DcaLayout.Layer.OutgoingAdapter })
+        {
+            var layerNamespace = root + "." + Layout.LayerNamespace(layer);
+            if (Layout.LayerHasNamespace(layer) && DcaLayout.IsBelow(ns, layerNamespace))
+            {
+                return new Placement(layer, layerNamespace, PlacementSource.Path);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The module root an attribute placed a type under: the bounded context that contains its layer namespace,
+    /// else the layer namespace's parent. A type placed by its own attribute counts only inside a declared
+    /// context — a lone type is no module.
+    /// </summary>
+    private string? AttributedModuleRoot(Placement placement)
+    {
+        var context = DeclaredContextOf(placement.LayerNamespace);
+        if (context is not null)
+        {
+            return context;
+        }
+
+        if (placement.Source == PlacementSource.Type)
+        {
+            return null;
+        }
+
+        var dot = placement.LayerNamespace.LastIndexOf('.');
+        return dot < 0 ? null : placement.LayerNamespace.Substring(0, dot);
+    }
+
+    /// <summary>The nearest namespace at or above <paramref name="ns"/> that declares a bounded context, or <c>null</c>.</summary>
+    private string? DeclaredContextOf(string ns)
+    {
+        var root = Layout.RootNamespace;
+        if (!DcaLayout.IsBelow(ns, root))
+        {
+            return null;
+        }
+
+        for (var candidate = ns; candidate is not null; candidate = ParentNamespace(candidate, root))
+        {
+            if (IsContextRoot(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>The module root a type belongs to — by its placement, else by its namespace; <c>null</c> for neither.</summary>
+    public string? ModuleRootOf(IType type)
+    {
+        var placement = PlacementOf(type);
+        if (placement is not null && placement.Source != PlacementSource.Path && AttributedModuleRoot(placement) is { } root)
+        {
+            return root;
+        }
+
+        return ModuleRootOf(type.Namespace?.FullName ?? "");
+    }
+
+    /// <summary>Whether the layout places the type in the given layer.</summary>
+    public bool InLayer(IType type, DcaLayout.Layer layer) => PlacementOf(type)?.Layer == layer;
+
+    /// <summary>Whether the layout places the reflected type in the given layer.</summary>
+    public bool InLayer(Type type, DcaLayout.Layer layer) => PlacementOf(type)?.Layer == layer;
+
+    /// <summary>Types the layout places in the given layer of the given module root.</summary>
+    public Func<IType, bool> InLayerOf(DcaLayout.Layer layer, string moduleRoot) =>
+        type => InLayer(type, layer) && moduleRoot == ModuleRootOf(type);
+
+    /// <summary>Types in a sub-namespace of their layer's namespace — <c>&lt;layer namespace&gt;.&lt;segment&gt;</c> and below.</summary>
+    public bool InLayerSegment(IType type, DcaLayout.Layer layer, string segment) =>
+        PlacementOf(type) is { } placement
+        && placement.Layer == layer
+        && DcaLayout.IsBelow(type.Namespace?.FullName ?? "", placement.LayerNamespace + "." + segment);
+
+    /// <summary>Whether the layout places the type in the domain layer.</summary>
+    public bool InDomain(IType type) => InLayer(type, DcaLayout.Layer.Domain);
+
+    /// <summary>The domain model: <c>&lt;domain layer namespace&gt;.&lt;Model&gt;</c> and below.</summary>
+    public bool InDomainModel(IType type) => InLayerSegment(type, DcaLayout.Layer.Domain, Layout.ModelSegment);
+
+    /// <summary>Whether the layout places the type in the application layer.</summary>
+    public bool InApplication(IType type) => InLayer(type, DcaLayout.Layer.Application);
+
+    /// <summary>The output ports shared by one context's use cases: <c>&lt;application&gt;.&lt;Shared&gt;</c> and below.</summary>
+    public bool InSharedOutputPorts(IType type) => InLayerSegment(type, DcaLayout.Layer.Application, Layout.SharedSegment);
+
+    /// <summary>Whether the layout places the type in the incoming adapters.</summary>
+    public bool InIncomingAdapter(IType type) => InLayer(type, DcaLayout.Layer.IncomingAdapter);
+
+    /// <summary>Whether the layout places the type in the outgoing adapters.</summary>
+    public bool InOutgoingAdapter(IType type) => InLayer(type, DcaLayout.Layer.OutgoingAdapter);
+
+    /// <summary>
+    /// Types in either adapter layer, or below a module root's adapter namespace outside both — the
+    /// <c>&lt;root&gt;.Adapter</c> and below the path rules have always meant.
+    /// </summary>
+    public bool InAdapter(IType type)
+    {
+        var placement = PlacementOf(type);
+        if (placement is not null)
+        {
+            return placement.Layer is DcaLayout.Layer.IncomingAdapter or DcaLayout.Layer.OutgoingAdapter;
+        }
+
+        var ns = type.Namespace?.FullName ?? "";
+        var root = ModuleRootOf(ns);
+        return root is not null
+            && LayerSegments().Contains(Layout.AdapterSegment)
+            && DcaLayout.IsBelow(ns, root + "." + Layout.AdapterSegment);
+    }
+
+    /// <summary>Whether the layout places the type in the infrastructure.</summary>
+    public bool InInfrastructure(IType type) => InLayer(type, DcaLayout.Layer.Infrastructure);
+
+    /// <summary>
+    /// Findings about the layout's layer declarations: a namespace whose attribute names another layer than its
+    /// path, and a namespace that declares another layer than a namespace above it or than its assembly. Notices
+    /// in the report, not failures — a migration keeps path and attribute side by side.
+    /// </summary>
+    public IReadOnlyList<string> LayerNotices()
+    {
+        if (!Layout.HasLayerAttributes)
+        {
+            return Array.Empty<string>();
+        }
+
+        var notices = new List<string>();
+        foreach (var declaration in LayerDeclarationsByNamespace().OrderBy(d => d.Namespace, StringComparer.Ordinal))
+        {
+            var ns = declaration.Namespace;
+            var declared = DcaLayout.RoleOf(declaration.Layer);
+            var path = PathPlacement(ns);
+            if (path is not null && path.Layer != declaration.Layer)
+            {
+                Add($"namespace {ns}: path says {DcaLayout.RoleOf(path.Layer)}, attribute says {declared}, {declared} holds");
+            }
+
+            var dot = ns.LastIndexOf('.');
+            var above = dot < 0 ? null : NamespaceDeclarationOf(ns.Substring(0, dot));
+            if (above is not null && above.Layer != declaration.Layer)
+            {
+                Add($"namespace {ns} declares {declared} inside {above.LayerNamespace}, which declares {DcaLayout.RoleOf(above.Layer)} - one layer per subtree");
+            }
+        }
+
+        foreach (var assembly in _assemblies.OrderBy(a => a.FullName, StringComparer.Ordinal))
+        {
+            if (assembly.FullName is null || AssemblyDeclaration(assembly.FullName) is not { } declaration)
+            {
+                continue;
+            }
+
+            var declared = DcaLayout.RoleOf(declaration.Layer);
+            foreach (var ns in RootTypes().Where(t => t.Assembly == assembly).Select(t => t.Namespace!).Distinct().OrderBy(n => n, StringComparer.Ordinal))
+            {
+                var path = PathPlacement(ns);
+                if (NamespaceDeclarationOf(ns) is null && path is not null && path.Layer != declaration.Layer)
+                {
+                    Add($"namespace {ns}: path says {DcaLayout.RoleOf(path.Layer)}, attribute says {declared} on assembly {assembly.GetName().Name}, {declared} holds");
+                }
+            }
+
+            foreach (var inner in LayerDeclarationsByNamespace().Where(d => d.AssemblyName == assembly.GetName().Name && d.Layer != declaration.Layer))
+            {
+                Add($"namespace {inner.Namespace} declares {DcaLayout.RoleOf(inner.Layer)} inside assembly {assembly.GetName().Name}, which declares {declared} - one layer per subtree");
+            }
+        }
+
+        return notices;
+
+        void Add(string notice)
+        {
+            if (!notices.Contains(notice))
+            {
+                notices.Add(notice);
+            }
+        }
+    }
 
     // ---------------------------------------------------------------------------------------------
     // Namespace-level attributes (marker classes)
@@ -683,7 +1198,9 @@ public sealed class DcaArchitecture
     /// the shared kernel is the one namespace everyone may depend on, and what it keeps there is shared
     /// support, not a detail of one module.
     /// </summary>
-    public IReadOnlyList<string> InfrastructureNamespaces()
+    public IReadOnlyList<string> InfrastructureNamespaces() => _infrastructureNamespaces ??= ComputeInfrastructureNamespaces();
+
+    private IReadOnlyList<string> ComputeInfrastructureNamespaces()
     {
         var namespaces = new List<string> { Layout.InfrastructureNamespace };
         foreach (var root in IsolatedModuleRoots())

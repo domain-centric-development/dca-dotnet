@@ -80,9 +80,8 @@ public sealed class UseCaseRules : IDcaRuleSet
             arch =>
             {
                 var violations = new List<string>();
-                var incoming = DcaLayout.AnyOf(arch.AllIncomingAdapterPatterns());
                 foreach (var adapter in arch.Classes
-                    .Where(c => !c.IsCompilerGenerated && c.Namespace is not null && Matches(c.Namespace.FullName, incoming))
+                    .Where(c => !c.IsCompilerGenerated && c.Namespace is not null && arch.InIncomingAdapter(c))
                     .OrderBy(c => c.FullName, StringComparer.Ordinal))
                 {
                     var root = arch.ModuleRootOf(adapter.Namespace!.FullName);
@@ -208,10 +207,9 @@ public sealed class UseCaseRules : IDcaRuleSet
                 + " the use case never sees it",
             arch =>
             {
-                var application = DcaLayout.AnyOf(arch.AllApplicationPatterns());
                 var violations = new List<string>();
                 foreach (var type in arch.Types
-                    .Where(t => t.Namespace is not null && Matches(t.Namespace.FullName, application))
+                    .Where(t => t.Namespace is not null && arch.InApplication(t))
                     .OrderBy(t => t.FullName, StringComparer.Ordinal))
                 {
                     var runtime = arch.RuntimeType(type);
@@ -291,7 +289,7 @@ public sealed class UseCaseRules : IDcaRuleSet
                     .And()
                     .ResideInNamespaceMatching(DcaLayout.Below(layout.RootNamespace))
                     .Should()
-                    .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllApplicationPatterns())))
+                    .FollowCustomCondition(LayerConditions.PlacedIn(arch.InApplication, "the application layer"), "be in the application layer"))
         .Selecting(
             "Types under the root namespace whose name ends with Command.")
         .Checking(
@@ -311,7 +309,7 @@ public sealed class UseCaseRules : IDcaRuleSet
                     .And()
                     .ResideInNamespaceMatching(DcaLayout.Below(layout.RootNamespace))
                     .Should()
-                    .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllApplicationPatterns())))
+                    .FollowCustomCondition(LayerConditions.PlacedIn(arch.InApplication, "the application layer"), "be in the application layer"))
         .Selecting(
             "Types under the root namespace whose name ends with Query.")
         .Checking(
@@ -354,7 +352,7 @@ public sealed class UseCaseRules : IDcaRuleSet
                     .And()
                     .FollowCustomPredicate(t => !IsClosedDomainOutcome(arch, t), "are not a closed domain outcome")
                     .Should()
-                    .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllApplicationPatterns())))
+                    .FollowCustomCondition(LayerConditions.PlacedIn(arch.InApplication, "the application layer"), "be in the application layer"))
         .Selecting(
             "Types under the root namespace whose name ends with Result, that do not implement IValue and"
                 + " that are not a closed domain outcome - in a domain namespace, an abstract class or record"
@@ -391,7 +389,7 @@ public sealed class UseCaseRules : IDcaRuleSet
                     .And()
                     .ResideInNamespaceMatching(DcaLayout.Below(layout.RootNamespace))
                     .Should()
-                    .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllAdapterPatterns())))
+                    .FollowCustomCondition(LayerConditions.PlacedIn(arch.InAdapter, "an adapter"), "be in an adapter"))
         .Selecting(
             "Types under the root namespace whose name ends with Response.")
         .Checking(
@@ -425,7 +423,7 @@ public sealed class UseCaseRules : IDcaRuleSet
                 var violations = new List<string>();
                 var useCases = arch.Classes
                     .Where(c => c.Namespace is not null
-                        && Matches(c.Namespace.FullName, DcaLayout.AnyOf(arch.AllApplicationPatterns()))
+                        && arch.InApplication(c)
                         && (IsAssignableTo(arch, c, arch.Layout.Markers.InputPort) || c.Name.Split('`')[0].EndsWith(arch.Layout.UseCaseSuffix, StringComparison.Ordinal)))
                     .OrderBy(c => c.FullName, StringComparer.Ordinal);
                 foreach (var useCase in useCases)
@@ -624,7 +622,7 @@ public sealed class UseCaseRules : IDcaRuleSet
             arch =>
                 Types()
                     .That()
-                    .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns()))
+                    .FollowCustomPredicate(arch.InDomain, "are in the domain layer")
                     .Should()
                     .NotDependOnAnyTypesThat()
                     .HaveNameEndingWith("Dto"))
@@ -641,7 +639,7 @@ public sealed class UseCaseRules : IDcaRuleSet
             arch =>
                 Types()
                     .That()
-                    .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllApplicationPatterns()))
+                    .FollowCustomPredicate(arch.InApplication, "are in the application layer")
                     .Should()
                     .NotDependOnAnyTypesThat()
                     .HaveNameEndingWith("Dto"))
@@ -835,11 +833,11 @@ public sealed class UseCaseRules : IDcaRuleSet
 
     private static void CheckResultsCarryNoIdentities(DcaArchitecture arch)
     {
-        var application = DcaLayout.AnyOf(arch.AllApplicationPatterns());
+        bool application(Type type) => arch.InLayer(type, DcaLayout.Layer.Application);
         var violations = new List<string>();
         foreach (var result in arch.Types.Where(t => t is Class or Struct)
             .Where(c => c.Namespace is not null
-                && Matches(c.Namespace.FullName, application)
+                && arch.InApplication(c)
                 && !c.IsNested
                 && c.Name.EndsWith("Result", StringComparison.Ordinal)
                 && !IsAssignableTo(arch, c, arch.Layout.Markers.Value))
@@ -866,7 +864,7 @@ public sealed class UseCaseRules : IDcaRuleSet
     /// guards against a self-referencing part record; it is not a global visited set, so the same part
     /// record reached through two members is reported on both paths.
     /// </summary>
-    private static void WalkResultMembers(string application, Type type, string path, ISet<Type> onPath, ICollection<string> violations, DcaMarkers markers)
+    private static void WalkResultMembers(Func<Type, bool> application, Type type, string path, ISet<Type> onPath, ICollection<string> violations, DcaMarkers markers)
     {
         if (!onPath.Add(type))
         {
@@ -895,7 +893,7 @@ public sealed class UseCaseRules : IDcaRuleSet
     /// instantiation through every type argument <em>and</em> its own members (a generic part record may hide an
     /// identity next to its type parameter); a part record through its members.
     /// </summary>
-    private static void CheckResultMemberType(string application, Type type, string path, ISet<Type> onPath, ICollection<string> violations, DcaMarkers markers)
+    private static void CheckResultMemberType(Func<Type, bool> application, Type type, string path, ISet<Type> onPath, ICollection<string> violations, DcaMarkers markers)
     {
         var identity = IdentityMarkerOf(type, markers);
         if (identity is not null)
@@ -929,12 +927,12 @@ public sealed class UseCaseRules : IDcaRuleSet
     /// to it, or shared in <c>Application.Shared</c>. Types from other layers (value objects, read models) are values
     /// by contract and are not walked; BCL and generic parameters never are.
     /// </summary>
-    private static bool IsPartRecord(string application, Type type) =>
+    private static bool IsPartRecord(Func<Type, bool> application, Type type) =>
         !type.IsGenericParameter
         && !type.IsPrimitive
         && !type.IsEnum
         && type.Namespace is not null
-        && Matches(type.Namespace, application)
+        && application(type)
         && IsRecord(type);
 
     /// <summary>Record classes synthesize <c>&lt;Clone&gt;$</c>; record structs synthesize <c>PrintMembers</c> and <c>Deconstruct</c> like record classes do.</summary>
@@ -966,7 +964,7 @@ public sealed class UseCaseRules : IDcaRuleSet
     /// </summary>
     private static bool IsClosedDomainOutcome(DcaArchitecture arch, IType type)
     {
-        if (type.Namespace is null || !Matches(type.Namespace.FullName, DcaLayout.AnyOf(arch.AllDomainPatterns())))
+        if (type.Namespace is null || !arch.InDomain(type))
         {
             return false;
         }
@@ -999,7 +997,7 @@ public sealed class UseCaseRules : IDcaRuleSet
         // construction - its one instance field, the underlying value, is not readonly.
         var violations = arch.Types.Where(t => t is Class or Struct)
             .Where(c => c.Namespace is not null
-                && Matches(c.Namespace.FullName, DcaLayout.AnyOf(arch.AllApplicationPatterns()))
+                && arch.InApplication(c)
                 && c.Name.EndsWith(suffix, StringComparison.Ordinal)
                 && !TacticalPatternRules.IsImmutableShape(c))
             .Select(c => $"{c.FullName} does not have immutable instance state")
@@ -1124,9 +1122,6 @@ public sealed class UseCaseRules : IDcaRuleSet
             }
         }
     }
-
-    private static bool Matches(string ns, string pattern) =>
-        System.Text.RegularExpressions.Regex.IsMatch(ns, pattern);
 
     /// <summary>
     /// Assignability via the ArchUnitNET model (implemented interfaces, base classes) with a reflection

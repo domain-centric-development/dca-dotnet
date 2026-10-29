@@ -14,7 +14,7 @@ internal static class OperationPolicy
 {
     internal static bool Operation(IType type, DcaArchitecture arch) => type is Class { IsAbstract: false }
         && arch.RuntimeType(type) is { IsNested: false }
-        && Regex.IsMatch(type.Namespace?.FullName ?? "", DcaLayout.AnyOf(arch.AllApplicationPatterns()))
+        && arch.InApplication(type)
         && (type.IsAssignableTo(arch.Layout.Markers.InputPort) || type.Name.EndsWith(arch.Layout.UseCaseSuffix, StringComparison.Ordinal));
 
     internal static void Invocation(DcaArchitecture arch)
@@ -53,7 +53,7 @@ internal static class OperationPolicy
             {
                 violations.Add($"{caller.FullName} -> {target.FullName}" + (via.Count == 0 ? "" : $" [via {string.Join(" -> ", via)}]"));
             }
-            else if (target is not Interface && Regex.IsMatch(target.Namespace?.FullName ?? "", DcaLayout.AnyOf(arch.AllApplicationPatterns()))
+            else if (target is not Interface && arch.InApplication(target)
                 && arch.ModuleRootOf(caller.Namespace.FullName) == arch.ModuleRootOf(target.Namespace?.FullName ?? ""))
             {
                 Walk(caller, target, arch, own, seen, via.Concat(new[] { target.FullName }).ToList(), violations);

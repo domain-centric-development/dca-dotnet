@@ -320,6 +320,176 @@ public sealed class DcaLayout
     // Fluent overrides
     // ---------------------------------------------------------------------------------------------
 
+    /// <summary>
+    /// The five layers a type can be placed in. Each is recognised by its namespace below a module root
+    /// (the default), by a layer attribute of the project's — on the type, on its assembly, or as an
+    /// assembly attribute naming its namespace or one above it — or by either (<see cref="DcaMarker.AnyOf"/>).
+    /// </summary>
+    public enum Layer
+    {
+        Domain,
+        Application,
+        IncomingAdapter,
+        OutgoingAdapter,
+        Infrastructure,
+    }
+
+    /// <summary>The name the layout and the report use for a layer, e.g. <c>outgoingAdapter</c> — the same word as in <c>dca-archunit</c>.</summary>
+    public static string RoleOf(Layer layer) => layer switch
+    {
+        Layer.Domain => "domain",
+        Layer.Application => "application",
+        Layer.IncomingAdapter => "incomingAdapter",
+        Layer.OutgoingAdapter => "outgoingAdapter",
+        _ => "infrastructure",
+    };
+
+    private IReadOnlyDictionary<Layer, IReadOnlyList<string>> LayerAttributesByLayer { get; init; } =
+        new Dictionary<Layer, IReadOnlyList<string>>();
+
+    private IReadOnlyCollection<Layer> PathlessLayers { get; init; } = Array.Empty<Layer>();
+
+    /// <summary>
+    /// How the domain layer is recognised: <c>DcaMarker.OfNamespace("Domain")</c> (the default), a project's
+    /// layer attribute (<see cref="DcaMarker.OfAttribute"/>), or both (<see cref="DcaMarker.AnyOf"/>). The
+    /// namespace names one segment below a module root.
+    /// </summary>
+    public DcaLayout WithDomain(DcaMarker marker) => WithLayer(Layer.Domain, marker);
+
+    /// <summary>How the application layer is recognised — see <see cref="WithDomain"/>.</summary>
+    public DcaLayout WithApplication(DcaMarker marker) => WithLayer(Layer.Application, marker);
+
+    /// <summary>
+    /// How the incoming adapters are recognised — see <see cref="WithDomain"/>. The namespace is
+    /// <c>&lt;Adapter&gt;.&lt;Incoming&gt;</c> below a module root, e.g. <c>"Adapter.In"</c>; the adapter segment
+    /// itself is <see cref="WithAdapterSegment"/>'s.
+    /// </summary>
+    public DcaLayout WithIncomingAdapter(DcaMarker marker) => WithLayer(Layer.IncomingAdapter, marker);
+
+    /// <summary>How the outgoing adapters are recognised — see <see cref="WithIncomingAdapter"/>.</summary>
+    public DcaLayout WithOutgoingAdapter(DcaMarker marker) => WithLayer(Layer.OutgoingAdapter, marker);
+
+    /// <summary>
+    /// How the infrastructure is recognised — see <see cref="WithDomain"/>. The namespace is one segment,
+    /// below the root namespace and below each module root.
+    /// </summary>
+    public DcaLayout WithInfrastructure(DcaMarker marker) => WithLayer(Layer.Infrastructure, marker);
+
+    private DcaLayout WithLayer(Layer layer, DcaMarker marker)
+    {
+        ArgumentNullException.ThrowIfNull(marker);
+        marker.RequireKinds("The " + RoleOf(layer) + " layer", DcaMarker.Kind.Namespace, DcaMarker.Kind.Attribute);
+        var namespaces = marker.ValuesOf(DcaMarker.Kind.Namespace);
+        if (namespaces.Count > 1)
+        {
+            throw new ArgumentException($"The {RoleOf(layer)} layer takes one namespace, was [{string.Join(", ", namespaces)}]", nameof(marker));
+        }
+
+        var attributes = marker.ValuesOf(DcaMarker.Kind.Attribute);
+        var byLayer = new Dictionary<Layer, IReadOnlyList<string>>(LayerAttributesByLayer);
+        if (attributes.Count == 0)
+        {
+            byLayer.Remove(layer);
+        }
+        else
+        {
+            byLayer[layer] = attributes;
+        }
+
+        var pathless = new HashSet<Layer>(PathlessLayers);
+        if (namespaces.Count == 0)
+        {
+            pathless.Add(layer);
+        }
+        else
+        {
+            pathless.Remove(layer);
+        }
+
+        var layerAttributes = byLayer;
+        var pathlessLayers = pathless.OrderBy(l => l).ToArray();
+        if (namespaces.Count == 0)
+        {
+            return Copy(layerAttributes: layerAttributes, pathlessLayers: pathlessLayers);
+        }
+
+        var value = namespaces[0];
+        switch (layer)
+        {
+            case Layer.Domain:
+                return Copy(domain: value, layerAttributes: layerAttributes, pathlessLayers: pathlessLayers);
+            case Layer.Application:
+                return Copy(application: value, layerAttributes: layerAttributes, pathlessLayers: pathlessLayers);
+            case Layer.Infrastructure:
+                return Copy(infrastructure: value, layerAttributes: layerAttributes, pathlessLayers: pathlessLayers);
+            default:
+                var prefix = AdapterSegment + ".";
+                if (!value.StartsWith(prefix, StringComparison.Ordinal) || value.Substring(prefix.Length).Contains('.'))
+                {
+                    throw new ArgumentException(
+                        $"The {RoleOf(layer)} layer's namespace is <Adapter>.<Segment> below a module root, e.g. '"
+                        + prefix + (layer == Layer.IncomingAdapter ? "In" : "Out") + "', was '" + value
+                        + "' - WithAdapterSegment(..) renames the adapter segment",
+                        nameof(marker));
+                }
+
+                var segment = value.Substring(prefix.Length);
+                return layer == Layer.IncomingAdapter
+                    ? Copy(incoming: segment, layerAttributes: layerAttributes, pathlessLayers: pathlessLayers)
+                    : Copy(outgoing: segment, layerAttributes: layerAttributes, pathlessLayers: pathlessLayers);
+        }
+    }
+
+    /// <summary>The layer attributes the layout names for a layer — empty while the namespace alone decides.</summary>
+    public IReadOnlyList<string> LayerAttributes(Layer layer) =>
+        LayerAttributesByLayer.TryGetValue(layer, out var names) ? names : Array.Empty<string>();
+
+    /// <summary>Whether a layer is recognised by its namespace — true unless only attributes name it.</summary>
+    public bool LayerHasNamespace(Layer layer) => !PathlessLayers.Contains(layer);
+
+    /// <summary>True when any layer is recognised by an attribute, so the rules must look beyond the namespace.</summary>
+    public bool HasLayerAttributes => LayerAttributesByLayer.Count > 0;
+
+    /// <summary>The marker a layer is recognised by, e.g. <c>OfNamespace(Adapter.Outgoing)</c>.</summary>
+    public DcaMarker LayerMarker(Layer layer)
+    {
+        var alternatives = new List<DcaMarker>();
+        if (LayerHasNamespace(layer))
+        {
+            alternatives.Add(DcaMarker.OfNamespace(LayerNamespace(layer)));
+        }
+
+        alternatives.AddRange(LayerAttributes(layer).Select(DcaMarker.OfAttribute));
+        return DcaMarker.AnyOf(alternatives.ToArray());
+    }
+
+    /// <summary>The namespace of a layer below a module root, e.g. <c>Adapter.Outgoing</c>.</summary>
+    public string LayerNamespace(Layer layer) => layer switch
+    {
+        Layer.Domain => DomainSegment,
+        Layer.Application => ApplicationSegment,
+        Layer.IncomingAdapter => AdapterSegment + "." + IncomingSegment,
+        Layer.OutgoingAdapter => AdapterSegment + "." + OutgoingSegment,
+        _ => InfrastructureSegment,
+    };
+
+    /// <summary>
+    /// One line for a report: <c>namespace (library default)</c> while every layer is its namespace, or the
+    /// layers recognised otherwise — <c>outgoingAdapter=AnyOf(OfNamespace(Adapter.Out),
+    /// OfAttribute(Acme.SecondaryAdapterLayerAttribute))</c>.
+    /// </summary>
+    public string LayersReport()
+    {
+        if (LayerAttributesByLayer.Count == 0 && PathlessLayers.Count == 0)
+        {
+            return "namespace (library default)";
+        }
+
+        return string.Join(", ", Enum.GetValues<Layer>()
+            .Where(l => LayerAttributesByLayer.ContainsKey(l) || PathlessLayers.Contains(l))
+            .Select(l => RoleOf(l) + "=" + LayerMarker(l)));
+    }
+
     public DcaLayout WithSharedKernelSegment(string value) => Copy(sharedKernel: value);
 
     public DcaLayout WithDomainSegment(string value) => Copy(domain: value);
@@ -504,7 +674,9 @@ public sealed class DcaLayout
         FrameworkTypesOrigin? frameworkTypesSource = null,
         string? inputPortSuffix = null,
         IReadOnlyList<string>? excludedNamespaces = null,
-        IReadOnlyList<string>? localOutputPorts = null) =>
+        IReadOnlyList<string>? localOutputPorts = null,
+        IReadOnlyDictionary<Layer, IReadOnlyList<string>>? layerAttributes = null,
+        IReadOnlyCollection<Layer>? pathlessLayers = null) =>
         new(
             RootNamespace,
             sharedKernel ?? SharedKernelSegment,
@@ -538,6 +710,8 @@ public sealed class DcaLayout
             localOutputPorts ?? LocalOutputPorts)
         {
             FrameworkTypesSource = frameworkTypesSource ?? FrameworkTypesSource,
+            LayerAttributesByLayer = layerAttributes ?? LayerAttributesByLayer,
+            PathlessLayers = pathlessLayers ?? PathlessLayers,
         };
 
     // ---------------------------------------------------------------------------------------------

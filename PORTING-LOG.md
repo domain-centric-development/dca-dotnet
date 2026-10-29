@@ -537,3 +537,27 @@ libraries saw different things. Same ids, titles and rationales stay; what chang
   counterpart of a module declaration is the project reference, which the compiler drops from the assembly when
   no code uses it — the stale edge the rule looks for is not in the compiled model — and a fallback over the
   `[Upstream]` declarations would repeat `DCA-MAP-007` within its own set.
+
+## 2026-10-29 — WP-160/161: layers and roles as `DcaMarker`, command and query as roles
+
+Ported from `dca-archunit` (branch `wp-160-dca-marker`, three slices), same ids, same behaviour. Where .NET reads
+differently:
+
+- **Layer declarations (decision a + b).** A namespace carries no attribute, so the `package-info` declaration
+  becomes an assembly attribute *of the configured type* whose first constructor argument (a string) names a
+  namespace: it holds for that namespace and every namespace below it, the nearest one wins (b). An attribute of the
+  configured type on the assembly that names no namespace places every type of the assembly (a) — nMolecules'
+  project-per-layer shape. Precedence: the type's own attribute, then (b), then (a), then the path — (b) before (a)
+  because a named namespace is the narrower statement. For (a) the layer namespace is the longest namespace the
+  assembly's types below the root share; it decides the module root and the sub-segments (`Model`, `Shared`) as an
+  annotated package does in Java. Proven with test-only attributes; the library ships none.
+- **Notices** say "attribute" where Java says "annotation"; (a) adds two notices Java has no counterpart for — a
+  namespace of the assembly whose path names another layer, and a (b) namespace declaring another layer than its
+  assembly. The report line reads `layers: namespace (library default)` (Java: `path (library default)`).
+- **Placement of reflected types.** Rules that walk runtime `System.Type`s (the result walk of `DCA-USE-015`, the
+  enums of `DCA-HEX-016`) ask `PlacementOf(Type)`, which answers from the imported type when there is one and reads
+  the reflected attributes otherwise.
+- **`DCA-LAY-004`** keeps the .NET selection: the wiring exemption is the root and the shared kernel's
+  infrastructure namespaces, not every module's own (Java now adds `inInfrastructure()` there, which also admits a
+  module's own infrastructure — not mirrored: the `checks` text of both libraries says a module-infrastructure
+  namespace is reported, so the Java change reads as an unintended widening to settle on the Java side).

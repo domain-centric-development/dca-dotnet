@@ -56,7 +56,7 @@ public sealed class NamingRules : IDcaRuleSet
             arch =>
             {
                 var violations = arch.Classes
-                    .Where(c => InNamespace(c, DcaLayout.AnyOf(arch.AllApplicationPatterns()))
+                    .Where(c => arch.InApplication(c)
                         && c.IsRecord != true
                         && ImplementsUseCase(arch, c)
                         && !c.Name.EndsWith(arch.Layout.UseCaseSuffix, StringComparison.Ordinal))
@@ -89,7 +89,7 @@ public sealed class NamingRules : IDcaRuleSet
                 var suffix = arch.Layout.InputPortSuffix;
                 var markers = arch.Layout.Markers;
                 var violations = arch.Interfaces
-                    .Where(i => InNamespace(i, DcaLayout.AnyOf(arch.AllApplicationPatterns()))
+                    .Where(i => arch.InApplication(i)
                         && IsAssignableTo(arch, i, markers.InputPort)
                         && !IsBaseInputPortName(i.Name)
                         && !IsRoleType(i, markers.InputPort)
@@ -123,7 +123,7 @@ public sealed class NamingRules : IDcaRuleSet
             arch =>
             {
                 var violations = arch.Interfaces
-                    .Where(i => InNamespace(i, DcaLayout.AnyOf(arch.AllApplicationPatterns()))
+                    .Where(i => arch.InApplication(i)
                         && i.Name.Contains("Repository", StringComparison.Ordinal)
                         && i.Name != "Repository"
                         && i.Name != "IRepository"
@@ -151,7 +151,7 @@ public sealed class NamingRules : IDcaRuleSet
             arch =>
             {
                 var violations = arch.Classes
-                    .Where(c => InNamespace(c, DcaLayout.AnyOf(arch.AllIncomingAdapterPatterns()))
+                    .Where(c => arch.InIncomingAdapter(c)
                         && IsMvcController(arch, c)
                         && !c.Name.EndsWith(arch.Layout.ControllerSuffix, StringComparison.Ordinal))
                     .Select(c => $"{c.FullName} is a controller but does not end with '{arch.Layout.ControllerSuffix}'")
@@ -177,7 +177,7 @@ public sealed class NamingRules : IDcaRuleSet
             arch =>
             {
                 var violations = arch.Classes
-                    .Where(c => InNamespace(c, DcaLayout.AnyOf(arch.AllIncomingAdapterPatterns()))
+                    .Where(c => arch.InIncomingAdapter(c)
                         && IsApiController(arch, c)
                         && !c.Name.EndsWith(arch.Layout.RestControllerSuffix, StringComparison.Ordinal))
                     .Select(c => $"{c.FullName} is an API controller but does not end with '{arch.Layout.RestControllerSuffix}'")
@@ -207,7 +207,7 @@ public sealed class NamingRules : IDcaRuleSet
                     .And()
                     .ResideInNamespaceMatching(DcaLayout.Below(layout.RootNamespace))
                     .Should()
-                    .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllAdapterPatterns())))
+                    .FollowCustomCondition(LayerConditions.PlacedIn(arch.InAdapter, "an adapter"), "be in an adapter"))
         .Selecting(
             "Types under the root namespace whose name ends with Dto.")
         .Checking(
@@ -228,7 +228,7 @@ public sealed class NamingRules : IDcaRuleSet
                     .And()
                     .ResideInNamespaceMatching(DcaLayout.Below(layout.RootNamespace))
                     .Should()
-                    .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllAdapterPatterns())))
+                    .FollowCustomCondition(LayerConditions.PlacedIn(arch.InAdapter, "an adapter"), "be in an adapter"))
         .Selecting(
             "Types under the root namespace whose name ends with Converter.")
         .Checking(
@@ -269,7 +269,7 @@ public sealed class NamingRules : IDcaRuleSet
             arch =>
                 Types()
                     .That()
-                    .ResideInNamespaceMatching(DcaLayout.AnyOf(arch.AllDomainPatterns()))
+                    .FollowCustomPredicate(arch.InDomain, "are in the domain layer")
                     .Should()
                     .NotHaveNameMatching("(Helper|Utils?|Impl|Implementation)$"))
         .Selecting(
@@ -394,8 +394,7 @@ public sealed class NamingRules : IDcaRuleSet
     /// </summary>
     private static IEnumerable<(string Type, string Name)> OperationNames(DcaArchitecture arch)
     {
-        var application = DcaLayout.AnyOf(arch.AllApplicationPatterns());
-        foreach (var port in arch.Interfaces.Where(i => InNamespace(i, application)
+        foreach (var port in arch.Interfaces.Where(i => arch.InApplication(i)
             && !IsBaseInputPortName(i.Name.Split('`')[0])
             && IsAssignableTo(arch, i, arch.Layout.Markers.InputPort)))
         {

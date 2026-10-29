@@ -481,15 +481,18 @@ public sealed class ContextMapRules : IDcaRuleSet
                             var allowedAdapter = channel == Consumes.Api
                                 ? OutgoingAdapterNamespace(ns)
                                 : IncomingAdapterNamespace(ns);
+                            var inAllowedAdapter = arch.InLayerOf(channel == Consumes.Api ? DcaLayout.Layer.OutgoingAdapter : DcaLayout.Layer.IncomingAdapter, ns);
+                            var inOwnModel = arch.InLayerOf(DcaLayout.Layer.Domain, ns);
+                            var inOwnApplication = arch.InLayerOf(DcaLayout.Layer.Application, ns);
                             var channelNs = targetNs + "." + ChannelName(arch, channel);
-                            var translationSite = TypesBelow(arch, allowedAdapter).Any(t => DependsOnNamespace(t, channelNs)
-                                && (DependsOnNamespace(t, ns + "." + Layout.DomainSegment) || DependsOnNamespace(t, ns + "." + Layout.ApplicationSegment)));
+                            var translationSite = arch.Types.Where(inAllowedAdapter).Any(t => DependsOnNamespace(t, channelNs)
+                                && t.Dependencies.Any(d => !ReferenceEquals(d.Target, t) && (inOwnModel(d.Target) || inOwnApplication(d.Target))));
                             if (demandsTranslationSite && !translationSite)
                             {
                                 violations.Add("Context '" + source + "' needs translation evidence towards '" + u.Context + "' (" + ChannelName(arch, channel) + ") in " + allowedAdapter);
                             }
 
-                            foreach (var type in TypesBelow(arch, ns).Where(t => !IsBelow(t, allowedAdapter)))
+                            foreach (var type in TypesBelow(arch, ns).Where(t => !inAllowedAdapter(t)))
                             {
                                 if (DependsOnNamespace(type, channelNs))
                                 {
@@ -541,7 +544,7 @@ public sealed class ContextMapRules : IDcaRuleSet
                         foreach (var channel in u.Via)
                         {
                             var channelNs = targetNs + "." + ChannelName(arch, channel);
-                            foreach (var type in TypesBelow(arch, DomainNamespace(ns)))
+                            foreach (var type in arch.Types.Where(arch.InLayerOf(DcaLayout.Layer.Domain, ns)))
                             {
                                 if (DependsOnNamespace(type, channelNs))
                                 {
@@ -595,7 +598,8 @@ public sealed class ContextMapRules : IDcaRuleSet
                             var allowedAdapter = e.Interaction == Interaction.Outbound
                                 ? OutgoingAdapterNamespace(ns)
                                 : IncomingAdapterNamespace(ns);
-                            foreach (var type in TypesBelow(arch, ns).Where(t => !IsBelow(t, allowedAdapter)))
+                            var inAllowedAdapter = arch.InLayerOf(e.Interaction == Interaction.Outbound ? DcaLayout.Layer.OutgoingAdapter : DcaLayout.Layer.IncomingAdapter, ns);
+                            foreach (var type in TypesBelow(arch, ns).Where(t => !inAllowedAdapter(t)))
                             {
                                 if (e.ContractNamespaces.Any(c => DependsOnNamespace(type, c)))
                                 {
@@ -607,7 +611,7 @@ public sealed class ContextMapRules : IDcaRuleSet
                         }
                         else
                         {
-                            foreach (var type in TypesBelow(arch, DomainNamespace(ns)))
+                            foreach (var type in arch.Types.Where(arch.InLayerOf(DcaLayout.Layer.Domain, ns)))
                             {
                                 if (e.ContractNamespaces.Any(c => DependsOnNamespace(type, c)))
                                 {
@@ -837,8 +841,6 @@ public sealed class ContextMapRules : IDcaRuleSet
     /// <summary>The published-interface namespace segment of a channel (<c>Api</c> / <c>Events</c>), per the layout.</summary>
     private static string ChannelName(DcaArchitecture arch, Consumes channel) =>
         channel == Consumes.Api ? arch.Layout.ApiSegment : arch.Layout.EventsSegment;
-
-    private string DomainNamespace(string contextNamespace) => contextNamespace + "." + Layout.DomainSegment;
 
     private string OutgoingAdapterNamespace(string contextNamespace) =>
         contextNamespace + "." + Layout.AdapterSegment + "." + Layout.OutgoingSegment;
