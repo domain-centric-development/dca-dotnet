@@ -4,6 +4,8 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-29
+
 ### Added
 
 **Retrofit with an own vocabulary: names and conventions become configuration** — the twin of the Java
