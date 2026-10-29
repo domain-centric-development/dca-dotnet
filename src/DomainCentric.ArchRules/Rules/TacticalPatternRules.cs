@@ -938,7 +938,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
     {
         typeof(string), typeof(bool), typeof(byte), typeof(sbyte), typeof(short), typeof(ushort), typeof(int),
         typeof(uint), typeof(long), typeof(ulong), typeof(float), typeof(double), typeof(char),
-        typeof(DateTime), typeof(DateTimeOffset), typeof(DateOnly), typeof(TimeOnly),
+        typeof(DateTime), typeof(DateTimeOffset), typeof(DateOnly), typeof(TimeOnly), typeof(Guid),
     };
 
     /// <summary>The methods every type has from the platform, and the ones a record declares for itself.</summary>
@@ -1068,9 +1068,10 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 + " property or parameter does not.")
             .Checking(
                 "No selected field, property, return type or parameter type involves string, bool, a numeric"
-                + " primitive or char, or a point in time (DateTime, DateTimeOffset, DateOnly, TimeOnly) - nullable"
-                + " and generic arguments and arrays included, so IReadOnlyList<string> counts. decimal, TimeSpan,"
-                + " Guid and the project's own types pass. A value object with several components is checked like"
+                + " primitive or char, a point in time (DateTime, DateTimeOffset, DateOnly, TimeOnly), or a bare Guid -"
+                + " an identifier says whose it is through a typed id - nullable"
+                + " and generic arguments and arrays included, so IReadOnlyList<string> counts. decimal, TimeSpan"
+                + " and the project's own types pass. A value object with several components is checked like"
                 + " any other type: each component is a value object itself. An empty selection passes.");
 
     /// <summary>A value or an identifier of exactly one instance field: it wraps that field's primitive.</summary>

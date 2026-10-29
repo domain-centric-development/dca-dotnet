@@ -18,6 +18,8 @@ public sealed class Account
 
     public IReadOnlyList<string> Tags { get; } = new List<string>();
 
+    public Guid OwnerId { get; private set; }
+
     public void Rename(string holder)
     {
     }

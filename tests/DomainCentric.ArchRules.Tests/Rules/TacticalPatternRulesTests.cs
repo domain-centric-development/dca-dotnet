@@ -145,6 +145,7 @@ public sealed class TacticalPatternRulesTests
         Assert.Contains("property Closed is Boolean", message);
         Assert.Contains("property OpenedAt is DateTimeOffset", message);
         Assert.Contains("property Tags is String", message);
+        Assert.Contains("property OwnerId is Guid", message);
         Assert.Contains("Rename(...) takes String as parameter 1", message);
         Assert.Contains("Address: property City is String; property Street is String", message);
         Assert.Contains("AccountOpened: property Holder is String", message);

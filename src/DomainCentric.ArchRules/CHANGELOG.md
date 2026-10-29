@@ -15,7 +15,7 @@ namespace that depends on an input port is wiring and passes — C# cannot imple
 **`DCA-TAC-025` (experimental): domain types must not hold bare primitives, strings or time types.** Declared
 fields, properties, return types and parameter types in `<Module>.Domain` — nullable, array and generic arguments
 included — involve no `string`, `bool`, numeric primitive or `char`, and no point in time (`DateTime`,
-`DateTimeOffset`, `DateOnly`, `TimeOnly`). A value of several components holds values; only a wrapper — an `IValue`
+`DateTimeOffset`, `DateOnly`, `TimeOnly`), nor a bare `Guid` — an identifier says whose it is through a typed id. A value of several components holds values; only a wrapper — an `IValue`
 or `IId` of exactly one instance field — holds the primitive it wraps. Exempt: compiler-generated members, `Equals`/
 `GetHashCode`/`ToString`/`CompareTo`, an enum's members, and a member that implements a building block's (a domain
 event's `OccurredOn` and `EventId`). A `bool` return is a predicate — a question to the object — and passes; a `bool`
