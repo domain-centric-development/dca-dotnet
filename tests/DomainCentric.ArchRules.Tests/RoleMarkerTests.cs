@@ -52,6 +52,18 @@ public sealed class RoleMarkerTests
     }
 
     [Fact]
+    public void AGenericParameterHasNoRole()
+    {
+        var arch = Arch(DcaLayout.ForRootNamespace("DomainCentric.ArchRules.Tests.Fixtures.UseCase.Bad"));
+        var parameter = arch.Types.SelectMany(t => t.GenericParameters).First();
+        var markers = DcaMarkers.Dca();
+
+        Assert.False(markers.Is("Value", parameter));
+        Assert.False(markers.Is("AggregateRoot", parameter));
+        Assert.False(markers.Is("Value", typeof(System.Collections.Generic.List<>).GetGenericArguments()[0]));
+    }
+
+    [Fact]
     public void CommandsAreRecognisedBySuffixByDefaultAndByTheProjectsAttributeOnceConfigured()
     {
         var byDefault = Arch(DcaLayout.ForRootNamespace(App));

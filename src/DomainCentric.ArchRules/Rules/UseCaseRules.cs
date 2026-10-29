@@ -182,7 +182,8 @@ public sealed class UseCaseRules : IDcaRuleSet
         .Experimental()
         .Selecting(
             "Concrete non-nested application operations selected by IInputPort marker or configured use-case"
-                + " suffix, with loadable runtime types, whose input ends in Query: the input type argument of an"
+                + " suffix, with loadable runtime types, whose input the configured query role recognises (by default a"
+                + " simple name ending with Query): the input type argument of an"
                 + " implemented IUseCase<TInput, TOutput>, or a parameter of a method that implements an"
                 + " IInputPort interface.")
         .Checking(
