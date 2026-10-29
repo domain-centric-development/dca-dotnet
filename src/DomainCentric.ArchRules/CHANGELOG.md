@@ -4,6 +4,8 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-29
+
 ### Added
 
 **Layers recognised by the project's own attributes (WP-160)** — the twin of the Java library's change.
