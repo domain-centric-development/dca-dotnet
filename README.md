@@ -237,9 +237,22 @@ the segments of the namespace layout, and the types a domain event may store its
 (`WithTimestampTypes`) — `DcaLayout` has a `With…` for it. Configure the name; do not switch the
 rule off.
 
+**Your own layers and attributes.** A layer is its namespace by default. A project that keeps a layer under
+another namespace name, or already marks its layers with attributes — its own or a library's — names that per
+layer: `WithOutgoingAdapter(DcaMarker.OfNamespace("Adapter.Out"))`, or during a migration
+`DcaMarker.AnyOf(DcaMarker.OfNamespace("Adapter.Outgoing"), DcaMarker.OfAttribute("Acme.Arch.OutgoingAdapterAttribute"))`.
+The attribute sits on the type, as an assembly attribute whose first argument names a namespace (it holds for that
+namespace and the ones below), or on the whole assembly; the type's own wins, then the named namespace, then the
+assembly, then the path, and the `LayoutDiagnostics` fact lists every namespace where an attribute overrides the
+path. A building block takes an attribute too — `WithValue(DcaMarker.OfAttribute("Acme.Ddd.ValueObjectAttribute"))`
+— never a namespace: a layer is a place, a building block is what a type is. Commands and queries are recognised
+by their name by default (`…Command`, `…Query`); `WithCommand(DcaMarker.OfType(..))` / `WithQuery(..)` point them
+at a supertype or an attribute instead. The library ships no attributes for any of this; it reads the ones a
+project has. `DCA-LAY-007` (experimental) lists the types of a module that sit in no layer.
+
 ## Rule catalog
 
-**140 rule ids in 12 sets: 131 enforced, 8 informational, 1 not applicable in .NET; 10 of them experimental.** Six further ids are retired and keep their meaning in the retirement list. The
+**145 rule ids in 12 sets: 135 enforced, 9 informational, 1 not applicable in .NET; 15 of them experimental.** Six further ids are retired and keep their meaning in the retirement list. The
 exact, current list is [RULES.md](RULES.md) and [rules.json](rules.json), both generated from the code
 by `dotnet run --project tools/RulesCatalog -- .` and verified in CI; every number in this README is
 taken from there. `rules.json` names the package version its texts belong to.
