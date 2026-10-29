@@ -44,10 +44,12 @@ compiler-generated types. The id `DCA-LAY-006` stays retired.
 
 ### Changed
 
-**`DCA-HEX-019` (experimental): an output port implementation is placed in no layer but the outgoing adapters.** An
-implementation is an outgoing adapter by the port it implements; the rule now reports one the layout places in another
+**`DCA-HEX-019` (experimental): output port implementations are placed in the outgoing adapters.** An
+implementation is an outgoing adapter by the port it implements; the rule reports one the layout places in another
 layer — domain, application, incoming adapter, infrastructure (the bridge to a second use case still passes) — by path
-or by attribute, and names the layer and how it was placed. A type in no layer is `DCA-LAY-007`'s.
+or by attribute, and one it places in no layer, with the way out: declare the layer of its namespace (`DCA-LAY-007`
+lists such types) or switch the hexagonal set off while the project has no layers. The violation text changed:
+`… but is placed in the <layer> layer (<source> <namespace>)` and `… but sits in no layer`.
 
 **`DCA-TAC-025` (experimental) passes over failures and a value's own error shapes, and explains a one-field type
 (WP-161).** Not selected: a type of the domain-exception or use-case-exception role — a failure reports what was

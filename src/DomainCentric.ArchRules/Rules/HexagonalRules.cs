@@ -606,18 +606,26 @@ public sealed class HexagonalRules : IDcaRuleSet
     public IDcaRule OutputPortImplementationsResideInOutgoingAdapters() =>
         DcaRule.Check(
             "DCA-HEX-019",
-            "Output port implementations are placed in no layer but the outgoing adapters",
+            "Output port implementations are placed in the outgoing adapters",
             "An output port is what the application needs from outside; whatever implements it is an outgoing"
                 + " adapter - the implemented port says so. An implementation placed in the infrastructure namespace,"
-                + " the application or the domain is outside the selection of every rule written for outgoing"
-                + " adapters, and infrastructure then holds behaviour instead of wiring alone",
+                + " the application, the domain or in no layer at all is outside the selection of every rule written"
+                + " for outgoing adapters, and infrastructure then holds behaviour instead of wiring alone",
             arch =>
             {
                 var violations = new List<string>();
                 foreach (var type in arch.Classes.Where(c => !c.IsCompilerGenerated && IsRole(arch, c, nameof(DcaMarkers.OutputPort))))
                 {
                     var placement = arch.PlacementOf(type);
-                    if (placement is null || placement.Layer == DcaLayout.Layer.OutgoingAdapter)
+                    if (placement is null)
+                    {
+                        violations.Add($"{type.FullName} implements an output port but sits in no layer - declare the layer"
+                            + " of its namespace (DCA-LAY-007 lists such types), or switch the hexagonal set off while the"
+                            + " project has no layers");
+                        continue;
+                    }
+
+                    if (placement.Layer == DcaLayout.Layer.OutgoingAdapter)
                     {
                         continue;
                     }
@@ -632,21 +640,22 @@ public sealed class HexagonalRules : IDcaRuleSet
                 }
 
                 DcaRule.Fail(
-                    "Output port implementations are placed in no layer but the outgoing adapters",
+                    "Output port implementations are placed in the outgoing adapters",
                     violations.OrderBy(v => v, StringComparer.Ordinal).ToList(),
                     "move the implementation into the outgoing adapter layer of its module; the configuration in infrastructure only wires it to its port");
             })
         .Experimental()
         .Selecting(
             "Classes of the scan assignable to IOutputPort - repositories, stores, event publishers and every other"
-                + " output port alike, abstract base classes included; compiler-generated classes are not selected -"
-                + " that the layout places in a layer: by a layer attribute on the class, on its namespace or its"
-                + " assembly, or by the namespace path. A class in no layer is not selected. Not selected: a class in"
+                + " output port alike, abstract base classes included; compiler-generated classes are not selected."
+                + " Not selected: a class in"
                 + " an infrastructure namespace that depends on a type assignable to IInputPort - the bridge that"
                 + " hands an output port a second use case, which is wiring.")
         .Checking(
             "Each is placed in the outgoing adapter layer - by default <Module>.Adapter.Outgoing, or wherever the"
-                + " layout's outgoing-adapter marker places it. DCA-TAC-015 and DCA-TAC-020 hold repositories and"
+                + " layout's outgoing-adapter marker places it - by a layer attribute on the class, on its namespace or"
+                + " its assembly, or by the namespace path; a class the layout places in no layer is reported as well."
+                + " DCA-TAC-015 and DCA-TAC-020 hold repositories and"
                 + " stores the same way in the tactical set.");
 
     /// <summary>Whether a class depends on an input port: by a member it references or a constructor parameter.</summary>

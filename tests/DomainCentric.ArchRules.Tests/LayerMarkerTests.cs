@@ -48,12 +48,13 @@ public sealed class LayerMarkerTests
     private static IDcaRule Rule(DcaLayout layout, string id) => DcaRules.All(layout).Single(r => r.Id == id);
 
     [Fact]
-    public void WithoutTheAttributesTheDeclaredNamespaceIsInNoLayerAndTheDiagnosticNamesIt()
+    public void WithoutTheAttributesTheDeclaredNamespaceIsInNoLayerAndBothRulesNameIt()
     {
         var layout = DcaLayout.ForRootNamespace(App);
         var arch = Arch(layout);
 
-        Rule(layout, "DCA-HEX-019").Check(arch);
+        var error = Assert.Throws<DcaRuleViolationException>(() => Rule(layout, "DCA-HEX-019").Check(arch));
+        Assert.Contains(Billing + ".Out.Persistence.JdbcInvoiceStore implements an output port but sits in no layer", error.Message, StringComparison.Ordinal);
         var unplaced = Rule(layout, "DCA-LAY-007").Observe(arch);
         Assert.Contains(Billing + ".Out.Persistence.JdbcInvoiceStore (module " + Billing + ")", unplaced);
         Assert.DoesNotContain(unplaced, u => u.StartsWith(Billing + ".BillingContext", StringComparison.Ordinal));
