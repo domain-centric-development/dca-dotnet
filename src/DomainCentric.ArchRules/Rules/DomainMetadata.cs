@@ -15,17 +15,17 @@ internal static class DomainMetadata
     internal static string Owner(DcaArchitecture arch, IType type)
     {
         var markers = arch.Layout.Markers;
-        if (type.IsAssignableTo(markers.DomainEvent))
+        if (markers.Is(nameof(DcaMarkers.DomainEvent), type))
         {
             return "DCA-ADV-004";
         }
 
-        if (type.IsAssignableTo(markers.DomainService))
+        if (markers.Is(nameof(DcaMarkers.DomainService), type))
         {
             return "DCA-ADV-011";
         }
 
-        if (type.IsAssignableTo(markers.Factory))
+        if (markers.Is(nameof(DcaMarkers.Factory), type))
         {
             return "DCA-ADV-015";
         }

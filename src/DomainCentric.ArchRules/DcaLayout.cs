@@ -842,9 +842,12 @@ public sealed class DcaLayout
         }
 
         var defaults = DcaMarkers.Dca().Roles().ToDictionary(r => r.Key, r => r.Value);
+        var recognised = Markers.RecognisedOtherwise();
         var changed = Markers.Roles()
+            .Where(r => recognised.All(other => other.Key != r.Key))
             .Where(r => !string.Equals(r.Value, defaults[r.Key], StringComparison.Ordinal))
             .Select(r => $"{r.Key}={r.Value}")
+            .Concat(recognised.Select(r => $"{r.Key}={r.Value}"))
             .ToArray();
         return changed.Length == 0 ? Markers.Name : $"{Markers.Name} ({string.Join(", ", changed)})";
     }

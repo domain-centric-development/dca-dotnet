@@ -24,6 +24,18 @@ the layers recognised otherwise (`layers: …`) and, as notices, a namespace who
 namespace that declares another layer than one above it or than its assembly. The sub-namespaces of a layer
 (`Shared`, `Model`, `Api`, `Events`, `Web`, `Event`) stay segments below the layer's namespace.
 
+**Building-block roles recognised by the project's own attributes; command and query are roles (WP-160, WP-161).**
+Every `DcaMarkers` role takes a `DcaMarker` beside its type name (`WithAggregateRoot(DcaMarker)` … `WithRole(role,
+marker)`): `OfType` (assignability, as before), `OfAttribute` (on the type or one of its base types or interfaces, an
+attribute derived from the named one included) or `AnyOf` both; a namespace or a suffix is refused for a building
+block, at most one `OfType`. `Command` and `Query` are new roles, `OfSuffix("Command")` and `OfSuffix("Query")` by
+default — what the rules hard-wired until now — and take a type or an attribute instead (`WithCommand`, `WithQuery`),
+so a project that names its read-only inputs `…Command` can say which are commands. `DCA-USE-002`…`-005`,
+`DCA-HEX-014` and the feature rules read the roles; `DCA-USE-002`/`-003` are now titled "Commands/Queries reside in
+the application layer". Every role check in the rules goes through `DcaMarkers.Is(role, type)` (for an imported or a
+reflected type). The report names every role recognised otherwise. A rule that reads a role's generic arguments or
+method names still reads them from the role's type.
+
 ## [0.10.0] - 2026-10-29
 
 ### Added

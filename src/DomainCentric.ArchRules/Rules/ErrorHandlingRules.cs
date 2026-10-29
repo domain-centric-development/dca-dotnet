@@ -64,7 +64,7 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
             {
                 var violations = ProjectExceptions(arch)
                     .Where(arch.InDomain)
-                    .Where(t => !IsAssignableTo(t, arch.Layout.Markers.DomainException))
+                    .Where(t => !arch.Layout.Markers.Is(nameof(DcaMarkers.DomainException), t))
                     .Select(t => $"{t.FullName} does not extend DomainException")
                     .ToList();
                 DcaRule.Fail("A domain failure without the domain base type", violations);
@@ -91,12 +91,12 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                 var violations = new List<string>();
                 foreach (var type in ProjectExceptions(arch))
                 {
-                    if (IsAssignableTo(type, arch.Layout.Markers.DomainException) && !arch.InDomain(type))
+                    if (arch.Layout.Markers.Is(nameof(DcaMarkers.DomainException), type) && !arch.InDomain(type))
                     {
                         violations.Add($"{type.FullName} is a domain exception outside the domain layer");
                     }
 
-                    if (IsAssignableTo(type, arch.Layout.Markers.UseCaseException) && !arch.InApplication(type))
+                    if (arch.Layout.Markers.Is(nameof(DcaMarkers.UseCaseException), type) && !arch.InApplication(type))
                     {
                         violations.Add($"{type.FullName} is a use-case exception outside the application layer");
                     }
@@ -128,8 +128,8 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                     // A subtype of DomainException here is misplaced, not mis-based: DCA-ERR-002 owns it
                     // and says to move it to the domain. This rule's remedy would turn a broken rule of
                     // the model into a use-case failure.
-                    .Where(t => !IsAssignableTo(t, arch.Layout.Markers.DomainException))
-                    .Where(t => !IsAssignableTo(t, arch.Layout.Markers.UseCaseException))
+                    .Where(t => !arch.Layout.Markers.Is(nameof(DcaMarkers.DomainException), t))
+                    .Where(t => !arch.Layout.Markers.Is(nameof(DcaMarkers.UseCaseException), t))
                     .Select(t => $"{t.FullName} does not extend UseCaseException")
                     .ToList();
                 DcaRule.Fail("A use-case failure without the application base type", violations);
@@ -271,7 +271,7 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                 var useCaseException = arch.Layout.Markers.UseCaseException;
                 var anyFailureType = arch.Types.Any(t =>
                     t.FullName != domainException && t.FullName != useCaseException
-                    && (IsAssignableTo(t, domainException) || IsAssignableTo(t, useCaseException)));
+                    && (arch.Layout.Markers.Is(nameof(DcaMarkers.DomainException), t) || arch.Layout.Markers.Is(nameof(DcaMarkers.UseCaseException), t)));
                 if (!anyFailureType)
                 {
                     return new List<string>
@@ -295,12 +295,12 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                     }
 
                     var targets = type.Dependencies.Select(d => d.Target).ToList();
-                    if (targets.Any(t => IsAssignableTo(t, arch.Layout.Markers.DomainException) || IsAssignableTo(t, arch.Layout.Markers.UseCaseException)))
+                    if (targets.Any(t => arch.Layout.Markers.Is(nameof(DcaMarkers.DomainException), t) || arch.Layout.Markers.Is(nameof(DcaMarkers.UseCaseException), t)))
                     {
                         namespacesThatName.Add(ns);
                     }
 
-                    if (type is not Interface && targets.Any(t => IsAssignableTo(t, arch.Layout.Markers.InputPort)))
+                    if (type is not Interface && targets.Any(t => arch.Layout.Markers.Is(nameof(DcaMarkers.InputPort), t)))
                     {
                         if (!driving.TryGetValue(ns, out var names))
                         {
@@ -395,12 +395,12 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
             return "a plain string";
         }
 
-        if (DcaMarkers.IsAssignableToByName(type, markers.AggregateRoot))
+        if (markers.Is(nameof(DcaMarkers.AggregateRoot), type))
         {
             return $"the aggregate {type.Name}";
         }
 
-        if (DcaMarkers.IsAssignableToByName(type, markers.Entity))
+        if (markers.Is(nameof(DcaMarkers.Entity), type))
         {
             return $"the entity {type.Name}";
         }
@@ -428,7 +428,7 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
     /// <summary>The project's own types below one of the two exception base types.</summary>
     private static IEnumerable<IType> ExceptionsOfEitherLayer(DcaArchitecture arch) =>
         ProjectExceptions(arch)
-            .Where(t => IsAssignableTo(t, arch.Layout.Markers.DomainException) || IsAssignableTo(t, arch.Layout.Markers.UseCaseException));
+            .Where(t => arch.Layout.Markers.Is(nameof(DcaMarkers.DomainException), t) || arch.Layout.Markers.Is(nameof(DcaMarkers.UseCaseException), t));
 
     private static bool IsAssignableTo(IType type, string target) => type.IsAssignableTo(target);
 }

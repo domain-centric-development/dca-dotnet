@@ -16,10 +16,16 @@ namespace DomainCentric.ArchRules;
 /// <c>with</c> expression:
 /// <c>DcaLayout.ForRootNamespace("Acme.Billing").WithMarkers(DcaMarkers.Dca() with { Name = "own",
 /// AggregateRoot = "Acme.Platform.IContractRoot", Repository = "Acme.Platform.IContractStore" })</c>.</para>
-/// <para>Every role holds exactly one type name, matched by assignability: a type the project's own type
-/// implements or derives from, directly or through an intermediate type. Two vocabularies at once — this
-/// library's marker on one aggregate and another's on the next — are outside this: a role names one type,
-/// so a migration points the role at one of them and the rules select what carries it.</para>
+/// <para>Every role holds one type name, matched by assignability: a type the project's own type implements or
+/// derives from, directly or through an intermediate type. Where a project marks its building blocks with
+/// attributes instead, the role takes a <see cref="DcaMarker"/> —
+/// <c>WithValue(DcaMarker.OfAttribute("Acme.ValueObjectAttribute"))</c>, or <c>AnyOf</c> a type and an attribute
+/// while a migration has both; the attribute counts on the type and on its base types and interfaces, an attribute
+/// derived from the named one included. A namespace never names a role. Two roles are recognised by name by default:
+/// <c>Command</c> and <c>Query</c>, the input of a use case, <c>OfSuffix("Command")</c> and <c>OfSuffix("Query")</c> —
+/// <see cref="WithCommand"/> and <see cref="WithQuery"/> point them at a supertype or an attribute instead. A rule
+/// that reads a role's generic arguments or method names (a repository's aggregate, <c>SaveAsync</c>) reads them from
+/// the role's type. Every rule asks <see cref="Is(string, ArchUnitNET.Domain.IType)"/>.</para>
 /// <para><b>The port roles need a common root.</b> <c>OutputPort</c> must be set whenever any other port
 /// role is: <c>DCA-HEX-009</c> measures every output port of the project against it, so leaving it at the
 /// library's own type while <c>Repository</c> points elsewhere reports every port of the project's
@@ -144,8 +150,281 @@ public sealed record DcaMarkers(string Name)
     /// <summary>The markers of <c>DomainCentric.BuildingBlocks</c> — the default of <see cref="DcaLayout"/>.</summary>
     public static DcaMarkers Dca() => new("dca");
 
-    /// <summary>Whether every role still names the type of <see cref="Dca"/>.</summary>
-    public bool IsDefault => Roles().SequenceEqual(Dca().Roles());
+    /// <summary>Whether every role still names the type of <see cref="Dca"/> and is recognised as by default.</summary>
+    public bool IsDefault => Roles().SequenceEqual(Dca().Roles()) && RecognisedOtherwise().Count == 0;
+
+    /// <summary>The two roles that are recognised by name by default: a use case's input.</summary>
+    public static readonly IReadOnlyList<string> NamedRoles = new[] { "Command", "Query" };
+
+    private static readonly IReadOnlyDictionary<string, DcaMarker> DefaultRecognition = new Dictionary<string, DcaMarker>(StringComparer.Ordinal)
+    {
+        ["Command"] = DcaMarker.OfSuffix("Command"),
+        ["Query"] = DcaMarker.OfSuffix("Query"),
+    };
+
+    private static readonly IReadOnlyList<string> DeclarationRoles = new[] { nameof(BoundedContext), nameof(SharedKernel), nameof(IntegrationEventType) };
+
+    /// <summary>
+    /// How a role is recognised where that is more than assignability to its type (WP-160): a building-block role by
+    /// <c>OfType</c> and/or <c>OfAttribute</c>, the <c>Command</c> and <c>Query</c> roles also by <c>OfSuffix</c> — their
+    /// default — and the three declaration roles by <c>OfAttribute</c>. A role absent from the map is its type, by
+    /// assignability. Set through <see cref="WithRole"/>.
+    /// </summary>
+    public IReadOnlyDictionary<string, DcaMarker> RecognisedBy { get; private init; } = DefaultRecognition;
+
+    /// <summary>
+    /// The same vocabulary with one role recognised by the given marker (WP-160). A building-block role takes
+    /// <see cref="DcaMarker.OfType"/>, <see cref="DcaMarker.OfAttribute"/> on the type, or both; <c>Command</c> and
+    /// <c>Query</c> also <see cref="DcaMarker.OfSuffix"/>; the three declaration roles <c>OfAttribute</c> only. A
+    /// namespace never names a role — it says where a type sits, not what it is. At most one <c>OfType</c>: it is the
+    /// type the role names, and the rules that read a role's generic arguments or methods read them from it. A role
+    /// given without <c>OfType</c> keeps its type name for those readings but is not recognised by assignability to it.
+    /// </summary>
+    public DcaMarkers WithRole(string role, DcaMarker marker)
+    {
+        ArgumentNullException.ThrowIfNull(marker);
+        var named = NamedRoles.Contains(role);
+        var roles = Roles().ToDictionary(r => r.Key, r => r.Value, StringComparer.Ordinal);
+        if (!named && !roles.ContainsKey(role))
+        {
+            throw new ArgumentException(
+                $"No marker role named '{role}' - known: {string.Join(", ", roles.Keys.Concat(NamedRoles))}", nameof(role));
+        }
+
+        if (DeclarationRoles.Contains(role))
+        {
+            marker.RequireKinds("The " + role + " role", DcaMarker.Kind.Attribute);
+        }
+        else if (named)
+        {
+            marker.RequireKinds("The " + role + " role", DcaMarker.Kind.Type, DcaMarker.Kind.Attribute, DcaMarker.Kind.Suffix);
+        }
+        else
+        {
+            marker.RequireKinds("The " + role + " role", DcaMarker.Kind.Type, DcaMarker.Kind.Attribute);
+        }
+
+        var types = marker.ValuesOf(DcaMarker.Kind.Type);
+        if (types.Count > 1)
+        {
+            throw new ArgumentException(
+                $"The {role} role names one type, was [{string.Join(", ", types)}] - name their common supertype", nameof(marker));
+        }
+
+        var next = this;
+        if (!named && types.Count == 1)
+        {
+            next = next.WithRoleType(role, types[0]);
+        }
+
+        if (DeclarationRoles.Contains(role))
+        {
+            next = next.WithRoleType(role, marker.ValuesOf(DcaMarker.Kind.Attribute)[0]);
+        }
+
+        var recognition = new Dictionary<string, DcaMarker>(RecognisedBy, StringComparer.Ordinal);
+        if ((!named && marker.MarkerKind == DcaMarker.Kind.Type) || DeclarationRoles.Contains(role))
+        {
+            recognition.Remove(role);
+        }
+        else
+        {
+            recognition[role] = marker;
+        }
+
+        return next with { RecognisedBy = recognition };
+    }
+
+    private DcaMarkers WithRoleType(string role, string type) => role switch
+    {
+        nameof(AggregateRoot) => this with { AggregateRoot = type },
+        nameof(Entity) => this with { Entity = type },
+        nameof(Value) => this with { Value = type },
+        nameof(Id) => this with { Id = type },
+        nameof(DomainEvent) => this with { DomainEvent = type },
+        nameof(IntegrationEvent) => this with { IntegrationEvent = type },
+        nameof(DomainService) => this with { DomainService = type },
+        nameof(Factory) => this with { Factory = type },
+        nameof(Specification) => this with { Specification = type },
+        nameof(DomainException) => this with { DomainException = type },
+        nameof(UseCaseException) => this with { UseCaseException = type },
+        nameof(TransactionBoundary) => this with { TransactionBoundary = type },
+        nameof(InputPort) => this with { InputPort = type },
+        nameof(UseCase) => this with { UseCase = type },
+        nameof(OutputPort) => this with { OutputPort = type },
+        nameof(Repository) => this with { Repository = type },
+        nameof(Store) => this with { Store = type },
+        nameof(DomainEventPublisher) => this with { DomainEventPublisher = type },
+        nameof(IntegrationEventPublisher) => this with { IntegrationEventPublisher = type },
+        nameof(BoundedContext) => this with { BoundedContext = type },
+        nameof(SharedKernel) => this with { SharedKernel = type },
+        nameof(IntegrationEventType) => this with { IntegrationEventType = type },
+        _ => throw new ArgumentException($"No marker role named '{role}'", nameof(role)),
+    };
+
+    /// <summary>How a role is recognised: its marker, or <c>OfType</c> of the type it names.</summary>
+    public DcaMarker Marker(string role)
+    {
+        if (RecognisedBy.TryGetValue(role, out var marker))
+        {
+            return marker;
+        }
+
+        var type = Roles().FirstOrDefault(r => r.Key == role).Value
+            ?? throw new ArgumentException($"No marker role named '{role}'", nameof(role));
+        return DeclarationRoles.Contains(role) ? DcaMarker.OfAttribute(type) : DcaMarker.OfType(type);
+    }
+
+    /// <summary>The roles recognised otherwise than by plain assignability, for the report.</summary>
+    public IReadOnlyList<KeyValuePair<string, DcaMarker>> RecognisedOtherwise() =>
+        RecognisedBy
+            .Where(r => !(DefaultRecognition.TryGetValue(r.Key, out var byDefault) && byDefault.Equals(r.Value)))
+            .OrderBy(r => RoleOrder(r.Key))
+            .ToArray();
+
+    private static int RoleOrder(string role)
+    {
+        var index = Dca().Roles().Select(r => r.Key).ToList().IndexOf(role);
+        return index >= 0 ? index : 100 + NamedRoles.ToList().IndexOf(role);
+    }
+
+    /// <summary>
+    /// Whether the imported type is one the role recognises: assignable to its type, carrying its attribute — on the
+    /// type or one of its base types or interfaces, an attribute derived from the named one included — or named with
+    /// its suffix, as its marker says. The one predicate every rule asks for a role.
+    /// </summary>
+    public bool Is(string role, ArchUnitNET.Domain.IType type) => Matches(Marker(role), type);
+
+    /// <summary><see cref="Is(string, ArchUnitNET.Domain.IType)"/> for a reflected type.</summary>
+    public bool Is(string role, Type? type) => type is not null && Matches(Marker(role), type);
+
+    /// <summary>Whether the imported type is one the marker recognises.</summary>
+    public static bool Matches(DcaMarker marker, ArchUnitNET.Domain.IType type)
+    {
+        foreach (var alternative in marker.Alternatives)
+        {
+            var name = alternative.Value!;
+            var hit = alternative.MarkerKind switch
+            {
+                DcaMarker.Kind.Type => type.FullName == name || ArchUnitNET.Domain.Extensions.TypeExtensions.IsAssignableTo(type, name),
+                DcaMarker.Kind.Attribute => AttributedInHierarchy(type, name),
+                DcaMarker.Kind.Suffix => SimpleName(type.Name).EndsWith(name, StringComparison.Ordinal),
+                _ => false,
+            };
+            if (hit)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Whether the reflected type is one the marker recognises.</summary>
+    public static bool Matches(DcaMarker marker, Type type)
+    {
+        foreach (var alternative in marker.Alternatives)
+        {
+            var name = alternative.Value!;
+            var hit = alternative.MarkerKind switch
+            {
+                DcaMarker.Kind.Type => IsAssignableToByName(type, name) || CarriesRole(type, name),
+                DcaMarker.Kind.Attribute => AttributedInHierarchy(type, name),
+                DcaMarker.Kind.Suffix => SimpleName(type.Name).EndsWith(name, StringComparison.Ordinal),
+                _ => false,
+            };
+            if (hit)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string SimpleName(string name) => name.Split('`')[0];
+
+    private static bool AttributedInHierarchy(ArchUnitNET.Domain.IType type, string attribute)
+    {
+        var hierarchy = new List<ArchUnitNET.Domain.IType> { type };
+        for (var current = (type as ArchUnitNET.Domain.Class)?.BaseClass; current is not null; current = current.BaseClass)
+        {
+            hierarchy.Add(current);
+        }
+
+        hierarchy.AddRange(type.ImplementedInterfaces);
+        return hierarchy.Any(t => t.Attributes.Any(a =>
+            a.FullName == attribute || ArchUnitNET.Domain.Extensions.TypeExtensions.IsAssignableTo(a, attribute)));
+    }
+
+    private static bool AttributedInHierarchy(Type type, string attribute)
+    {
+        try
+        {
+            var hierarchy = new List<Type>();
+            for (var current = type; current is not null; current = current.BaseType)
+            {
+                hierarchy.Add(current);
+            }
+
+            hierarchy.AddRange(type.GetInterfaces());
+            return hierarchy.Any(t => t.GetCustomAttributesData().Any(a => IsAssignableToByName(a.AttributeType, attribute)));
+        }
+        catch (Exception e) when (e is TypeLoadException or System.IO.FileNotFoundException or System.IO.FileLoadException)
+        {
+            return false;
+        }
+    }
+
+    public DcaMarkers WithAggregateRoot(DcaMarker marker) => WithRole(nameof(AggregateRoot), marker);
+
+    public DcaMarkers WithEntity(DcaMarker marker) => WithRole(nameof(Entity), marker);
+
+    public DcaMarkers WithValue(DcaMarker marker) => WithRole(nameof(Value), marker);
+
+    public DcaMarkers WithId(DcaMarker marker) => WithRole(nameof(Id), marker);
+
+    public DcaMarkers WithDomainEvent(DcaMarker marker) => WithRole(nameof(DomainEvent), marker);
+
+    public DcaMarkers WithIntegrationEvent(DcaMarker marker) => WithRole(nameof(IntegrationEvent), marker);
+
+    public DcaMarkers WithDomainService(DcaMarker marker) => WithRole(nameof(DomainService), marker);
+
+    public DcaMarkers WithFactory(DcaMarker marker) => WithRole(nameof(Factory), marker);
+
+    public DcaMarkers WithSpecification(DcaMarker marker) => WithRole(nameof(Specification), marker);
+
+    public DcaMarkers WithDomainException(DcaMarker marker) => WithRole(nameof(DomainException), marker);
+
+    public DcaMarkers WithUseCaseException(DcaMarker marker) => WithRole(nameof(UseCaseException), marker);
+
+    public DcaMarkers WithTransactionBoundary(DcaMarker marker) => WithRole(nameof(TransactionBoundary), marker);
+
+    public DcaMarkers WithInputPort(DcaMarker marker) => WithRole(nameof(InputPort), marker);
+
+    public DcaMarkers WithUseCase(DcaMarker marker) => WithRole(nameof(UseCase), marker);
+
+    public DcaMarkers WithOutputPort(DcaMarker marker) => WithRole(nameof(OutputPort), marker);
+
+    public DcaMarkers WithRepository(DcaMarker marker) => WithRole(nameof(Repository), marker);
+
+    public DcaMarkers WithStore(DcaMarker marker) => WithRole(nameof(Store), marker);
+
+    public DcaMarkers WithDomainEventPublisher(DcaMarker marker) => WithRole(nameof(DomainEventPublisher), marker);
+
+    public DcaMarkers WithIntegrationEventPublisher(DcaMarker marker) => WithRole(nameof(IntegrationEventPublisher), marker);
+
+    public DcaMarkers WithBoundedContext(DcaMarker marker) => WithRole(nameof(BoundedContext), marker);
+
+    public DcaMarkers WithSharedKernel(DcaMarker marker) => WithRole(nameof(SharedKernel), marker);
+
+    public DcaMarkers WithIntegrationEventType(DcaMarker marker) => WithRole(nameof(IntegrationEventType), marker);
+
+    /// <summary>How a use case's input is recognised as a command — <c>OfSuffix("Command")</c> by default.</summary>
+    public DcaMarkers WithCommand(DcaMarker marker) => WithRole("Command", marker);
+
+    /// <summary>How a use case's input is recognised as a query — <c>OfSuffix("Query")</c> by default.</summary>
+    public DcaMarkers WithQuery(DcaMarker marker) => WithRole("Query", marker);
 
     /// <summary>
     /// Refuses a vocabulary that cannot be used: a blank name, or a role that names no type. A role

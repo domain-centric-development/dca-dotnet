@@ -292,7 +292,7 @@ public sealed class StrategicPatternRules : IDcaRuleSet
             "Integration event contracts reside in the configured Events segment",
             "Integration contracts are published separately from translators and transport adapters",
             arch =>
-                Types().That().FollowCustomPredicate(t => t.IsAssignableTo(arch.Layout.Markers.IntegrationEvent), "are integration events").And().AreNot(Interfaces())
+                Types().That().FollowCustomPredicate(t => arch.Layout.Markers.Is(nameof(DcaMarkers.IntegrationEvent), t), "are integration events").And().AreNot(Interfaces())
                     .Should().ResideInNamespaceMatching(AnySegment(Layout.EventsSegment)))
         .Selecting(
             "Non-interface types below the root namespace whose implemented interfaces include"
@@ -310,7 +310,7 @@ public sealed class StrategicPatternRules : IDcaRuleSet
             {
                 var violations = arch.Types
                     .Where(t => t is not Interface && !t.IsCompilerGenerated)
-                    .Where(t => t.ImplementedInterfaces.Any(i => i.FullName == arch.Layout.Markers.IntegrationEvent))
+                    .Where(t => arch.Layout.Markers.Is(nameof(DcaMarkers.IntegrationEvent), t))
                     .Where(t => !TacticalPatternRules.IsImmutableShape(t))
                     .Select(t => "Integration event " + t.FullName + " has mutable shape")
                     .ToList();
@@ -443,7 +443,6 @@ public sealed class StrategicPatternRules : IDcaRuleSet
             arch =>
             {
                 var violations = new List<string>();
-                var marker = arch.Layout.Markers.IntegrationEvent;
                 foreach (var root in arch.ModuleRoots())
                 {
                     var events = root + "." + Layout.EventsSegment;
@@ -451,7 +450,7 @@ public sealed class StrategicPatternRules : IDcaRuleSet
                     {
                         var ns = type.Namespace?.FullName ?? string.Empty;
                         var inEvents = ns == events || ns.StartsWith(events + ".", StringComparison.Ordinal);
-                        if (inEvents && !type.IsNested && !type.IsCompilerGenerated && !IsAssignableTo(arch, type, marker))
+                        if (inEvents && !type.IsNested && !type.IsCompilerGenerated && !IsRole(arch, type, nameof(DcaMarkers.IntegrationEvent)))
                         {
                             violations.Add(type.FullName + " is an event contract without the integration event identity");
                         }
@@ -475,15 +474,10 @@ public sealed class StrategicPatternRules : IDcaRuleSet
                 + " empty selection passes.");
 
     /// <summary>Assignability by role name; reflection decides where the runtime type is available.</summary>
-    private static bool IsAssignableTo(DcaArchitecture arch, IType type, string marker)
+    private static bool IsRole(DcaArchitecture arch, IType type, string role)
     {
         var runtime = arch.RuntimeType(type);
-        if (runtime is not null)
-        {
-            return DcaMarkers.IsAssignableToByName(runtime, marker);
-        }
-
-        return type.FullName == marker || type.IsAssignableTo(marker) || type.ImplementsInterface(marker);
+        return runtime is not null ? arch.Layout.Markers.Is(role, runtime) : arch.Layout.Markers.Is(role, type);
     }
 
     // ---------------------------------------------------------------------------------------------

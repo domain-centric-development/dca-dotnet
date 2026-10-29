@@ -90,7 +90,7 @@ public sealed class NamingRules : IDcaRuleSet
                 var markers = arch.Layout.Markers;
                 var violations = arch.Interfaces
                     .Where(i => arch.InApplication(i)
-                        && IsAssignableTo(arch, i, markers.InputPort)
+                        && IsRole(arch, i, nameof(DcaMarkers.InputPort))
                         && !IsBaseInputPortName(i.Name)
                         && !IsRoleType(i, markers.InputPort)
                         && !IsRoleType(i, markers.UseCase)
@@ -396,7 +396,7 @@ public sealed class NamingRules : IDcaRuleSet
     {
         foreach (var port in arch.Interfaces.Where(i => arch.InApplication(i)
             && !IsBaseInputPortName(i.Name.Split('`')[0])
-            && IsAssignableTo(arch, i, arch.Layout.Markers.InputPort)))
+            && IsRole(arch, i, nameof(DcaMarkers.InputPort))))
         {
             yield return (port.FullName, Plain(port.Name, true, arch.Layout));
         }
@@ -470,10 +470,11 @@ public sealed class NamingRules : IDcaRuleSet
         var runtime = arch.RuntimeType(c);
         if (runtime is not null)
         {
-            return runtime.GetInterfaces().Any(i => DcaMarkers.CarriesRole(i, markers.UseCase));
+            return markers.Is(nameof(DcaMarkers.UseCase), runtime);
         }
 
-        return c.ImplementedInterfaces.Any(i => i.FullName.StartsWith(markers.UseCase, StringComparison.Ordinal));
+        return markers.Is(nameof(DcaMarkers.UseCase), c)
+            || c.ImplementedInterfaces.Any(i => i.FullName.StartsWith(markers.UseCase, StringComparison.Ordinal));
     }
 
     private static bool InNamespace(IType type, string pattern) =>
@@ -509,15 +510,6 @@ public sealed class NamingRules : IDcaRuleSet
     /// Assignability via the ArchUnitNET model with a reflection fallback for interface closures the
     /// loader did not resolve (generic base interfaces such as IUseCase&lt;,&gt; → IInputPort).
     /// </summary>
-    private static bool IsAssignableTo(DcaArchitecture arch, IType type, string marker)
-    {
-        var markerName = marker;
-        if (type.FullName == markerName || type.ImplementsInterface(markerName) || type.IsAssignableTo(markerName))
-        {
-            return true;
-        }
-
-        var runtime = arch.RuntimeType(type);
-        return runtime is not null && DcaMarkers.IsAssignableToByName(runtime, marker);
-    }
+    private static bool IsRole(DcaArchitecture arch, IType type, string role) =>
+        arch.Layout.Markers.Is(role, type) || arch.Layout.Markers.Is(role, arch.RuntimeType(type));
 }

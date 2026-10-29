@@ -70,7 +70,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                         .Select(d => d.Target)
                         .Distinct())
                     {
-                        if (target.IsAssignableTo(arch.Layout.Markers.DomainService))
+                        if (arch.Layout.Markers.Is(nameof(DcaMarkers.DomainService), target))
                         {
                             violations.Add($"{type.FullName} uses {target.FullName}");
                         }
@@ -97,7 +97,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
             {
                 var violations = new List<string>();
                 foreach (var service in arch.Types.Where(t =>
-                    t is not Interface && t.IsAssignableTo(arch.Layout.Markers.DomainService)))
+                    t is not Interface && arch.Layout.Markers.Is(nameof(DcaMarkers.DomainService), t)))
                 {
                     foreach (var method in service.GetMethodMembers()
                         .Where(m => m.MethodForm == MethodForm.Normal && m.Visibility == Visibility.Public))
@@ -108,8 +108,8 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                         }
 
                         var takesModelObject = method.Parameters.Any(parameter =>
-                            parameter.IsAssignableTo(arch.Layout.Markers.AggregateRoot)
-                            || parameter.IsAssignableTo(arch.Layout.Markers.Entity));
+                            arch.Layout.Markers.Is(nameof(DcaMarkers.AggregateRoot), parameter)
+                            || arch.Layout.Markers.Is(nameof(DcaMarkers.Entity), parameter));
                         if (!takesModelObject)
                         {
                             violations.Add($"{service.FullName}.{SimpleName(method)} takes no aggregate and no entity");
@@ -147,9 +147,9 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
     }
 
     private static bool IsModelType(DcaArchitecture arch, IType type) =>
-        type.IsAssignableTo(arch.Layout.Markers.AggregateRoot)
-        || type.IsAssignableTo(arch.Layout.Markers.Entity)
-        || type.IsAssignableTo(arch.Layout.Markers.Value);
+        arch.Layout.Markers.Is(nameof(DcaMarkers.AggregateRoot), type)
+        || arch.Layout.Markers.Is(nameof(DcaMarkers.Entity), type)
+        || arch.Layout.Markers.Is(nameof(DcaMarkers.Value), type);
 
     // ============================================================================
     // DOMAIN EVENTS PATTERN
@@ -181,7 +181,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
             "Domain events are part of the domain layer (named in past tense)",
             arch => Types()
                 .That()
-                .FollowCustomPredicate(t => t.IsAssignableTo(arch.Layout.Markers.DomainEvent), "are domain events")
+                .FollowCustomPredicate(t => arch.Layout.Markers.Is(nameof(DcaMarkers.DomainEvent), t), "are domain events")
                 .And()
                 .FollowCustomPredicate(t => t is not Interface, "are not interfaces")
                 .Should()
@@ -303,7 +303,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
             "Domain services are part of the domain layer, not application layer",
             arch => Types()
                 .That()
-                .FollowCustomPredicate(t => t.IsAssignableTo(arch.Layout.Markers.DomainService), "are domain services")
+                .FollowCustomPredicate(t => arch.Layout.Markers.Is(nameof(DcaMarkers.DomainService), t), "are domain services")
                 .And()
                 .FollowCustomPredicate(t => t is not Interface, "are not interfaces")
                 .Should()
@@ -330,7 +330,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 "Domain Services must have only readonly fields:",
                 NonReadonlyFieldViolations(
                     arch,
-                    t => t is not Interface && InDomain(arch, t) && t.IsAssignableTo(arch.Layout.Markers.DomainService))))
+                    t => t is not Interface && InDomain(arch, t) && arch.Layout.Markers.Is(nameof(DcaMarkers.DomainService), t))))
             .Selecting(
                 "Non-interface types in <module>.Domain of every module root that are assignable to "
                 + "IDomainService.")
@@ -354,7 +354,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 + " not called one makes the creation site hard to find in review and in a search",
             arch => Types()
                 .That()
-                .FollowCustomPredicate(t => t.IsAssignableTo(arch.Layout.Markers.Factory), "are factories")
+                .FollowCustomPredicate(t => arch.Layout.Markers.Is(nameof(DcaMarkers.Factory), t), "are factories")
                 .And()
                 .FollowCustomPredicate(t => t is not Interface, "are not interfaces")
                 .Should()
@@ -372,7 +372,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
             "Factories are part of the domain layer (complex aggregate creation logic)",
             arch => Types()
                 .That()
-                .FollowCustomPredicate(t => t.IsAssignableTo(arch.Layout.Markers.Factory), "are factories")
+                .FollowCustomPredicate(t => arch.Layout.Markers.Is(nameof(DcaMarkers.Factory), t), "are factories")
                 .And()
                 .FollowCustomPredicate(t => t is not Interface, "are not interfaces")
                 .Should()
@@ -399,7 +399,7 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
                 "Factories must have only readonly fields:",
                 NonReadonlyFieldViolations(
                     arch,
-                    t => t is not Interface && InDomain(arch, t) && t.IsAssignableTo(arch.Layout.Markers.Factory))))
+                    t => t is not Interface && InDomain(arch, t) && arch.Layout.Markers.Is(nameof(DcaMarkers.Factory), t))))
             .Selecting(
                 "Non-interface types in <module>.Domain of every module root that are assignable to "
                 + "IFactory.")
@@ -465,16 +465,15 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
 
         var runtime = arch.RuntimeType(type);
         return runtime is not null
-            ? DcaMarkers.CarriesRole(runtime, arch.Layout.Markers.Specification)
-            : type.IsAssignableTo(arch.Layout.Markers.Specification)
-                || type.ImplementsInterface(arch.Layout.Markers.Specification);
+            ? arch.Layout.Markers.Is(nameof(DcaMarkers.Specification), runtime)
+            : arch.Layout.Markers.Is(nameof(DcaMarkers.Specification), type);
     }
 
     private static bool InDomain(DcaArchitecture arch, IType type) => arch.InDomain(type);
 
-    private static bool IsDomainEvent(IType type, DcaMarkers markers) => type.IsAssignableTo(markers.DomainEvent);
+    private static bool IsDomainEvent(IType type, DcaMarkers markers) => markers.Is(nameof(DcaMarkers.DomainEvent), type);
 
-    private static bool IsIntegrationEvent(IType type, DcaMarkers markers) => type.IsAssignableTo(markers.IntegrationEvent);
+    private static bool IsIntegrationEvent(IType type, DcaMarkers markers) => markers.Is(nameof(DcaMarkers.IntegrationEvent), type);
 
     /// <summary>A C# record (<c>record class</c>) or a struct (<c>record struct</c>s are structs to ArchUnitNET).</summary>
     private static bool IsRecordLike(IType type) => type is Struct || (type is Class c && c.IsRecord == true);

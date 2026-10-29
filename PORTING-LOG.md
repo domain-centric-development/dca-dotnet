@@ -561,3 +561,14 @@ differently:
   infrastructure namespaces, not every module's own (Java now adds `inInfrastructure()` there, which also admits a
   module's own infrastructure — not mirrored: the `checks` text of both libraries says a module-infrastructure
   namespace is reported, so the Java change reads as an unintended widening to settle on the Java side).
+- **`DcaMarkers.Is(role, type)`** answers for an ArchUnitNET type and for a reflected `System.Type`, because the .NET
+  rules read both models; each rule keeps the order it asked them in before (the reflected type first where it
+  decided before). `OfAttribute` counts on the type, its base types and its interfaces; .NET has no
+  meta-annotations, so an attribute *derived from* the named one stands in for Java's meta-annotation. `OfSuffix`
+  compares the simple name without the generic arity. Role names are the .NET property names (`AggregateRoot`,
+  `Command`, `Query`).
+- **Role routing beyond Java's list:** `DCA-LAY-004` asks the `TransactionBoundary` role (it named the library's
+  port by a constant before) and `DCA-STR-008` selects by the `IntegrationEvent` role (it compared the implemented
+  interfaces' names before) — the same with the default vocabulary, the role's reading where a project points it
+  elsewhere. `DCA-USE-019`'s text still says "whose input ends in Query" in both libraries although it reads the
+  query role; Java left it, so did this port.

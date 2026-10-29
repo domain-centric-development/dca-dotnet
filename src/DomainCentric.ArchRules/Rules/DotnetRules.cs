@@ -151,7 +151,7 @@ public sealed class DotnetRules : IDcaRuleSet
                 foreach (var port in arch.Interfaces)
                 {
                     var runtime = arch.RuntimeType(port);
-                    if (runtime is null || !(IsPort(runtime, arch.Layout.Markers.InputPort) || IsPort(runtime, arch.Layout.Markers.OutputPort)))
+                    if (runtime is null || !(IsPort(runtime, arch.Layout.Markers, nameof(DcaMarkers.InputPort)) || IsPort(runtime, arch.Layout.Markers, nameof(DcaMarkers.OutputPort))))
                     {
                         continue;
                     }
@@ -238,7 +238,7 @@ public sealed class DotnetRules : IDcaRuleSet
                 foreach (var type in arch.Types.Where(arch.InDomain))
                 {
                     var runtime = arch.RuntimeType(type);
-                    if (runtime is null || runtime.IsInterface || runtime.IsAbstract || !DcaMarkers.IsAssignableToByName(runtime, arch.Layout.Markers.Value))
+                    if (runtime is null || runtime.IsInterface || runtime.IsAbstract || !arch.Layout.Markers.Is(nameof(DcaMarkers.Value), runtime))
                     {
                         continue;
                     }
@@ -272,7 +272,7 @@ public sealed class DotnetRules : IDcaRuleSet
                 foreach (var type in arch.Types)
                 {
                     var runtime = arch.RuntimeType(type);
-                    if (runtime is null || runtime.IsInterface || runtime.IsAbstract || !DcaMarkers.IsAssignableToByName(runtime, arch.Layout.Markers.Id))
+                    if (runtime is null || runtime.IsInterface || runtime.IsAbstract || !arch.Layout.Markers.Is(nameof(DcaMarkers.Id), runtime))
                     {
                         continue;
                     }
@@ -313,7 +313,7 @@ public sealed class DotnetRules : IDcaRuleSet
         type == typeof(Task) || type == typeof(ValueTask) ||
         (type.IsGenericType && (type.GetGenericTypeDefinition() == typeof(Task<>) || type.GetGenericTypeDefinition() == typeof(ValueTask<>)));
 
-    private static bool IsPort(Type type, string marker) => type.IsInterface && DcaMarkers.IsAssignableToByName(type, marker);
+    private static bool IsPort(Type type, DcaMarkers markers, string role) => type.IsInterface && markers.Is(role, type);
 
     private static bool ImplementsUseCase(Type type, DcaMarkers markers) =>
         type.GetInterfaces().Any(i => DcaMarkers.CarriesRole(i, markers.UseCase));

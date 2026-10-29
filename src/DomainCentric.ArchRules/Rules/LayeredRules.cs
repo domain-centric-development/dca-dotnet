@@ -32,9 +32,6 @@ public sealed class LayeredRules : IDcaRuleSet
         }.AsReadOnly();
     }
 
-    /// <summary>DCA's own transaction port, matched by name: the rules do not reference the building blocks' assembly for it.</summary>
-    private const string BoundaryPort = "DomainCentric.BuildingBlocks.Application.Transactions.ITransactionBoundary";
-
     public string Name => "layered";
 
     public IReadOnlyList<IDcaRule> Rules { get; }
@@ -135,7 +132,7 @@ public sealed class LayeredRules : IDcaRuleSet
                 }
 
                 var transactionManagers = new HashSet<string>(types.TransactionManagerTypes, StringComparer.Ordinal);
-                bool IsBoundary(IType t) => t.FullName == BoundaryPort || t.ImplementsInterface(BoundaryPort);
+                bool IsBoundary(IType t) => arch.Layout.Markers.Is(nameof(DcaMarkers.TransactionBoundary), t);
                 bool UsesApi(IType target) => transactionApis.Contains(target.FullName);
                 bool ManagerOrBoundary(IType target) => transactionManagers.Contains(target.FullName) || IsBoundary(target);
                 IEnumerable<string> Findings(Func<IType, bool> allowedHere, Func<IType, bool> programmatic) => arch.Types

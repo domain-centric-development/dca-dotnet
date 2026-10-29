@@ -91,7 +91,7 @@ public sealed class UseCaseRules : IDcaRuleSet
                     }
 
                     var features = new SortedDictionary<string, SortedSet<string>>(StringComparer.Ordinal);
-                    foreach (var port in InputPortsOf(arch, adapter).Where(p => PortInputs(p, arch.Layout.Markers).Any(t => PlainName(t).EndsWith("Command", StringComparison.Ordinal))))
+                    foreach (var port in InputPortsOf(arch, adapter).Where(p => PortInputs(p, arch.Layout.Markers).Any(t => arch.Layout.Markers.Is("Command", t))))
                     {
                         var feature = FeatureOf(port.Namespace ?? "", root, layout);
                         if (feature is null)
@@ -123,13 +123,14 @@ public sealed class UseCaseRules : IDcaRuleSet
         .Selecting(
             "Classes in <module>.Adapter.Incoming of every module root, compiler-generated classes excluded,"
                 + " with the command ports they depend on: types assignable to IInputPort in the same module's"
-                + " application namespace whose input ends in Command - the input type argument of IUseCase<TInput,"
-                + " TOutput> or a parameter of an input-port method. A port counts toward a feature when it sits at"
+                + " application namespace whose input is a command (the configured command role, by default a simple"
+                + " name ending with Command) - the input type argument of IUseCase<TInput, TOutput> or a parameter of"
+                + " an input-port method. A port counts toward a feature when it sits at"
                 + " Application.<Feature>.<UseCase> after removing configured OperationContainers segments, the"
                 + " grouped depth of DCA-USE-014.")
         .Checking(
-            "The command ports an adapter depends on belong to one feature. A port whose input ends in Query, or"
-                + " ends in neither, is not counted - reading a neighbouring feature's query is allowed. A port in a"
+            "The command ports an adapter depends on belong to one feature. A port whose input is a query, or"
+                + " neither, is not counted - reading a neighbouring feature's query is allowed. A port in a"
                 + " flat use-case namespace"
                 + " (Application.<UseCase>), in Application.Shared or in another module counts toward no"
                 + " feature, so a module that is not grouped into features is never reported. Fields,"
@@ -154,7 +155,7 @@ public sealed class UseCaseRules : IDcaRuleSet
                 foreach (var type in arch.Types.Where(t => OperationPolicy.Operation(t, arch)).OrderBy(t => t.FullName, StringComparer.Ordinal))
                 {
                     var runtime = arch.RuntimeType(type)!;
-                    if (!InputTypesOf(runtime, markers).Any(t => PlainName(t).EndsWith("Query", StringComparison.Ordinal)))
+                    if (!InputTypesOf(runtime, markers).Any(t => markers.Is("Query", t)))
                     {
                         continue;
                     }
@@ -280,18 +281,19 @@ public sealed class UseCaseRules : IDcaRuleSet
     public static IDcaRule CommandsResideInApplication(DcaLayout layout) =>
         DcaRule.Of(
             "DCA-USE-002",
-            "Types named *Command reside in the application layer",
+            "Commands reside in the application layer",
             "Use case commands should be in application layer (CQRS pattern)",
             arch =>
                 Types()
                     .That()
-                    .HaveNameEndingWith("Command")
+                    .FollowCustomPredicate(t => arch.Layout.Markers.Is("Command", t), "are commands")
                     .And()
                     .ResideInNamespaceMatching(DcaLayout.Below(layout.RootNamespace))
                     .Should()
                     .FollowCustomCondition(LayerConditions.PlacedIn(arch.InApplication, "the application layer"), "be in the application layer"))
         .Selecting(
-            "Types under the root namespace whose name ends with Command.")
+            "Types under the root namespace the configured command role recognises - by default a simple name"
+                + " ending with Command.")
         .Checking(
             "Each resides in an application namespace of some module root"
                 + " (<module>.Application). A Command in a domain, adapter or infrastructure"
@@ -300,18 +302,19 @@ public sealed class UseCaseRules : IDcaRuleSet
     public static IDcaRule QueriesResideInApplication(DcaLayout layout) =>
         DcaRule.Of(
             "DCA-USE-003",
-            "Types named *Query reside in the application layer",
+            "Queries reside in the application layer",
             "Use case queries should be in application layer (CQRS pattern)",
             arch =>
                 Types()
                     .That()
-                    .HaveNameEndingWith("Query")
+                    .FollowCustomPredicate(t => arch.Layout.Markers.Is("Query", t), "are queries")
                     .And()
                     .ResideInNamespaceMatching(DcaLayout.Below(layout.RootNamespace))
                     .Should()
                     .FollowCustomCondition(LayerConditions.PlacedIn(arch.InApplication, "the application layer"), "be in the application layer"))
         .Selecting(
-            "Types under the root namespace whose name ends with Query.")
+            "Types under the root namespace the configured query role recognises - by default a simple name"
+                + " ending with Query.")
         .Checking(
             "Each resides in an application namespace of some module root"
                 + " (<module>.Application).");
@@ -321,8 +324,8 @@ public sealed class UseCaseRules : IDcaRuleSet
             "DCA-USE-004",
             "Use Case Commands should be immutable (sealed or records)",
             "Use case commands should be immutable (value objects)",
-            arch => ImmutableApplicationModels(arch, "Command"))
-        .Selecting("Classes and structs in each module application namespace with the corresponding Command, Query or Result suffix, including record classes and record structs.")
+            arch => ImmutableApplicationModels(arch, "Command", t => arch.Layout.Markers.Is("Command", t)))
+        .Selecting("Classes and structs, including record classes and record structs, in each module application namespace that the configured command role recognises - by default a simple name ending with Command.")
         .Checking(
             "Classes are sealed or records; structs are allowed. Every inherited instance field is readonly, every property is get-only or init-only and no instance Set*(x): void method exists. Referenced objects and collection contents are not inspected.");
 
@@ -331,8 +334,8 @@ public sealed class UseCaseRules : IDcaRuleSet
             "DCA-USE-005",
             "Use Case Queries should be immutable (sealed or records)",
             "Use case queries should be immutable (value objects)",
-            arch => ImmutableApplicationModels(arch, "Query"))
-        .Selecting("Classes and structs in each module application namespace with the corresponding Command, Query or Result suffix, including record classes and record structs.")
+            arch => ImmutableApplicationModels(arch, "Query", t => arch.Layout.Markers.Is("Query", t)))
+        .Selecting("Classes and structs, including record classes and record structs, in each module application namespace that the configured query role recognises - by default a simple name ending with Query.")
         .Checking(
             "Classes are sealed or records; structs are allowed. Every inherited instance field is readonly, every property is get-only or init-only and no instance Set*(x): void method exists. Referenced objects and collection contents are not inspected.");
 
@@ -348,7 +351,7 @@ public sealed class UseCaseRules : IDcaRuleSet
                     .And()
                     .ResideInNamespaceMatching(DcaLayout.Below(layout.RootNamespace))
                     .And()
-                    .FollowCustomPredicate(t => !t.IsAssignableTo(arch.Layout.Markers.Value), "are not value objects")
+                    .FollowCustomPredicate(t => !arch.Layout.Markers.Is(nameof(DcaMarkers.Value), t), "are not value objects")
                     .And()
                     .FollowCustomPredicate(t => !IsClosedDomainOutcome(arch, t), "are not a closed domain outcome")
                     .Should()
@@ -370,7 +373,7 @@ public sealed class UseCaseRules : IDcaRuleSet
             "DCA-USE-007",
             "Use Case Result Models should be immutable (sealed or records)",
             "Use case result models should be immutable (value objects)",
-            arch => ImmutableApplicationModels(arch, "Result"))
+            arch => ImmutableApplicationModels(arch, "Result", t => t.Name.EndsWith("Result", StringComparison.Ordinal)))
         .Selecting("Classes and structs in each module application namespace with the corresponding Command, Query or Result suffix, including record classes and record structs.")
         .Checking(
             "Classes are sealed or records; structs are allowed. Every inherited instance field is readonly, every property is get-only or init-only and no instance Set*(x): void method exists. Referenced objects and collection contents are not inspected.");
@@ -424,7 +427,7 @@ public sealed class UseCaseRules : IDcaRuleSet
                 var useCases = arch.Classes
                     .Where(c => c.Namespace is not null
                         && arch.InApplication(c)
-                        && (IsAssignableTo(arch, c, arch.Layout.Markers.InputPort) || c.Name.Split('`')[0].EndsWith(arch.Layout.UseCaseSuffix, StringComparison.Ordinal)))
+                        && (IsRole(arch, c, nameof(DcaMarkers.InputPort)) || c.Name.Split('`')[0].EndsWith(arch.Layout.UseCaseSuffix, StringComparison.Ordinal)))
                     .OrderBy(c => c.FullName, StringComparer.Ordinal);
                 foreach (var useCase in useCases)
                 {
@@ -435,9 +438,9 @@ public sealed class UseCaseRules : IDcaRuleSet
                     }
 
                     var calls = new IntraClassCalls(runtime);
-                    foreach (var unit in calls.Units.Where(u => IntraClassCalls.Calls(u, "SaveAsync", arch.Layout.Markers.Repository)))
+                    foreach (var unit in calls.Units.Where(u => IntraClassCalls.Calls(u, "SaveAsync", t => arch.Layout.Markers.Is(nameof(DcaMarkers.Repository), t))))
                     {
-                        if (IntraClassCalls.IlCalls(unit).Where(m => m.Name == "SaveAsync" && m.DeclaringType is not null && DcaMarkers.IsAssignableToByName(m.DeclaringType, arch.Layout.Markers.Repository))
+                        if (IntraClassCalls.IlCalls(unit).Where(m => m.Name == "SaveAsync" && m.DeclaringType is not null && arch.Layout.Markers.Is(nameof(DcaMarkers.Repository), m.DeclaringType))
                             .All(m => EventFreeAggregate.Repository(m, arch)))
                         {
                             continue;
@@ -446,7 +449,7 @@ public sealed class UseCaseRules : IDcaRuleSet
                         foreach (var entry in calls.EntryPointsOf(unit))
                         {
                             var publishes = calls.ReachableFrom(entry)
-                                .Any(u => IntraClassCalls.Calls(u, "PublishAndClearEventsAsync", arch.Layout.Markers.DomainEventPublisher));
+                                .Any(u => IntraClassCalls.Calls(u, "PublishAndClearEventsAsync", t => arch.Layout.Markers.Is(nameof(DcaMarkers.DomainEventPublisher), t)));
                             if (!publishes)
                             {
                                 violations.Add($"{useCase.FullName}.{IntraClassCalls.PathName(entry, unit)} saves an aggregate without"
@@ -539,12 +542,12 @@ public sealed class UseCaseRules : IDcaRuleSet
         var markers = arch.Layout.Markers;
         var transactional = new[]
         {
-            markers.Repository, markers.Store, markers.DomainEventPublisher, markers.IntegrationEventPublisher,
+            nameof(DcaMarkers.Repository), nameof(DcaMarkers.Store), nameof(DcaMarkers.DomainEventPublisher), nameof(DcaMarkers.IntegrationEventPublisher),
         };
         return IntraClassCalls.IlCalls(unit)
             .Select(m => m.DeclaringType)
-            .Where(t => t is not null && DcaMarkers.IsAssignableToByName(t, markers.OutputPort))
-            .Where(t => !transactional.Any(role => DcaMarkers.IsAssignableToByName(t, role)))
+            .Where(t => t is not null && markers.Is(nameof(DcaMarkers.OutputPort), t))
+            .Where(t => !transactional.Any(role => markers.Is(role, t)))
             .Where(t => !arch.Layout.LocalOutputPorts.Any(local => DcaMarkers.IsAssignableToByName(t, local)))
             .Select(t => t!.Name)
             .Distinct(StringComparer.Ordinal)
@@ -562,9 +565,9 @@ public sealed class UseCaseRules : IDcaRuleSet
     /// </summary>
     private static string? TransactionalEffectOf(MethodBase unit, DcaMarkers markers)
     {
-        var saves = IntraClassCalls.Calls(unit, "SaveAsync", markers.Repository);
-        var deletes = IntraClassCalls.Calls(unit, "DeleteByIdAsync", markers.Repository);
-        var publishes = IntraClassCalls.IlCalls(unit).Any(m => m.DeclaringType is not null && DcaMarkers.IsAssignableToByName(m.DeclaringType, markers.DomainEventPublisher));
+        var saves = IntraClassCalls.Calls(unit, "SaveAsync", t => markers.Is(nameof(DcaMarkers.Repository), t));
+        var deletes = IntraClassCalls.Calls(unit, "DeleteByIdAsync", t => markers.Is(nameof(DcaMarkers.Repository), t));
+        var publishes = IntraClassCalls.IlCalls(unit).Any(m => m.DeclaringType is not null && markers.Is(nameof(DcaMarkers.DomainEventPublisher), m.DeclaringType));
         if (!saves && !deletes && !publishes)
         {
             return null;
@@ -590,8 +593,8 @@ public sealed class UseCaseRules : IDcaRuleSet
     }
 
     private static bool CallsBoundary(MethodBase unit, DcaMarkers markers) => IntraClassCalls.IlCalls(unit).Any(m => m.Name == "InTransactionAsync"
-        && (DcaMarkers.IsAssignableToByName(m.DeclaringType, markers.TransactionBoundary)
-            || (m.IsStatic && DcaMarkers.IsRole(m.GetParameters().FirstOrDefault()?.ParameterType, markers.TransactionBoundary))));
+        && (markers.Is(nameof(DcaMarkers.TransactionBoundary), m.DeclaringType)
+            || (m.IsStatic && markers.Is(nameof(DcaMarkers.TransactionBoundary), m.GetParameters().FirstOrDefault()?.ParameterType))));
 
     private static bool Transactional(MemberInfo target, string attributeName)
     {
@@ -758,7 +761,7 @@ public sealed class UseCaseRules : IDcaRuleSet
                     || ns.StartsWith(shared + ".", StringComparison.Ordinal)
                     || candidate.IsNested
                     || candidate.IsAbstract == true
-                    || !(IsAssignableTo(arch, candidate, arch.Layout.Markers.InputPort) || candidate.Name.EndsWith(layout.UseCaseSuffix, StringComparison.Ordinal)))
+                    || !(IsRole(arch, candidate, nameof(DcaMarkers.InputPort)) || candidate.Name.EndsWith(layout.UseCaseSuffix, StringComparison.Ordinal)))
                 {
                     continue;
                 }
@@ -840,7 +843,7 @@ public sealed class UseCaseRules : IDcaRuleSet
                 && arch.InApplication(c)
                 && !c.IsNested
                 && c.Name.EndsWith("Result", StringComparison.Ordinal)
-                && !IsAssignableTo(arch, c, arch.Layout.Markers.Value))
+                && !IsRole(arch, c, nameof(DcaMarkers.Value)))
             .OrderBy(c => c.FullName, StringComparer.Ordinal))
         {
             var runtime = arch.RuntimeType(result);
@@ -947,8 +950,8 @@ public sealed class UseCaseRules : IDcaRuleSet
     }
 
     private static string? IdentityMarkerOf(Type type, DcaMarkers markers) =>
-        DcaMarkers.IsAssignableToByName(type, markers.AggregateRoot) ? SimpleName(markers.AggregateRoot)
-        : DcaMarkers.IsAssignableToByName(type, markers.Entity) ? SimpleName(markers.Entity)
+        markers.Is(nameof(DcaMarkers.AggregateRoot), type) ? SimpleName(markers.AggregateRoot)
+        : markers.Is(nameof(DcaMarkers.Entity), type) ? SimpleName(markers.Entity)
         : null;
 
     /// <summary>The simple name of a configured marker, for a message a reader has to recognise.</summary>
@@ -991,14 +994,14 @@ public sealed class UseCaseRules : IDcaRuleSet
         && parameters[0].ParameterType == type
         && type.GetMethod("<Clone>$", BindingFlags.Public | BindingFlags.Instance) is not null;
 
-    private static void ImmutableApplicationModels(DcaArchitecture arch, string suffix)
+    private static void ImmutableApplicationModels(DcaArchitecture arch, string suffix, Func<IType, bool> model)
     {
         // Selects classes and structs only: an enum is its own kind in the type model and immutable by
         // construction - its one instance field, the underlying value, is not readonly.
         var violations = arch.Types.Where(t => t is Class or Struct)
             .Where(c => c.Namespace is not null
                 && arch.InApplication(c)
-                && c.Name.EndsWith(suffix, StringComparison.Ordinal)
+                && model(c)
                 && !TacticalPatternRules.IsImmutableShape(c))
             .Select(c => $"{c.FullName} does not have immutable instance state")
             .ToList();
@@ -1014,7 +1017,7 @@ public sealed class UseCaseRules : IDcaRuleSet
         var found = new HashSet<Type>();
         foreach (var target in adapter.Dependencies.Select(d => d.Target))
         {
-            if (!target.IsGenericParameter && IsAssignableTo(arch, target, arch.Layout.Markers.InputPort) && arch.RuntimeType(target) is { } port)
+            if (!target.IsGenericParameter && IsRole(arch, target, nameof(DcaMarkers.InputPort)) && arch.RuntimeType(target) is { } port)
             {
                 found.Add(port);
             }
@@ -1027,7 +1030,7 @@ public sealed class UseCaseRules : IDcaRuleSet
                 .GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
                 .SelectMany(c => c.GetParameters())
                 .Select(p => p.ParameterType)
-                .Where(t => DcaMarkers.IsAssignableToByName(t, arch.Layout.Markers.InputPort)))
+                .Where(t => arch.Layout.Markers.Is(nameof(DcaMarkers.InputPort), t)))
             {
                 found.Add(parameter);
             }
@@ -1049,7 +1052,7 @@ public sealed class UseCaseRules : IDcaRuleSet
             .Where(c => c.IsGenericType && DcaMarkers.IsRole(c.GetGenericTypeDefinition(), markers.UseCase))
             .Select(c => c.GetGenericArguments()[0])
             .Concat(contracts
-                .Where(c => DcaMarkers.IsAssignableToByName(c, markers.InputPort))
+                .Where(c => markers.Is(nameof(DcaMarkers.InputPort), c))
                 .SelectMany(c => c.GetMethods())
                 .SelectMany(m => m.GetParameters())
                 .Select(p => p.ParameterType));
@@ -1086,15 +1089,15 @@ public sealed class UseCaseRules : IDcaRuleSet
             return null;
         }
 
-        if (DcaMarkers.IsAssignableToByName(owner, markers.DomainEventPublisher) || DcaMarkers.IsAssignableToByName(owner, markers.IntegrationEventPublisher)
+        if (markers.Is(nameof(DcaMarkers.DomainEventPublisher), owner) || markers.Is(nameof(DcaMarkers.IntegrationEventPublisher), owner)
             || (call.IsStatic && call.GetParameters().FirstOrDefault()?.ParameterType is { } first
-                && (DcaMarkers.IsAssignableToByName(first, markers.DomainEventPublisher) || DcaMarkers.IsAssignableToByName(first, markers.IntegrationEventPublisher))))
+                && (markers.Is(nameof(DcaMarkers.DomainEventPublisher), first) || markers.Is(nameof(DcaMarkers.IntegrationEventPublisher), first))))
         {
             return "publishes events";
         }
 
-        var port = DcaMarkers.IsAssignableToByName(owner, markers.Repository) ? "repository"
-            : DcaMarkers.IsAssignableToByName(owner, markers.Store) ? "store" : null;
+        var port = markers.Is(nameof(DcaMarkers.Repository), owner) ? "repository"
+            : markers.Is(nameof(DcaMarkers.Store), owner) ? "store" : null;
         return port is not null && WriteVerb.IsMatch(call.Name) ? $"writes through a {port}" : null;
     }
 
@@ -1108,7 +1111,7 @@ public sealed class UseCaseRules : IDcaRuleSet
                 yield return contract.GetGenericArguments()[0];
             }
 
-            if (runtime.IsInterface || !DcaMarkers.IsAssignableToByName(contract, markers.InputPort))
+            if (runtime.IsInterface || !markers.Is(nameof(DcaMarkers.InputPort), contract))
             {
                 continue;
             }
@@ -1127,15 +1130,6 @@ public sealed class UseCaseRules : IDcaRuleSet
     /// Assignability via the ArchUnitNET model (implemented interfaces, base classes) with a reflection
     /// fallback for types whose interface closure the loader did not resolve.
     /// </summary>
-    private static bool IsAssignableTo(DcaArchitecture arch, IType type, string marker)
-    {
-        var markerName = marker;
-        if (type.FullName == markerName || type.ImplementsInterface(markerName) || type.IsAssignableTo(markerName))
-        {
-            return true;
-        }
-
-        var runtime = arch.RuntimeType(type);
-        return runtime is not null && DcaMarkers.IsAssignableToByName(runtime, marker);
-    }
+    private static bool IsRole(DcaArchitecture arch, IType type, string role) =>
+        arch.Layout.Markers.Is(role, type) || arch.Layout.Markers.Is(role, arch.RuntimeType(type));
 }

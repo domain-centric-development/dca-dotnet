@@ -113,7 +113,7 @@ public sealed class HexagonalRules : IDcaRuleSet
             "Controllers must go through use cases (input ports), never directly to repositories",
             arch => Classes().That().FollowCustomPredicate(c => IsController(c, Layout), "are controllers")
                 .Should().NotDependOnAnyTypesThat()
-                .FollowCustomPredicate(t => t.IsAssignableTo(arch.Layout.Markers.Repository), "are repositories"))
+                .FollowCustomPredicate(t => arch.Layout.Markers.Is(nameof(DcaMarkers.Repository), t), "are repositories"))
         .Selecting(
             "Controller classes anywhere in the loaded assemblies: a class whose name ends with"
                 + " the configured controller suffix or the configured REST-controller suffix, one deriving"
@@ -252,7 +252,7 @@ public sealed class HexagonalRules : IDcaRuleSet
             arch => Interfaces().That().FollowCustomPredicate(arch.InSharedOutputPorts, "are shared output ports")
                 .And().FollowCustomPredicate(i => !i.IsNested, "are top-level interfaces")
                 .Should().FollowCustomCondition(
-                    i => new ConditionResult(i, i.IsAssignableTo(arch.Layout.Markers.OutputPort), $"{i.FullName} is not assignable to {arch.Layout.Markers.OutputPort}"),
+                    i => new ConditionResult(i, arch.Layout.Markers.Is(nameof(DcaMarkers.OutputPort), i), $"{i.FullName} is not assignable to {arch.Layout.Markers.OutputPort}"),
                     "be assignable to the configured output-port marker"))
         .Selecting(
             "Top-level interfaces in <module>.Application.Shared of every module root."
@@ -274,7 +274,7 @@ public sealed class HexagonalRules : IDcaRuleSet
             "Output ports must not reside in the domain layer",
             "output ports (IRepository, IStore, IOutputPort) are an application-layer concern and must live"
                 + " in Application/Shared/, not Domain/",
-            arch => Interfaces().That().FollowCustomPredicate(i => i.IsAssignableTo(arch.Layout.Markers.OutputPort), "are output ports")
+            arch => Interfaces().That().FollowCustomPredicate(i => arch.Layout.Markers.Is(nameof(DcaMarkers.OutputPort), i), "are output ports")
                 .Should().FollowCustomCondition(
                     i => new ConditionResult(i, !arch.InDomain(i), $"{i.FullName} is in the domain layer"), "not be in the domain layer"))
         .Selecting(
@@ -340,7 +340,7 @@ public sealed class HexagonalRules : IDcaRuleSet
                 {
                     var services = adapter.Dependencies
                         .Select(d => d.Target)
-                        .Where(t => !t.IsGenericParameter && IsAssignableTo(arch, t, arch.Layout.Markers.DomainService))
+                        .Where(t => !t.IsGenericParameter && IsRole(arch, t, nameof(DcaMarkers.DomainService)))
                         .Select(t => t.FullName);
                     var runtime = arch.RuntimeType(adapter);
                     if (runtime is not null)
@@ -349,7 +349,7 @@ public sealed class HexagonalRules : IDcaRuleSet
                             .GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
                             .SelectMany(c => c.GetParameters())
                             .Select(p => p.ParameterType)
-                            .Where(t => DcaMarkers.IsAssignableToByName(t, arch.Layout.Markers.DomainService))
+                            .Where(t => arch.Layout.Markers.Is(nameof(DcaMarkers.DomainService), t))
                             .Select(t => t.FullName!));
                     }
 
@@ -393,7 +393,7 @@ public sealed class HexagonalRules : IDcaRuleSet
                 {
                     var ports = adapter.Dependencies
                         .Select(d => d.Target)
-                        .Where(t => !t.IsGenericParameter && IsAssignableTo(arch, t, arch.Layout.Markers.InputPort))
+                        .Where(t => !t.IsGenericParameter && IsRole(arch, t, nameof(DcaMarkers.InputPort)))
                         .Select(t => t.FullName);
                     var runtime = arch.RuntimeType(adapter);
                     if (runtime is not null)
@@ -402,7 +402,7 @@ public sealed class HexagonalRules : IDcaRuleSet
                             .GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
                             .SelectMany(c => c.GetParameters())
                             .Select(p => p.ParameterType)
-                            .Where(t => DcaMarkers.IsAssignableToByName(t, arch.Layout.Markers.InputPort))
+                            .Where(t => arch.Layout.Markers.Is(nameof(DcaMarkers.InputPort), t))
                             .Select(t => t.FullName!));
                     }
 
@@ -487,7 +487,8 @@ public sealed class HexagonalRules : IDcaRuleSet
         .Checking(
             "No method reached from the handler through calls within the class - async state machines and"
                 + " lambdas included - calls a method of a type assignable to IInputPort that takes a"
-                + " parameter whose type name ends in Command. A mapping that names no HTTP method is checked like"
+                + " command (the configured command role, by default a simple name ending with Command) as a"
+                + " parameter. A mapping that names no HTTP method is checked like"
                 + " a GET handler. A handler mapped by a routing call rather than"
                 + " by an attribute or a name is not seen, and a command reached through a second class is"
                 + " not followed. An empty selection passes.");
@@ -529,7 +530,7 @@ public sealed class HexagonalRules : IDcaRuleSet
 
                         var ports = new IntraClassCalls(runtime).Units
                             .SelectMany(IntraClassCalls.IlCalls)
-                            .Where(call => call.DeclaringType is not null && DcaMarkers.IsAssignableToByName(call.DeclaringType, arch.Layout.Markers.InputPort))
+                            .Where(call => call.DeclaringType is not null && arch.Layout.Markers.Is(nameof(DcaMarkers.InputPort), call.DeclaringType))
                             .Select(call => $"{call.DeclaringType!.Name.Split('`')[0]}.{call.Name}")
                             .Distinct()
                             .OrderBy(name => name, StringComparer.Ordinal)
@@ -613,7 +614,7 @@ public sealed class HexagonalRules : IDcaRuleSet
             {
                 var violations = new List<string>();
                 foreach (var type in arch.Classes.Where(c => !c.IsCompilerGenerated
-                    && IsAssignableTo(arch, c, arch.Layout.Markers.OutputPort) && !arch.InOutgoingAdapter(c)))
+                    && IsRole(arch, c, nameof(DcaMarkers.OutputPort)) && !arch.InOutgoingAdapter(c)))
                 {
                     if (arch.InInfrastructure(type) && DependsOnAnInputPort(arch, type))
                     {
@@ -642,7 +643,7 @@ public sealed class HexagonalRules : IDcaRuleSet
     private static bool DependsOnAnInputPort(DcaArchitecture arch, IType type)
     {
         if (type.Dependencies.Select(d => d.Target)
-            .Any(t => !t.IsGenericParameter && IsAssignableTo(arch, t, arch.Layout.Markers.InputPort)))
+            .Any(t => !t.IsGenericParameter && IsRole(arch, t, nameof(DcaMarkers.InputPort))))
         {
             return true;
         }
@@ -651,7 +652,7 @@ public sealed class HexagonalRules : IDcaRuleSet
         return runtime is not null && runtime
             .GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
             .SelectMany(c => c.GetParameters())
-            .Any(p => DcaMarkers.IsAssignableToByName(p.ParameterType, arch.Layout.Markers.InputPort));
+            .Any(p => arch.Layout.Markers.Is(nameof(DcaMarkers.InputPort), p.ParameterType));
     }
 
     /// <summary>
@@ -829,29 +830,20 @@ public sealed class HexagonalRules : IDcaRuleSet
     /// <summary>The command type an input-port call takes, or <c>null</c> when the call is no such call.</summary>
     private static string? CommandTakenBy(MethodBase call, DcaMarkers markers)
     {
-        if (call.DeclaringType is null || !DcaMarkers.IsAssignableToByName(call.DeclaringType, markers.InputPort))
+        if (call.DeclaringType is null || !markers.Is(nameof(DcaMarkers.InputPort), call.DeclaringType))
         {
             return null;
         }
 
         return call.GetParameters()
-            .Select(p => p.ParameterType.Name.Split('`')[0])
-            .FirstOrDefault(name => name.EndsWith("Command", StringComparison.Ordinal));
+            .Select(p => p.ParameterType)
+            .FirstOrDefault(type => markers.Is("Command", type))?.Name.Split('`')[0];
     }
 
     /// <summary>A use case implementation: a class (never an interface) behind an <see cref="IInputPort"/>.</summary>
     private static bool IsUseCaseImplementation(DcaArchitecture arch, IType type) =>
-        type is Class && !type.IsGenericParameter && IsAssignableTo(arch, type, arch.Layout.Markers.InputPort);
+        type is Class && !type.IsGenericParameter && IsRole(arch, type, nameof(DcaMarkers.InputPort));
 
-    private static bool IsAssignableTo(DcaArchitecture arch, IType type, string marker)
-    {
-        var markerName = marker;
-        if (type.FullName == markerName || type.ImplementsInterface(markerName) || type.IsAssignableTo(markerName))
-        {
-            return true;
-        }
-
-        var runtime = arch.RuntimeType(type);
-        return runtime is not null && DcaMarkers.IsAssignableToByName(runtime, marker);
-    }
+    private static bool IsRole(DcaArchitecture arch, IType type, string role) =>
+        arch.Layout.Markers.Is(role, type) || arch.Layout.Markers.Is(role, arch.RuntimeType(type));
 }
