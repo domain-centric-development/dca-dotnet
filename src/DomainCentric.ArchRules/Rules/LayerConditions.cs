@@ -12,5 +12,5 @@ internal static class LayerConditions
 {
     /// <summary>A condition that holds for a type the predicate places, failing with "is not in &lt;where&gt;".</summary>
     public static Func<IType, ConditionResult> PlacedIn(Func<IType, bool> placed, string where) =>
-        type => new ConditionResult(type, placed(type), $"{type.FullName} is not in {where}");
+        type => new ConditionResult(type, placed(type), $"is not in {where}");
 }

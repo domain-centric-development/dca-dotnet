@@ -993,6 +993,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                     const BindingFlags declared = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance
                         | BindingFlags.Static | BindingFlags.DeclaredOnly;
                     var bare = new List<string>();
+                    var stateReported = false;
                     foreach (var field in runtime.GetFields(declared & ~BindingFlags.Static))
                     {
                         if (field.IsDefined(typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute))
@@ -1005,6 +1006,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                         if (found.Length > 0)
                         {
                             bare.Add($"field {field.Name} is {found}");
+                            stateReported = true;
                         }
                     }
 
@@ -1020,6 +1022,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                         if (found.Length > 0)
                         {
                             bare.Add($"property {property.Name} is {found}");
+                            stateReported = true;
                         }
                     }
 
@@ -1052,7 +1055,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                     if (bare.Count > 0)
                     {
                         violations.Add($"{type.FullName}: {string.Join("; ", bare.OrderBy(b => b, StringComparer.Ordinal))}"
-                            + (InstanceFieldCount(runtime) == 1
+                            + (stateReported && InstanceFieldCount(runtime) == 1
                                 ? $" - it has one field: mark it as a value or an id ({markers.Marker(nameof(DcaMarkers.Value))}) to count as a wrapper"
                                 : ""));
                     }

@@ -44,6 +44,11 @@ compiler-generated types. The id `DCA-LAY-006` stays retired.
 
 ### Changed
 
+**Violation lines of the rules that place a type name the layer.** Where a rule asks that a type be in a layer, a
+violation reads `… is not in the domain layer` (or `in an adapter`, `in the outgoing adapters`) instead of `… does
+reside in <namespace>`; the same types are reported. An ignore pattern written against the old wording needs the new
+one.
+
 **`DCA-HEX-019` (experimental): output port implementations are placed in the outgoing adapters.** An
 implementation is an outgoing adapter by the port it implements; the rule reports one the layout places in another
 layer — domain, application, incoming adapter, infrastructure (the bridge to a second use case still passes) — by path

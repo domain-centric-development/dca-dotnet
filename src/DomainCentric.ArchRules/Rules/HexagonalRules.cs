@@ -252,7 +252,7 @@ public sealed class HexagonalRules : IDcaRuleSet
             arch => Interfaces().That().FollowCustomPredicate(arch.InSharedOutputPorts, "are shared output ports")
                 .And().FollowCustomPredicate(i => !i.IsNested, "are top-level interfaces")
                 .Should().FollowCustomCondition(
-                    i => new ConditionResult(i, arch.Layout.Markers.Is(nameof(DcaMarkers.OutputPort), i), $"{i.FullName} is not assignable to {arch.Layout.Markers.OutputPort}"),
+                    i => new ConditionResult(i, arch.Layout.Markers.Is(nameof(DcaMarkers.OutputPort), i), $"is not assignable to {arch.Layout.Markers.OutputPort}"),
                     "be assignable to the configured output-port marker"))
         .Selecting(
             "Top-level interfaces in <module>.Application.Shared of every module root."
@@ -276,7 +276,7 @@ public sealed class HexagonalRules : IDcaRuleSet
                 + " in Application/Shared/, not Domain/",
             arch => Interfaces().That().FollowCustomPredicate(i => arch.Layout.Markers.Is(nameof(DcaMarkers.OutputPort), i), "are output ports")
                 .Should().FollowCustomCondition(
-                    i => new ConditionResult(i, !arch.InDomain(i), $"{i.FullName} is in the domain layer"), "not be in the domain layer"))
+                    i => new ConditionResult(i, !arch.InDomain(i), "is in the domain layer"), "not be in the domain layer"))
         .Selecting(
             "Interfaces anywhere in the loaded assemblies that are assignable to"
                 + " IOutputPort - the building-block port interfaces themselves included.")
