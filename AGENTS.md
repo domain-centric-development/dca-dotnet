@@ -79,7 +79,8 @@ Only redundancy *within* a set is grounds for retiring an id.
 
 Marker roles (TODO #50, 2026-09-21): the rules select building blocks through `DcaMarkers` roles resolved by
 name, never as type literals; `DcaLayout` defaults to the library's own vocabulary, a project points the roles
-at its own markers instead of excluding rule ids. A role must name a type — blank is refused. The strategic
-annotations are not roles: the rules read their members. `DCA-ERR-004` also forbids the transport-status role
+at its own markers instead of excluding rule ids. A role must name a type — blank is refused. The relationship
+annotations (`Upstream` & co.) are not roles: the rules read their nested values. The context, shared-kernel
+and integration-event-type annotations are roles (WP-157): matched by name, their members read by name. `DCA-ERR-004` also forbids the transport-status role
 (`transportStatus` / `TransportStatusAttributeTypes`) — the annotation that fixes a failure's protocol answer;
 filled in the Spring and Micronaut presets, empty where the framework answers through a mapper or handler type.
