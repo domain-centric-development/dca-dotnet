@@ -48,6 +48,7 @@ public sealed class HexagonalRules : IDcaRuleSet
             AdaptersPublishNoEnumMemberName(),
             ListenersThatDriveAnInputPortRunAfterTheCommit(),
             ControllersResideInIncomingAdapters(),
+            OutputPortImplementationsResideInOutgoingAdapters(),
         }.AsReadOnly();
     }
 
@@ -596,6 +597,67 @@ public sealed class HexagonalRules : IDcaRuleSet
         .Checking(
             "Each resides in <Module>.Adapter.Incoming of some module root. Where in the incoming adapters it sits -"
                 + " which protocol segment - is not checked.");
+
+    /// <summary>
+    /// DCA-HEX-019 (experimental). Every implementation of an output port is an outgoing adapter. The composition root
+    /// wires an implementation to its port and holds none itself - except the bridge that hands a port a second use
+    /// case: it implements an output port and drives an input port, so it is wiring. C# cannot implement an interface
+    /// with a lambda, so here the bridge is always a small class.
+    /// </summary>
+    public IDcaRule OutputPortImplementationsResideInOutgoingAdapters() =>
+        DcaRule.Check(
+            "DCA-HEX-019",
+            "Output port implementations must reside in an outgoing adapter package",
+            "An output port is what the application needs from outside; whatever implements it is an outgoing"
+                + " adapter. An implementation in the infrastructure namespace, the application or the domain is"
+                + " outside the selection of every rule written for outgoing adapters, and infrastructure then"
+                + " holds behaviour instead of wiring alone",
+            arch =>
+            {
+                var outgoing = DcaLayout.AnyOf(arch.AllOutgoingAdapterPatterns());
+                var infrastructure = DcaLayout.AnyOf(arch.AllInfrastructurePatterns());
+                var violations = new List<string>();
+                foreach (var type in arch.Classes.Where(c => !c.IsCompilerGenerated
+                    && IsAssignableTo(arch, c, arch.Layout.Markers.OutputPort) && !InNamespace(c, outgoing)))
+                {
+                    if (InNamespace(type, infrastructure) && DependsOnAnInputPort(arch, type))
+                    {
+                        continue;
+                    }
+
+                    violations.Add($"{type.FullName} implements an output port outside the outgoing adapters");
+                }
+
+                DcaRule.Fail(
+                    "Output port implementations must reside in an outgoing adapter package",
+                    violations.OrderBy(v => v, StringComparer.Ordinal).ToList(),
+                    "move the implementation into the outgoing adapter namespace of its module; the configuration in infrastructure only wires it to its port");
+            })
+        .Experimental()
+        .Selecting(
+            "Classes of the scan assignable to IOutputPort - repositories, stores, event publishers and every other"
+                + " output port alike, abstract base classes included; compiler-generated classes are not selected."
+                + " Not selected: a class in an infrastructure namespace that depends on a type assignable to"
+                + " IInputPort - the bridge that hands an output port a second use case, which is wiring.")
+        .Checking(
+            "Each resides in <Module>.Adapter.Outgoing of some module root. DCA-TAC-015 and DCA-TAC-020 hold"
+                + " repositories and stores the same way in the tactical set.");
+
+    /// <summary>Whether a class depends on an input port: by a member it references or a constructor parameter.</summary>
+    private static bool DependsOnAnInputPort(DcaArchitecture arch, IType type)
+    {
+        if (type.Dependencies.Select(d => d.Target)
+            .Any(t => !t.IsGenericParameter && IsAssignableTo(arch, t, arch.Layout.Markers.InputPort)))
+        {
+            return true;
+        }
+
+        var runtime = arch.RuntimeType(type);
+        return runtime is not null && runtime
+            .GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+            .SelectMany(c => c.GetParameters())
+            .Any(p => DcaMarkers.IsAssignableToByName(p.ParameterType, arch.Layout.Markers.InputPort));
+    }
 
     /// <summary>
     /// DCA-HEX-016 (experimental, informational). A value an adapter publishes from an enum is spelled explicitly,

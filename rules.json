@@ -278,6 +278,17 @@
       "maturity": "experimental"
     },
     {
+      "set": "hexagonal",
+      "id": "DCA-HEX-019",
+      "title": "Output port implementations must reside in an outgoing adapter package",
+      "rationale": "An output port is what the application needs from outside; whatever implements it is an outgoing adapter. An implementation in the infrastructure namespace, the application or the domain is outside the selection of every rule written for outgoing adapters, and infrastructure then holds behaviour instead of wiring alone",
+      "selects": "Classes of the scan assignable to IOutputPort - repositories, stores, event publishers and every other output port alike, abstract base classes included; compiler-generated classes are not selected. Not selected: a class in an infrastructure namespace that depends on a type assignable to IInputPort - the bridge that hands an output port a second use case, which is wiring.",
+      "checks": "Each resides in <Module>.Adapter.Outgoing of some module root. DCA-TAC-015 and DCA-TAC-020 hold repositories and stores the same way in the tactical set.",
+      "implementation": "dotnet",
+      "status": "enforced",
+      "maturity": "experimental"
+    },
+    {
       "set": "tactical",
       "id": "DCA-TAC-001",
       "title": "Aggregate Roots must implement IAggregateRoot",
@@ -526,6 +537,17 @@
       "rationale": "A value built from input and a value rebuilt from storage are two origins with different checks, and each has its own named factory. A neutral factory beside them that takes the same parameters leaves the caller to guess which checks run; a value with one origin keeps its one factory",
       "selects": "Concrete classes, records and structs below the root namespace assignable to IValue, with their runtime type in the loaded assemblies.",
       "checks": "No public static method named Of, declared by the type itself and returning exactly that type, sits beside another such method that takes the same parameter types in the same sequence. Two named factories with equal parameters (FromInput, FromStored) pass, and so does an Of that is the only factory for its parameters. Operators, generic methods, inherited methods and factories that return a wrapper (a nullable struct, a task, a result type) are not counted - a nullable reference return is the type itself and counts; constructors are not factories in this sense. An empty selection passes.",
+      "implementation": "dotnet",
+      "status": "enforced",
+      "maturity": "experimental"
+    },
+    {
+      "set": "tactical",
+      "id": "DCA-TAC-025",
+      "title": "Domain types must not hold bare primitives, strings or time types",
+      "rationale": "A value with rules of its own - a postal code, a quantity, a status, a moment - is a value object; held as a bare string, int, bool or DateTimeOffset its validation is repeated at every use or missing. A value object with several components holds value objects too; only a wrapper - a value of exactly one component - holds the primitive it wraps",
+      "selects": "Classes, records, structs, enums and interfaces in <Module>.Domain of every module root, the shared kernel's domain included, with their runtime type in the loaded assemblies - their declared instance fields and properties and their declared methods, private ones included; constructors are not selected, the members they fill are. Not selected: a wrapper value - a type assignable to IValue or IId with exactly one instance field - with everything it declares; compiler- generated members (a property's backing field, a record's EqualityContract, Deconstruct, PrintMembers); property accessors and operators; Equals, GetHashCode, ToString and CompareTo; an enum's members; a member that implements a building block's, such as a domain event's OccurredOn and EventId. A bool return is a question to the object - a predicate - and passes; a bool field, property or parameter does not.",
+      "checks": "No selected field, property, return type or parameter type involves string, bool, a numeric primitive or char, or a point in time (DateTime, DateTimeOffset, DateOnly, TimeOnly) - nullable and generic arguments and arrays included, so IReadOnlyList<string> counts. decimal, TimeSpan, Guid and the project's own types pass. A value object with several components is checked like any other type: each component is a value object itself. An empty selection passes.",
       "implementation": "dotnet",
       "status": "enforced",
       "maturity": "experimental"

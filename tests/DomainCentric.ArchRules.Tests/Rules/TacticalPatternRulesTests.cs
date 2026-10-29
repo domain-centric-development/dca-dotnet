@@ -12,11 +12,18 @@ public sealed class TacticalPatternRulesTests
     private const string Bad = "DomainCentric.ArchRules.Tests.Fixtures.Tactical.Bad";
     private const string Statics = "DomainCentric.ArchRules.Tests.Fixtures.Tactical.Statics";
 
-    private static readonly IReadOnlyDictionary<string, string> NoNegativeFixture = new Dictionary<string, string>();
+    private static readonly IReadOnlyDictionary<string, string> NoNegativeFixture = new Dictionary<string, string>
+    {
+        ["DCA-TAC-025"] = "negative fixture in Primitives - BarePrimitivesInTheDomainAreReported",
+    };
 
-    private static readonly string[] ExpectedIds = Enumerable.Range(1, 21).Select(i => $"DCA-TAC-{i:000}").Append("DCA-TAC-023").Append("DCA-TAC-024").ToArray();
+    /// <summary>Experimental and stricter than the shared good fixture; its positive fixture is Primitives.Good.</summary>
+    private static readonly string[] NotOnTheSharedGoodFixture = { "DCA-TAC-025" };
 
-    public static IEnumerable<object[]> RuleIds() => ExpectedIds.Select(id => new object[] { id });
+    private static readonly string[] ExpectedIds = Enumerable.Range(1, 21).Select(i => $"DCA-TAC-{i:000}").Append("DCA-TAC-023").Append("DCA-TAC-024").Append("DCA-TAC-025").ToArray();
+
+    public static IEnumerable<object[]> RuleIds() =>
+        ExpectedIds.Where(id => !NotOnTheSharedGoodFixture.Contains(id)).Select(id => new object[] { id });
 
     public static IEnumerable<object[]> NegativeRuleIds() =>
         ExpectedIds.Where(id => !NoNegativeFixture.ContainsKey(id)).Select(id => new object[] { id });
@@ -123,4 +130,30 @@ public sealed class TacticalPatternRulesTests
         Assert.Contains("Code declares the neutral factory Of(System.String) beside FromHash with the same parameters", message);
         Assert.DoesNotContain("Label", message);
     }
+
+    private const string PrimitivesBad = "DomainCentric.ArchRules.Tests.Fixtures.Primitives.Bad";
+    private const string PrimitivesGood = "DomainCentric.ArchRules.Tests.Fixtures.Primitives.Good";
+
+    [Fact]
+    public void BarePrimitivesInTheDomainAreReported()
+    {
+        var message = Assert.Throws<DcaRuleViolationException>(
+            () => Rule(PrimitivesBad, "DCA-TAC-025").Check(Arch(PrimitivesBad))).Message;
+
+        Assert.DoesNotContain("IsOverdrawn", message);
+        Assert.Contains("field _overdraftCount is Int32", message);
+        Assert.Contains("property Closed is Boolean", message);
+        Assert.Contains("property OpenedAt is DateTimeOffset", message);
+        Assert.Contains("property Tags is String", message);
+        Assert.Contains("Rename(...) takes String as parameter 1", message);
+        Assert.Contains("Address: property City is String; property Street is String", message);
+        Assert.Contains("AccountOpened: property Holder is String", message);
+        Assert.DoesNotContain("OccurredOn", message);
+        Assert.DoesNotContain("PostalCode:", message);
+        Assert.DoesNotContain("AccountId:", message);
+        Assert.DoesNotContain("ToString", message);
+    }
+
+    [Fact]
+    public void ADomainOfValueObjectsPasses() => Rule(PrimitivesGood, "DCA-TAC-025").Check(Arch(PrimitivesGood));
 }

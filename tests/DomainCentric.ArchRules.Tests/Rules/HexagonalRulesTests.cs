@@ -16,10 +16,11 @@ public sealed class HexagonalRulesTests
         ["DCA-HEX-016"] = "informational diagnostic, never fails - EnumMemberNamesAreObservedOnTheBadFixtureOnly shows it",
         ["DCA-HEX-017"] = "its roles are empty in every preset - ListenersThatDriveAnInputPort* configure them on the Listeners fixture",
         ["DCA-HEX-018"] = "negative fixture in ControllerPlace - AControllerOutsideTheIncomingAdaptersIsReported",
+        ["DCA-HEX-019"] = "negative fixture in PortPlace - AnOutputPortImplementedOutsideTheOutgoingAdaptersIsReported",
 
     };
 
-    private static readonly string[] ExpectedIds = { "DCA-HEX-001", "DCA-HEX-002", "DCA-HEX-003", "DCA-HEX-004", "DCA-HEX-005", "DCA-HEX-006", "DCA-HEX-007", "DCA-HEX-008", "DCA-HEX-009", "DCA-HEX-010", "DCA-HEX-011", "DCA-HEX-012", "DCA-HEX-013", "DCA-HEX-014", "DCA-HEX-016", "DCA-HEX-017", "DCA-HEX-018" };
+    private static readonly string[] ExpectedIds = { "DCA-HEX-001", "DCA-HEX-002", "DCA-HEX-003", "DCA-HEX-004", "DCA-HEX-005", "DCA-HEX-006", "DCA-HEX-007", "DCA-HEX-008", "DCA-HEX-009", "DCA-HEX-010", "DCA-HEX-011", "DCA-HEX-012", "DCA-HEX-013", "DCA-HEX-014", "DCA-HEX-016", "DCA-HEX-017", "DCA-HEX-018", "DCA-HEX-019" };
 
     private static DcaArchitecture Arch(string ns) =>
         DcaArchitecture.Load(DcaLayout.ForRootNamespace(ns), typeof(HexagonalRulesTests).Assembly);
@@ -110,6 +111,28 @@ public sealed class HexagonalRulesTests
         Assert.Contains("Application.Shared.LedgerController is a controller outside the incoming adapters", message);
         Assert.Contains("Infrastructure.LedgerResource is a controller outside the incoming adapters", message);
     }
+
+    private static void CheckPortPlace(string ns)
+    {
+        var layout = DcaLayout.ForRootNamespace(ns);
+        new HexagonalRules(layout).Rules.Single(r => r.Id == "DCA-HEX-019")
+            .Check(DcaArchitecture.Load(layout, typeof(HexagonalRulesTests).Assembly));
+    }
+
+    [Fact]
+    public void AnOutputPortImplementedOutsideTheOutgoingAdaptersIsReported()
+    {
+        var message = Assert.Throws<DcaRuleViolationException>(
+            () => CheckPortPlace("DomainCentric.ArchRules.Tests.Fixtures.PortPlace.Bad")).Message;
+
+        Assert.Contains("Infrastructure.SmtpMailer implements an output port outside the outgoing adapters", message);
+        Assert.Contains("Application.Shared.ConsoleMailer implements an output port outside the outgoing adapters", message);
+    }
+
+    /// <summary>An implementation in an outgoing adapter passes, and so does the bridge to a second use case.</summary>
+    [Fact]
+    public void AnOutputPortImplementedInAnOutgoingAdapterOrBridgedToAUseCasePasses() =>
+        CheckPortPlace("DomainCentric.ArchRules.Tests.Fixtures.PortPlace.Good");
 
     [Fact]
     public void ControllersInTheIncomingAdaptersPass() =>

@@ -6,6 +6,21 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ### Added
 
+**`DCA-HEX-019` (experimental): output port implementations must reside in an outgoing adapter namespace.** Every
+class assignable to `IOutputPort` — not only repositories and stores, which `DCA-TAC-015`/`-020` already hold — lives
+in `<Module>.Adapter.Outgoing`. The configuration in infrastructure wires an implementation to its port and holds none
+itself. The one exception is the bridge that hands an output port a second use case: a class in an infrastructure
+namespace that depends on an input port is wiring and passes — C# cannot implement an interface with a lambda.
+
+**`DCA-TAC-025` (experimental): domain types must not hold bare primitives, strings or time types.** Declared
+fields, properties, return types and parameter types in `<Module>.Domain` — nullable, array and generic arguments
+included — involve no `string`, `bool`, numeric primitive or `char`, and no point in time (`DateTime`,
+`DateTimeOffset`, `DateOnly`, `TimeOnly`). A value of several components holds values; only a wrapper — an `IValue`
+or `IId` of exactly one instance field — holds the primitive it wraps. Exempt: compiler-generated members, `Equals`/
+`GetHashCode`/`ToString`/`CompareTo`, an enum's members, and a member that implements a building block's (a domain
+event's `OccurredOn` and `EventId`). A `bool` return is a predicate — a question to the object — and passes; a `bool`
+field, property or parameter does not. Same id and reading as the Java rule.
+
 **`DCA-HEX-018` (experimental): controllers must reside in an incoming adapter namespace** — the same id as in
 the Java library. A class deriving from the configured controller or page-model base, or carrying the API-controller
 attribute, resides in `<Module>.Adapter.Incoming`. Selected by framework type, never by name.
