@@ -4,6 +4,8 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-07
+
 ### Added
 
 **`DCA-HEX-020` — diagnostic: incoming adapters that read the caller's roles in their own code (WP-121 decision 2),
