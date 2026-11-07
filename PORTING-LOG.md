@@ -426,11 +426,14 @@ titles, same rationales; the mechanics texts speak namespaces instead of package
   so any such call counts. A C# 15 `union` is not recognised yet; its compiled shape is to be checked at release
   and added as a further base name or as a separate detection. The Java twin reads sealed types and their
   permitted subclasses.
-- **ERR-008 — a closed result has a refusal case (WP-171, 2026-11-07), experimental, enforced.** Same id as
-  `dca-archunit` and `dca-rust`. Selects the closed results ERR-006 knows (a type deriving from a configured
-  closed-result base, `FrameworkTypes.ClosedResultBaseTypes`), under `<Module>.Application`; asks one of the base's
-  generic arguments to be assignable to the new `Refusal` role of `DcaMarkers` (default `Application.IRefusal`).
-  Java reads a sealed type's permitted subclasses, recursively; here the cases are flat generic arguments.
+- **ERR-008 — closed results without a refusal case (WP-171, 2026-11-07), experimental, informational.** Same
+  id as `dca-archunit` and `dca-rust`. Selects the closed results ERR-006 knows (a type deriving from a configured
+  closed-result base, `FrameworkTypes.ClosedResultBaseTypes`), under `<Module>.Application`; lists each one none
+  of whose base's generic arguments is assignable to the new `Refusal` role of `DcaMarkers` (default
+  `Application.IRefusal`). Java reads a sealed type's permitted subclasses, recursively; here the cases are flat
+  generic arguments. First written as an enforced rule demanding a refusal case; turned into a diagnostic the same
+  day (decision "A"): a closed result may hold only successes (`Found | NoResult`, `Sent | AlreadySent`), and
+  whether a case refuses is not visible in the type.
 - **Port failures (WP-171, decision 8, 2026-11-07).** `PortException` → `InputPortException` → `UseCaseException`,
   and `PortException` → `OutputPortException`, abstract, in `Application` — the Java names; no platform type
   clashes. ERR-002 places every `PortException` subtype in the application layer, ERR-003 accepts `UseCaseException`

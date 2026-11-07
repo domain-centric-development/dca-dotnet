@@ -418,22 +418,26 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                 + " remedy is a typed value for the code.");
 
     /// <summary>
-    /// DCA-ERR-008 (experimental). Every closed result an input port answers with has at least one case marked as a
-    /// refusal; the marker is what the transaction boundary rolls back on.
+    /// DCA-ERR-008 (experimental, informational). Lists every closed result an input port answers with that has no
+    /// case marked as a refusal. A closed result may hold only outcomes that are not refusals; whether a case refuses
+    /// is domain knowledge the type does not show, so the rule asks rather than fails.
     /// </summary>
     public IDcaRule ClosedResultsRefuse() =>
-        DcaRule.Check(
+        DcaRule.Informational(
             "DCA-ERR-008",
-            "A closed use-case result must have at least one case marked as a refusal",
-            "A use case answers with a closed result to return its expected refusals as cases the caller must"
-                + " handle; the refusal marker on those cases is what lets the transaction boundary roll a refusal"
-                + " back like a thrown failure. A closed result whose refusing cases are unmarked commits the writes"
-                + " made before the refusal, and one that refuses nothing is no closed result - the use case answers"
-                + " with a plain result",
+            "Diagnostic: closed use-case results without a case marked as a refusal",
+            "A closed result describes the outcomes a use case can answer with; some of them are refusals, some are"
+                + " not. A result may hold several outcomes of which none refuses - found or nothing found, sent or"
+                + " already sent - and that alone is reason enough to close it. The refusal marker on a case says the"
+                + " request was refused, a meaning the caller answers with or without a transaction, and it is what"
+                + " lets the transaction boundary roll a refusal back like a thrown failure. Whether a case refuses is"
+                + " domain knowledge the type does not show, so a closed result without any marked case is listed for"
+                + " a look, not failed: if one of its outcomes is a refusal and stays unmarked, the transaction"
+                + " commits the writes made before it",
             arch =>
             {
                 var markers = arch.Layout.Markers;
-                var violations = new List<string>();
+                var observed = new List<string>();
                 foreach (var (result, closed) in ClosedResults(arch))
                 {
                     if (!arch.InLayer(result, DcaLayout.Layer.Application))
@@ -446,17 +450,14 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                         continue;
                     }
 
-                    violations.Add(
+                    observed.Add(
                         $"{result.FullName} is answered by [{string.Join(", ", closed.Ports.Select(p => p.Name).OrderBy(n => n, StringComparer.Ordinal))}]"
                         + $" and none of its cases [{string.Join(", ", closed.Cases.Select(c => c.Name).OrderBy(n => n, StringComparer.Ordinal))}]"
-                        + $" is a refusal ({markers.Marker(nameof(DcaMarkers.Refusal))}) - mark the refusing cases, or answer with a plain result");
+                        + $" is marked as a refusal ({markers.Marker(nameof(DcaMarkers.Refusal))}) - check: is none of these"
+                        + " outcomes a refusal? If one is, mark it, or the transaction commits when it is returned");
                 }
 
-                DcaRule.Fail(
-                    "A closed use-case result without a refusal case",
-                    violations,
-                    "implement the refusal marker on every case that refuses the request; a result with no refusing"
-                    + " case becomes a plain record");
+                return observed;
             })
             .Experimental()
             .Selecting(
@@ -466,10 +467,12 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                 + " (FrameworkTypes.ClosedResultBaseTypes, matched by name). An empty list of base types selects"
                 + " nothing.")
             .Checking(
-                "At least one of its cases - the generic arguments of the closed-result base - is assignable to the"
-                + " configured refusal role (by default the IRefusal marker of the building blocks). The result type"
-                + " itself carrying the marker does not count. A context that throws its refusals has no closed"
-                + " results and passes, and an empty selection passes.");
+                "Informational diagnostic only: lists every closed result none of whose cases - the generic arguments"
+                + " of the closed-result base - is assignable to the configured refusal role (by default the IRefusal"
+                + " marker of the building blocks), and never fails. The result type itself carrying the marker does"
+                + " not count. A listed result is not a finding by itself: a closed result whose outcomes are all"
+                + " successes - found or nothing found - is correct as it is. A context that throws its refusals has"
+                + " no closed results and lists nothing.");
 
     /// <summary>
     /// DCA-ERR-009 (experimental). A domain exception is constructed only in the domain layer: the model refuses,

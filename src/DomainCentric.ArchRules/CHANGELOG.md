@@ -14,12 +14,14 @@ lambda closures included, and fails for each `newobj` of a type assignable to th
 constructor chaining to its base is no creation; the role's own namespace is library code and not selected.
 Reflection and generic factories are not seen. Enforced once experimental rules are switched on.
 
-**`DCA-ERR-008` — a closed use-case result has at least one case marked as a refusal (WP-171), experimental** — the
-twin of the Java rule. A use case that returns its expected refusals as cases of a closed result marks each
-refusing case with `IRefusal` from the building blocks, so the transaction boundary rolls a returned refusal back
-like a thrown failure. Selects the closed results `DCA-ERR-006` knows, under `<Module>.Application`, and fails for
-each one none of whose cases — the generic arguments of its closed-result base — is a refusal. Enforced once
-experimental rules are switched on.
+**`DCA-ERR-008` — diagnostic: closed use-case results without a case marked as a refusal (WP-171), experimental,
+informational** — the twin of the Java rule. A use case that returns its expected refusals as cases of a closed
+result marks each refusing case with `IRefusal` from the building blocks, so the transaction boundary rolls a
+returned refusal back like a thrown failure. A closed result may also hold only outcomes that are not refusals —
+found or nothing found, sent or already sent — and is correct that way; whether a case refuses is domain knowledge
+the type does not show. So the diagnostic selects the closed results `DCA-ERR-006` knows, under
+`<Module>.Application`, and lists each one none of whose cases — the generic arguments of its closed-result base —
+is a refusal, asking whether none of its outcomes is one. It never fails the build.
 
 **`DcaMarkers.Refusal`** — a new role (default `DomainCentric.BuildingBlocks.Application.IRefusal`,
 `WithRefusal(DcaMarker)`).

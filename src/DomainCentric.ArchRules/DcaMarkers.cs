@@ -106,7 +106,7 @@ public sealed record DcaMarkers(string Name)
     /// <summary>The explicit transaction boundary of the application layer.</summary>
     public string TransactionBoundary { get; init; } = DcaBuildingBlocks + ".Application.Transactions.ITransactionBoundary";
 
-    /// <summary>The marker on a case of a closed use-case result that refuses the request - read by DCA-ERR-008, which asks every closed result an input port answers with for at least one such case.</summary>
+    /// <summary>The marker on a case of a closed use-case result that refuses the request - read by DCA-ERR-008, which lists every closed result an input port answers with that has no such case.</summary>
     public string Refusal { get; init; } = DcaBuildingBlocks + ".Application.IRefusal";
 
     /// <summary>The base type of every incoming (driving) port.</summary>

@@ -32,8 +32,11 @@ namespace DomainCentric.BuildingBlocks.Application;
 /// public sealed record ShowNotFound(ShowId Show) : IRefusal;
 /// // the closed result: a union of Reserved | SeatTaken | ShowNotFound
 /// </code>
-/// <para>A closed result without any refusal case is no closed result: it is a plain result, and the use case
-/// answers with the success itself.</para>
+/// <para>A closed result describes the outcomes a use case can answer with; some are refusals, some are not. One
+/// whose outcomes are all successes - found or nothing found, sent or already sent - is a closed result all the same
+/// and carries no <c>IRefusal</c>: marking such a case would roll back a success. The marker means "the request was
+/// refused" whether or not a transaction is open - a read-only use case refuses too; the roll-back only acts where
+/// something was written.</para>
 /// </remarks>
 public interface IRefusal
 {

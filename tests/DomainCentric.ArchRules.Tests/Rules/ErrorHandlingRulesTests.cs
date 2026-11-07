@@ -18,6 +18,7 @@ public sealed class ErrorHandlingRulesTests
     {
         ["DCA-ERR-006"] = "informational diagnostic, never fails",
         ["DCA-ERR-007"] = "informational diagnostic, never fails - FailureFieldsAreObservedOnTheBadFixtureOnly shows it",
+        ["DCA-ERR-008"] = "informational diagnostic, never fails - AClosedResultWithoutARefusalCaseIsListed shows it",
     };
 
     private static readonly string[] ExpectedIds =
@@ -81,7 +82,6 @@ public sealed class ErrorHandlingRulesTests
     [InlineData("DCA-ERR-003", "ReservationQuotaExceededException")]
     [InlineData("DCA-ERR-009", "CancelReservationUseCase.CancelAsync constructs DomainCentric.ArchRules.Tests.Fixtures.Errors.Bad.Booking.Domain.Model.ReservationUnknownException")]
     [InlineData("DCA-ERR-009", "CancelReservationUseCase.UnknownFor constructs")]
-    [InlineData("DCA-ERR-008", "CancelReservationResult is answered by [ICancelReservationInputPort] and none of its cases [Cancelled, NotFound]")]
     public void EachRuleNamesItsOffender(string id, string offender)
     {
         var rule = Rules(Bad).Rules.Single(r => r.Id == id);
@@ -164,25 +164,46 @@ public sealed class ErrorHandlingRulesTests
             Rules(Bad).Rules.Single(r => r.Id == "DCA-ERR-006").Observe(Arch(Bad)),
             line => line.Contains("no class of the scan is assignable", StringComparison.Ordinal));
 
-    /// <summary>DCA-ERR-008: the result fixture marks its refusing cases, on a union returned two ways.</summary>
-    [Fact]
-    public void TheResultFixtureMarksItsRefusals()
+    private static IReadOnlyList<string> ClosedResultsObserved(string ns, FrameworkTypes frameworkTypes)
     {
         var arch = DcaArchitecture.Load(
-            DcaLayout.ForRootNamespace(Results).WithFrameworkTypes(FrameworkTypes.None()),
+            DcaLayout.ForRootNamespace(ns).WithFrameworkTypes(frameworkTypes),
             typeof(ErrorHandlingRulesTests).Assembly);
-        new ErrorHandlingRules(arch.Layout).Rules.Single(r => r.Id == "DCA-ERR-008").Check(arch);
+        var rule = new ErrorHandlingRules(arch.Layout).Rules.Single(r => r.Id == "DCA-ERR-008");
+        rule.Check(arch);
+        return rule.Observe(arch).ToList();
     }
+
+    /// <summary>DCA-ERR-008 lists a closed result whose refusing case is not marked, and does not fail.</summary>
+    [Fact]
+    public void AClosedResultWithoutARefusalCaseIsListed()
+    {
+        var observed = ClosedResultsObserved(Bad, FrameworkTypes.None());
+        var line = Assert.Single(observed);
+        Assert.Contains("CancelReservationResult is answered by [ICancelReservationInputPort] and none of its cases [Cancelled, NotFound]", line, StringComparison.Ordinal);
+        Assert.Contains("is none of these outcomes a refusal", line, StringComparison.Ordinal);
+    }
+
+    /// <summary>DCA-ERR-008 lists a closed result of two successes and does not fail; marked results are not listed.</summary>
+    [Fact]
+    public void AClosedResultOfSuccessesIsListedButDoesNotFail()
+    {
+        var observed = ClosedResultsObserved(Results, FrameworkTypes.None());
+        var line = Assert.Single(observed);
+        Assert.Contains("SendReminderResult", line, StringComparison.Ordinal);
+        Assert.Contains("[AlreadySent, Sent]", line, StringComparison.Ordinal);
+        Assert.DoesNotContain(observed, l => l.Contains("LendCopyResult", StringComparison.Ordinal) || l.Contains("RenewLoanResult", StringComparison.Ordinal));
+    }
+
+    /// <summary>DCA-ERR-008 lists nothing in the good fixture, whose closed result marks its refusals.</summary>
+    [Fact]
+    public void AClosedResultWithARefusalCaseIsNotListed() =>
+        Assert.Empty(ClosedResultsObserved(Good, FrameworkTypes.None()));
 
     /// <summary>DCA-ERR-008 selects nothing when no closed-result base is configured.</summary>
     [Fact]
-    public void WithoutAClosedResultBaseNothingIsSelected()
-    {
-        var arch = DcaArchitecture.Load(
-            DcaLayout.ForRootNamespace(Bad).WithFrameworkTypes(FrameworkTypes.None() with { ClosedResultBaseTypes = Array.Empty<string>() }),
-            typeof(ErrorHandlingRulesTests).Assembly);
-        new ErrorHandlingRules(arch.Layout).Rules.Single(r => r.Id == "DCA-ERR-008").Check(arch);
-    }
+    public void WithoutAClosedResultBaseNothingIsSelected() =>
+        Assert.Empty(ClosedResultsObserved(Bad, FrameworkTypes.None() with { ClosedResultBaseTypes = Array.Empty<string>() }));
 
     /// <summary>DCA-ERR-006 lists an incoming adapter that catches the abstract port failure, async body included.</summary>
     [Fact]
