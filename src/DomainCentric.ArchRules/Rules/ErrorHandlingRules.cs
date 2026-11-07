@@ -16,8 +16,9 @@ namespace DomainCentric.ArchRules.Rules;
 /// </summary>
 /// <remarks>
 /// Three layers, three kinds of failure. A broken rule of the model is a <see cref="DomainException"/> in the
-/// domain layer; a request the application cannot serve is a <see cref="UseCaseException"/> in the application
-/// layer; the translation into a protocol answer happens in the incoming adapter, which is the only layer that
+/// domain layer; a failure a port's contract declares is a <see cref="PortException"/> in the application layer -
+/// a request the application cannot serve a <see cref="UseCaseException"/> (an input port's failure), a conflict an
+/// output port reports an <see cref="OutputPortException"/>; the translation into a protocol answer happens in the incoming adapter, which is the only layer that
 /// knows the protocol. Argument guards are outside all of this — a null or range check states a contract for
 /// the caller and keeps the platform's own argument exception. Whether a specific <c>throw</c> should have been
 /// a domain exception is not decidable from the type model; that judgement stays with review.
@@ -43,6 +44,8 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
             ExceptionsNameNoTransportConcept(),
             AdaptersWithoutTranslation(),
             FailuresCarryIdsAndValues(),
+            ClosedResultsRefuse(),
+            DomainExceptionsConstructedInTheDomain(),
         };
     }
 
@@ -82,7 +85,7 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
     public IDcaRule ExceptionsResideInTheirLayer() =>
         DcaRule.Check(
             "DCA-ERR-002",
-            "Domain and use-case exceptions reside in the layer whose failure they name",
+            "Domain and port exceptions reside in the layer whose failure they name",
             "The base type states which layer owns the failure; declaring it elsewhere puts the vocabulary"
                 + " of that layer outside it and lets an adapter invent failures the application never"
                 + " reports",
@@ -96,9 +99,9 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                         violations.Add($"{type.FullName} is a domain exception outside the domain layer");
                     }
 
-                    if (arch.Layout.Markers.Is(nameof(DcaMarkers.UseCaseException), type) && !arch.InApplication(type))
+                    if (arch.Layout.Markers.Is(nameof(DcaMarkers.PortException), type) && !arch.InApplication(type))
                     {
-                        violations.Add($"{type.FullName} is a use-case exception outside the application layer");
+                        violations.Add($"{type.FullName} is a port exception - use-case or output-port - outside the application layer");
                     }
                 }
 
@@ -106,21 +109,24 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
             })
             .Selecting(
                 "Types anywhere under the root namespace that are assignable to DomainException or to "
-                + "UseCaseException, except the two base types themselves and anything else in the "
+                + "PortException, except the base types themselves and anything else in the "
                 + "building-blocks namespace.")
             .Checking(
                 "A subtype of DomainException resides under <Module>.Domain of some module root, a subtype "
-                + "of UseCaseException under <Module>.Application. Both findings are collected into one "
+                + "of PortException - UseCaseException, OutputPortException and any other port failure - under "
+                + "<Module>.Application. An output port's failure is declared beside the port, even though the "
+                + "adapter that implements the port raises it. Both findings are collected into one "
                 + "violation. Which of the two a given failure should have been is not checked here. An "
                 + "empty selection passes.");
 
     public IDcaRule ApplicationExceptionsExtendUseCaseException() =>
         DcaRule.Check(
             "DCA-ERR-003",
-            "Exceptions declared in the application layer must extend UseCaseException",
+            "Exceptions declared in the application layer must extend UseCaseException or OutputPortException",
             "A use case that cannot serve a request reports why through its type, so that one incoming"
                 + " adapter can map each outcome onto its protocol and another adapter can map the same"
-                + " outcome onto a different one",
+                + " outcome onto a different one; an output port that declares a failure in its contract names it"
+                + " the same way, so the use case can catch exactly that outcome",
             arch =>
             {
                 var violations = ProjectExceptions(arch)
@@ -130,25 +136,29 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                     // the model into a use-case failure.
                     .Where(t => !arch.Layout.Markers.Is(nameof(DcaMarkers.DomainException), t))
                     .Where(t => !arch.Layout.Markers.Is(nameof(DcaMarkers.UseCaseException), t))
-                    .Select(t => $"{t.FullName} does not extend UseCaseException")
+                    .Where(t => !arch.Layout.Markers.Is(nameof(DcaMarkers.OutputPortException), t))
+                    .Select(t => $"{t.FullName} extends neither UseCaseException nor OutputPortException")
                     .ToList();
                 DcaRule.Fail("A use-case failure without the application base type", violations);
             })
             .Selecting(
                 "Types under <Module>.Application of every module root that are assignable to Exception and "
                 + "not to DomainException - the exception types the application layer declares itself. The "
-                + "base type UseCaseException lives in the building blocks and is not selected. A subtype of "
+                + "base types live in the building blocks and are not selected. A subtype of "
                 + "DomainException declared in an application namespace is not selected either: it is "
                 + "misplaced rather than mis-based, and DCA-ERR-002 owns that case with the remedy that fits "
                 + "it - move the failure to the domain, do not change its base type.")
             .Checking(
-                "Each derives from UseCaseException, directly or through an intermediate base class. An "
-                + "empty selection passes.");
+                "Each derives from UseCaseException - a failure an input port declares, raised by the use case - "
+                + "or OutputPortException - a failure an output port declares, raised by its adapter - directly "
+                + "or through an intermediate base class. Deriving from PortException or InputPortException "
+                + "directly does not count: they classify, they are not derived from by a project. An empty "
+                + "selection passes.");
 
     public IDcaRule ExceptionsCarryNoFrameworkMetadata() =>
         DcaRule.Check(
             "DCA-ERR-004",
-            "Domain and use-case exceptions must not carry prohibited framework metadata",
+            "Domain and port exceptions must not carry prohibited framework metadata",
             "An exception of an inner layer that carries container, persistence or protocol metadata has"
                 + " decided how the outside answers it, which is the incoming adapter's decision and only"
                 + " its; an attribute that fixes the answer's status decides it for every protocol at once,"
@@ -203,7 +213,8 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
             })
             .Selecting(
                 "Types anywhere under the root namespace that are assignable to the domain-exception or the "
-                + "use-case-exception role, the vocabulary's own code excluded: the namespaces the configured "
+                + "port-exception role - UseCaseException and OutputPortException included - the vocabulary's own "
+                + "code excluded: the namespaces the configured "
                 + "role types live in are not selected, so a project's own base type is not reported as "
                 + "residing outside a layer it never claimed.")
             .Checking(
@@ -223,7 +234,7 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
     public IDcaRule ExceptionsNameNoTransportConcept() =>
         DcaRule.Check(
             "DCA-ERR-005",
-            "Domain and use-case exception names must stay in the language of their layer",
+            "Domain and port exception names must stay in the language of their layer",
             "A failure named after a transport concept is a decision about the answer, taken in a layer"
                 + " that does not know the protocol; the name should say what went wrong, not what the"
                 + " caller should be told",
@@ -247,7 +258,8 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
             })
             .Selecting(
                 "Types anywhere under the root namespace that are assignable to the domain-exception or the "
-                + "use-case-exception role, the vocabulary's own code excluded: the namespaces the configured "
+                + "port-exception role - UseCaseException and OutputPortException included - the vocabulary's own "
+                + "code excluded: the namespaces the configured "
                 + "role types live in are not selected, so a project's own base type is not reported as "
                 + "residing outside a layer it never claimed.")
             .Checking(
@@ -262,9 +274,12 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
         DcaRule.Informational(
             "DCA-ERR-006",
             "Diagnostic: incoming adapter namespaces that drive a use case without translating its failures",
-            "A namespace that drives the application and knows neither failure type either lets everything"
-                + " escape to a generic handler or catches a generic type and answers every outcome the same"
-                + " way; whether it does is not visible in the type model",
+            "A namespace that drives the application and knows neither failure type nor a case of a closed"
+                + " result either lets everything escape to a generic handler or catches a generic type and answers"
+                + " every outcome the same way; whether it does is not visible in the type model. A use case may"
+                + " return its expected refusals as cases of a closed result instead of throwing them; a switch"
+                + " over those cases is the translation then. An adapter that catches the abstract base of the"
+                + " port failures answers every outcome the same way",
             arch =>
             {
                 var domainException = arch.Layout.Markers.DomainException;
@@ -283,7 +298,8 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                     };
                 }
 
-                var observed = new List<string>();
+                var observed = GenericPortFailureCatches(arch);
+                var resultCases = CasesOfClosedResults(arch);
                 var driving = new SortedDictionary<string, List<string>>(StringComparer.Ordinal);
                 var namespacesThatName = new HashSet<string>(StringComparer.Ordinal);
                 foreach (var type in arch.Types)
@@ -295,7 +311,8 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                     }
 
                     var targets = type.Dependencies.Select(d => d.Target).ToList();
-                    if (targets.Any(t => arch.Layout.Markers.Is(nameof(DcaMarkers.DomainException), t) || arch.Layout.Markers.Is(nameof(DcaMarkers.UseCaseException), t)))
+                    if (targets.Any(t => arch.Layout.Markers.Is(nameof(DcaMarkers.DomainException), t) || arch.Layout.Markers.Is(nameof(DcaMarkers.UseCaseException), t)
+                        || resultCases.Contains(t.FullName)))
                     {
                         namespacesThatName.Add(ns);
                     }
@@ -321,7 +338,7 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
 
                     names.Sort(StringComparer.Ordinal);
                     observed.Add(
-                        $"{ns}: drives an input port and names no failure type of the inner layers ({string.Join(", ", names)})");
+                        $"{ns}: drives an input port and names neither a failure type of the inner layers nor a case of a closed result ({string.Join(", ", names)})");
                 }
 
                 return observed;
@@ -335,9 +352,21 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                 + "UseCaseException, it lists no namespace and says once that it cannot see the failures; otherwise it "
                 + "lists a namespace when no type in it - a central exception "
                 + "handler beside the adapters included - depends on a type assignable to DomainException or "
-                + "UseCaseException, and never fails. A handler in a different namespace of the same module is "
-                + "not seen, and a caught type is not visible to the type model, so this does not establish "
-                + "that a namespace translates nothing.");
+                + "UseCaseException, nor on a case of a closed result, and never fails. A closed result is a type "
+                + "an input port answers with - a type argument of its use-case interface or the return type of "
+                + "one of its methods, a task unwrapped - that derives from one of the configured closed-result "
+                + "base types (FrameworkTypes.ClosedResultBaseTypes, matched by name; every preset names the "
+                + "generic base of a discriminated-union library, for example OneOf.OneOfBase); its cases are the "
+                + "generic arguments of that base. A type test, a cast, a case type in a function's or an action's "
+                + "signature (one handler per case) and a member call on the union base that names its cases all "
+                + "count, so this approximates an exhaustive switch: one reference to one case counts, and whether "
+                + "every case is handled is left to the compiler. A handler in a different namespace of the same "
+                + "module is not seen, and a caught type is not visible to the type model, so this does not "
+                + "establish that a namespace translates nothing. Beside the namespaces it lists every incoming-"
+                + "adapter type that catches - read from the exception-handling clauses of its methods' bodies, "
+                + "compiler-generated nested types such as async state machines included - or refers to the "
+                + "abstract bases PortException, InputPortException or OutputPortException themselves: it handles "
+                + "the port failures generically.");
 
     /// <summary>
     /// DCA-ERR-007 (experimental, informational). A failure carries ids and figures, never what a page shows. A
@@ -360,7 +389,8 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                 {
                     var runtime = arch.RuntimeType(exception);
                     for (var type = runtime; type is not null && !DcaMarkers.IsRole(type, markers.DomainException)
-                        && !DcaMarkers.IsRole(type, markers.UseCaseException) && type != typeof(Exception); type = type.BaseType)
+                        && !DcaMarkers.IsRole(type, markers.UseCaseException) && !DcaMarkers.IsRole(type, markers.OutputPortException)
+                        && !DcaMarkers.IsRole(type, markers.PortException) && type != typeof(Exception); type = type.BaseType)
                     {
                         foreach (var field in type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly))
                         {
@@ -377,7 +407,7 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
             })
             .Experimental()
             .Selecting(
-                "The project's own types below DomainException or UseCaseException, with their runtime type in"
+                "The project's own types below DomainException or PortException, with their runtime type in"
                 + " the loaded assemblies, and the instance fields they and their project base types declare -"
                 + " the backing fields of auto-properties included.")
             .Checking(
@@ -386,6 +416,276 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                 + " and never fails. Ids, values, numbers and every other type pass. A string that holds a code"
                 + " rather than display text is listed as well: the type does not tell the two apart, and the"
                 + " remedy is a typed value for the code.");
+
+    /// <summary>
+    /// DCA-ERR-008 (experimental). Every closed result an input port answers with has at least one case marked as a
+    /// refusal; the marker is what the transaction boundary rolls back on.
+    /// </summary>
+    public IDcaRule ClosedResultsRefuse() =>
+        DcaRule.Check(
+            "DCA-ERR-008",
+            "A closed use-case result must have at least one case marked as a refusal",
+            "A use case answers with a closed result to return its expected refusals as cases the caller must"
+                + " handle; the refusal marker on those cases is what lets the transaction boundary roll a refusal"
+                + " back like a thrown failure. A closed result whose refusing cases are unmarked commits the writes"
+                + " made before the refusal, and one that refuses nothing is no closed result - the use case answers"
+                + " with a plain result",
+            arch =>
+            {
+                var markers = arch.Layout.Markers;
+                var violations = new List<string>();
+                foreach (var (result, closed) in ClosedResults(arch))
+                {
+                    if (!arch.InLayer(result, DcaLayout.Layer.Application))
+                    {
+                        continue;
+                    }
+
+                    if (closed.Cases.Any(c => markers.Is(nameof(DcaMarkers.Refusal), c)))
+                    {
+                        continue;
+                    }
+
+                    violations.Add(
+                        $"{result.FullName} is answered by [{string.Join(", ", closed.Ports.Select(p => p.Name).OrderBy(n => n, StringComparer.Ordinal))}]"
+                        + $" and none of its cases [{string.Join(", ", closed.Cases.Select(c => c.Name).OrderBy(n => n, StringComparer.Ordinal))}]"
+                        + $" is a refusal ({markers.Marker(nameof(DcaMarkers.Refusal))}) - mark the refusing cases, or answer with a plain result");
+                }
+
+                DcaRule.Fail(
+                    "A closed use-case result without a refusal case",
+                    violations,
+                    "implement the refusal marker on every case that refuses the request; a result with no refusing"
+                    + " case becomes a plain record");
+            })
+            .Experimental()
+            .Selecting(
+                "Closed results under <Module>.Application of every module root: a type an input port answers with"
+                + " - a type argument of its use-case interface or the return type of one of its methods, a task"
+                + " unwrapped - that derives from one of the configured closed-result base types"
+                + " (FrameworkTypes.ClosedResultBaseTypes, matched by name). An empty list of base types selects"
+                + " nothing.")
+            .Checking(
+                "At least one of its cases - the generic arguments of the closed-result base - is assignable to the"
+                + " configured refusal role (by default the IRefusal marker of the building blocks). The result type"
+                + " itself carrying the marker does not count. A context that throws its refusals has no closed"
+                + " results and passes, and an empty selection passes.");
+
+    /// <summary>
+    /// DCA-ERR-009 (experimental). A domain exception is constructed only in the domain layer: the model refuses,
+    /// a use case never invents a domain failure.
+    /// </summary>
+    public IDcaRule DomainExceptionsConstructedInTheDomain() =>
+        DcaRule.Check(
+            "DCA-ERR-009",
+            "A domain exception is constructed only in the domain layer",
+            "The model refuses: a domain exception names a business rule the model itself broke off. A use case never"
+                + " invents one. A failure the use case finds - an output port returned nothing, the caller does not own"
+                + " what it names, a precondition on a second aggregate - is the application's, a case of its result or a"
+                + " use-case exception; dressed as a domain failure it claims a rule the model never checked, and the"
+                + " model cannot know what a search found",
+            arch =>
+            {
+                var markers = arch.Layout.Markers;
+                var vocabulary = markers.DeclaringNamespacesOf(new[] { nameof(DcaMarkers.DomainException) });
+                var violations = new SortedSet<string>(StringComparer.Ordinal);
+                foreach (var origin in arch.RuntimeTypes().Where(t => !t.IsNested))
+                {
+                    var ns = origin.Namespace ?? "";
+                    if (arch.InLayer(origin, DcaLayout.Layer.Domain) || vocabulary.Any(v => DcaLayout.IsBelow(ns, v)))
+                    {
+                        continue;
+                    }
+
+                    foreach (var unit in new IntraClassCalls(origin).Units)
+                    {
+                        foreach (var (code, operand) in IntraClassCalls.IlInstructions(unit))
+                        {
+                            if (code != System.Reflection.Emit.OpCodes.Newobj || operand is not ConstructorInfo constructor
+                                || !markers.Is(nameof(DcaMarkers.DomainException), constructor.DeclaringType))
+                            {
+                                continue;
+                            }
+
+                            violations.Add(
+                                $"{origin.FullName}.{IntraClassCalls.DisplayName(unit)} constructs {constructor.DeclaringType!.FullName}"
+                                + " - only the domain layer raises a domain failure; a failure the application finds is a case of"
+                                + " its result or a use-case exception");
+                        }
+                    }
+                }
+
+                DcaRule.Fail(
+                    "A domain exception is constructed outside the domain layer",
+                    violations,
+                    "let the aggregate, value object or domain service that checks the rule throw it; for a failure the use"
+                    + " case finds itself - nothing found, not owned - return a refusal case of the result or throw a"
+                    + " use-case exception declared beside the use case");
+            })
+            .Experimental()
+            .Selecting(
+                "Every type of the scan outside <Module>.Domain of every module root - the application layer, the adapters,"
+                + " configuration and any unplaced type - with each object creation its methods and constructors make,"
+                + " the compiler's async state machines, lambda closures and nested types included. Types in the"
+                + " namespace of the configured domain-exception role are library code and not selected; test"
+                + " assemblies are not loaded.")
+            .Checking(
+                "No such creation (a newobj instruction) creates a type assignable to the configured domain-exception role"
+                + " (by default DomainException of the building blocks). A constructor chaining to its base constructor"
+                + " is not a creation - where a misplaced exception type lives is DCA-ERR-002's finding. Construction in"
+                + " the domain layer passes, a domain service and a factory included. A domain exception the application"
+                + " catches, wraps or rethrows is not constructed and passes. A construction through reflection or a"
+                + " generic factory method outside the domain is not seen. An empty selection passes.");
+
+    /// <summary>
+    /// The full names of the cases of every closed result an input port answers with: a type argument of a
+    /// generic interface the port extends, or a method's return type with tasks unwrapped, that derives from a
+    /// configured closed-result base; its cases are that base's generic arguments.
+    /// </summary>
+    private static HashSet<string> CasesOfClosedResults(DcaArchitecture arch) =>
+        new(
+            ClosedResults(arch).Values.SelectMany(closed => closed.Cases).Select(c => c.FullName ?? c.Name),
+            StringComparer.Ordinal);
+
+    /// <summary>A closed result: the input ports that answer with it and its cases.</summary>
+    private sealed record ClosedResult(SortedSet<Type> Ports, List<Type> Cases);
+
+    /// <summary>
+    /// Every closed result an input port answers with - a type argument of a generic interface the port extends,
+    /// or a method's return type with tasks unwrapped, that derives from a configured closed-result base - with
+    /// the ports that answer with it and its cases, that base's generic arguments.
+    /// </summary>
+    private static SortedDictionary<Type, ClosedResult> ClosedResults(DcaArchitecture arch)
+    {
+        var byName = Comparer<Type>.Create((a, b) => string.CompareOrdinal(a.FullName ?? a.Name, b.FullName ?? b.Name));
+        var results = new SortedDictionary<Type, ClosedResult>(byName);
+        var bases = new HashSet<string>(arch.Layout.FrameworkTypes.ClosedResultBaseTypes, StringComparer.Ordinal);
+        if (bases.Count == 0)
+        {
+            return results;
+        }
+
+        foreach (var port in arch.RuntimeTypes())
+        {
+            if (!port.IsInterface || !arch.Layout.Markers.Is(nameof(DcaMarkers.InputPort), port))
+            {
+                continue;
+            }
+
+            var candidates = new List<Type>();
+            foreach (var contract in port.GetInterfaces().Append(port))
+            {
+                if (contract.IsGenericType)
+                {
+                    candidates.AddRange(contract.GetGenericArguments());
+                }
+
+                candidates.AddRange(contract.GetMethods().Select(m => m.ReturnType));
+            }
+
+            foreach (var candidate in candidates.SelectMany(Unwrapped))
+            {
+                for (var current = candidate.BaseType; current is not null; current = current.BaseType)
+                {
+                    if (current.IsGenericType && current.FullName is not null
+                        && bases.Contains(current.GetGenericTypeDefinition().FullName!.Split('`')[0]))
+                    {
+                        if (!results.TryGetValue(candidate, out var closed))
+                        {
+                            closed = new ClosedResult(new SortedSet<Type>(byName), new List<Type>());
+                            results[candidate] = closed;
+                        }
+
+                        closed.Ports.Add(port);
+                        foreach (var argument in current.GetGenericArguments().Where(a => !closed.Cases.Contains(a)))
+                        {
+                            closed.Cases.Add(argument);
+                        }
+                    }
+                }
+            }
+        }
+
+        return results;
+    }
+
+    /// <summary>
+    /// The incoming-adapter types that catch, or depend on, one of the abstract port-failure bases themselves: a
+    /// catch clause is read from the method bodies of the runtime type and its nested types (an async method's
+    /// body lives in a compiler-generated state machine), a dependency from the type model.
+    /// </summary>
+    private static List<string> GenericPortFailureCatches(DcaArchitecture arch)
+    {
+        var markers = arch.Layout.Markers;
+        var bases = new[] { markers.PortException, markers.InputPortException, markers.OutputPortException };
+        var found = new SortedSet<string>(StringComparer.Ordinal);
+        foreach (var type in arch.Types.Where(arch.InIncomingAdapter))
+        {
+            foreach (var target in type.Dependencies.Select(d => d.Target.FullName).Where(bases.Contains))
+            {
+                found.Add($"{OuterName(type.FullName)}: names the abstract base {target[(target.LastIndexOf('.') + 1)..]} - catch the named failures, each with its own answer");
+            }
+
+            var runtime = arch.RuntimeType(type);
+            if (runtime is null)
+            {
+                continue;
+            }
+
+            const BindingFlags all = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
+            var bodies = WithNested(runtime).SelectMany(t => t.GetMethods(all).Cast<MethodBase>().Concat(t.GetConstructors(all)));
+            foreach (var method in bodies)
+            {
+                IList<ExceptionHandlingClause> clauses;
+                try
+                {
+                    clauses = method.GetMethodBody()?.ExceptionHandlingClauses ?? (IList<ExceptionHandlingClause>)Array.Empty<ExceptionHandlingClause>();
+                }
+                catch (Exception e) when (e is InvalidOperationException or NotSupportedException or BadImageFormatException)
+                {
+                    continue;
+                }
+
+                foreach (var clause in clauses)
+                {
+                    if (clause.Flags != ExceptionHandlingClauseOptions.Clause)
+                    {
+                        continue;
+                    }
+
+                    var caught = clause.CatchType?.FullName;
+                    if (caught is not null && bases.Contains(caught))
+                    {
+                        found.Add($"{OuterName(runtime.FullName ?? type.FullName)}: names the abstract base {caught[(caught.LastIndexOf('.') + 1)..]} - catch the named failures, each with its own answer");
+                    }
+                }
+            }
+        }
+
+        return found.ToList();
+    }
+
+    /// <summary>The type and every type nested in it, compiler-generated ones included, recursively.</summary>
+    private static IEnumerable<Type> WithNested(Type type) =>
+        new[] { type }.Concat(
+            type.GetNestedTypes(BindingFlags.Public | BindingFlags.NonPublic).SelectMany(WithNested));
+
+    /// <summary>The outermost declaring type's name: a compiler-generated nested type reports its owner.</summary>
+    private static string OuterName(string fullName) =>
+        fullName.IndexOf('+', StringComparison.Ordinal) is var plus and > 0 ? fullName[..plus] : fullName;
+
+    /// <summary>The type and, for a generic one such as a task, its generic arguments, recursively.</summary>
+    private static IEnumerable<Type> Unwrapped(Type type)
+    {
+        yield return type;
+        if (type.IsGenericType && !type.IsGenericTypeDefinition)
+        {
+            foreach (var inner in type.GetGenericArguments().SelectMany(Unwrapped))
+            {
+                yield return inner;
+            }
+        }
+    }
 
     /// <summary>What is wrong with a failure's field type, worded for the line, or <c>null</c>.</summary>
     private static string? FieldFinding(Type type, DcaMarkers markers)
@@ -425,10 +725,10 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
             .Where(t => !arch.Layout.Markers.DeclaresTypesIn(t.Namespace?.FullName ?? ""))
             .Where(t => IsAssignableTo(t, typeof(Exception).FullName!));
 
-    /// <summary>The project's own types below one of the two exception base types.</summary>
+    /// <summary>The project's own types below the domain-exception or the port-exception base type.</summary>
     private static IEnumerable<IType> ExceptionsOfEitherLayer(DcaArchitecture arch) =>
         ProjectExceptions(arch)
-            .Where(t => arch.Layout.Markers.Is(nameof(DcaMarkers.DomainException), t) || arch.Layout.Markers.Is(nameof(DcaMarkers.UseCaseException), t));
+            .Where(t => arch.Layout.Markers.Is(nameof(DcaMarkers.DomainException), t) || arch.Layout.Markers.Is(nameof(DcaMarkers.PortException), t));
 
     private static bool IsAssignableTo(IType type, string target) => type.IsAssignableTo(target);
 }

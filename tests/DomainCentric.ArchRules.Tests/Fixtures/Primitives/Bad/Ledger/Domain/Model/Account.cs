@@ -3,9 +3,14 @@ using System.Collections.Generic;
 
 namespace DomainCentric.ArchRules.Tests.Fixtures.Primitives.Bad.Ledger.Domain.Model;
 
-/// <summary>An aggregate holding a flag, a count, a moment and a list of strings bare.</summary>
+/// <summary>
+/// An aggregate holding a count, a moment and a list of strings bare, and taking flag arguments - a bool parameter, a public
+/// bool field and a bool property with a public setter. Its yes/no fact Closed, a bool property with a private setter, passes.
+/// </summary>
 public sealed class Account
 {
+    public bool Dormant;
+
     private int _overdraftCount;
 
     public Account(AccountId id) => Id = id;
@@ -13,6 +18,8 @@ public sealed class Account
     public AccountId Id { get; }
 
     public bool Closed { get; private set; }
+
+    public bool Frozen { get; set; }
 
     public DateTimeOffset OpenedAt { get; private set; }
 
@@ -23,6 +30,8 @@ public sealed class Account
     public void Rename(string holder)
     {
     }
+
+    public void MarkClosed(bool closed) => Closed = closed;
 
     public bool IsOverdrawn() => _overdraftCount > 0;
 

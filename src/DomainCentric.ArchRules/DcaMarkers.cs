@@ -94,8 +94,20 @@ public sealed record DcaMarkers(string Name)
     /// <summary>The base type of a use-case failure.</summary>
     public string UseCaseException { get; init; } = DcaBuildingBlocks + ".Application.UseCaseException";
 
+    /// <summary>The base type of every failure a port's contract declares - read by DCA-ERR-002, which places every subtype in the application layer, and by the rules that tell a project's failures from other exceptions.</summary>
+    public string PortException { get; init; } = DcaBuildingBlocks + ".Application.PortException";
+
+    /// <summary>The base type of a failure an input port declares - read by DCA-ERR-006, which lists an incoming adapter that names it.</summary>
+    public string InputPortException { get; init; } = DcaBuildingBlocks + ".Application.InputPortException";
+
+    /// <summary>The base type of a failure an output port declares, raised by its adapter and caught by the use case - read by DCA-ERR-003.</summary>
+    public string OutputPortException { get; init; } = DcaBuildingBlocks + ".Application.OutputPortException";
+
     /// <summary>The explicit transaction boundary of the application layer.</summary>
     public string TransactionBoundary { get; init; } = DcaBuildingBlocks + ".Application.Transactions.ITransactionBoundary";
+
+    /// <summary>The marker on a case of a closed use-case result that refuses the request - read by DCA-ERR-008, which asks every closed result an input port answers with for at least one such case.</summary>
+    public string Refusal { get; init; } = DcaBuildingBlocks + ".Application.IRefusal";
 
     /// <summary>The base type of every incoming (driving) port.</summary>
     public string InputPort { get; init; } = DcaBuildingBlocks + ".Hexagonal.Ports.In.IInputPort";
@@ -248,7 +260,11 @@ public sealed record DcaMarkers(string Name)
         nameof(Specification) => this with { Specification = type },
         nameof(DomainException) => this with { DomainException = type },
         nameof(UseCaseException) => this with { UseCaseException = type },
+        nameof(PortException) => this with { PortException = type },
+        nameof(InputPortException) => this with { InputPortException = type },
+        nameof(OutputPortException) => this with { OutputPortException = type },
         nameof(TransactionBoundary) => this with { TransactionBoundary = type },
+        nameof(Refusal) => this with { Refusal = type },
         nameof(InputPort) => this with { InputPort = type },
         nameof(UseCase) => this with { UseCase = type },
         nameof(OutputPort) => this with { OutputPort = type },
@@ -409,7 +425,15 @@ public sealed record DcaMarkers(string Name)
 
     public DcaMarkers WithUseCaseException(DcaMarker marker) => WithRole(nameof(UseCaseException), marker);
 
+    public DcaMarkers WithPortException(DcaMarker marker) => WithRole(nameof(PortException), marker);
+
+    public DcaMarkers WithInputPortException(DcaMarker marker) => WithRole(nameof(InputPortException), marker);
+
+    public DcaMarkers WithOutputPortException(DcaMarker marker) => WithRole(nameof(OutputPortException), marker);
+
     public DcaMarkers WithTransactionBoundary(DcaMarker marker) => WithRole(nameof(TransactionBoundary), marker);
+
+    public DcaMarkers WithRefusal(DcaMarker marker) => WithRole(nameof(Refusal), marker);
 
     public DcaMarkers WithInputPort(DcaMarker marker) => WithRole(nameof(InputPort), marker);
 
@@ -469,7 +493,11 @@ public sealed record DcaMarkers(string Name)
             new KeyValuePair<string, string>(nameof(Specification), Specification),
             new KeyValuePair<string, string>(nameof(DomainException), DomainException),
             new KeyValuePair<string, string>(nameof(UseCaseException), UseCaseException),
+            new KeyValuePair<string, string>(nameof(PortException), PortException),
+            new KeyValuePair<string, string>(nameof(InputPortException), InputPortException),
+            new KeyValuePair<string, string>(nameof(OutputPortException), OutputPortException),
             new KeyValuePair<string, string>(nameof(TransactionBoundary), TransactionBoundary),
+            new KeyValuePair<string, string>(nameof(Refusal), Refusal),
             new KeyValuePair<string, string>(nameof(InputPort), InputPort),
             new KeyValuePair<string, string>(nameof(UseCase), UseCase),
             new KeyValuePair<string, string>(nameof(OutputPort), OutputPort),

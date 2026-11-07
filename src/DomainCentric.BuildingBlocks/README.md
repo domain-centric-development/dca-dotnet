@@ -151,7 +151,9 @@ This package is a port of the Java library `dev.domaincentric:dca-building-block
 | `hexagonal.port.out.Store` | `Hexagonal.Ports.Out.IStore` |
 | `hexagonal.port.out.DomainEventPublisher` | `Hexagonal.Ports.Out.IDomainEventPublisher` (`PublishAsync`, `PublishAndClearEventsAsync`) |
 | `hexagonal.port.out.IntegrationEventPublisher` | `Hexagonal.Ports.Out.IIntegrationEventPublisher` (`PublishAsync`) |
-| `application.UseCaseException` (use-case failure, application layer) | `Application.UseCaseException` — the same word in both, because the platform occupies `System.ApplicationException` |
+| `application.UseCaseException` (use-case failure, application layer; extends `InputPortException`) | `Application.UseCaseException` — the same word in both, because the platform occupies `System.ApplicationException` |
+| `application.Refusal` (a refusing case of a use-case result) | `Application.IRefusal` |
+| `application.PortException`, `InputPortException`, `OutputPortException` (failures a port's contract declares) | `Application.PortException`, `InputPortException`, `OutputPortException` |
 | `application.TransactionBoundary` (`inTransaction`) | `Application.Transactions.ITransactionBoundary` (`InTransactionAsync<T>`, `InTransactionAsync`) |
 | `java.util.UUID` / `java.time.Instant` | `System.Guid` / `System.DateTimeOffset` |
 | `Optional<T>` | nullable reference `T?` |

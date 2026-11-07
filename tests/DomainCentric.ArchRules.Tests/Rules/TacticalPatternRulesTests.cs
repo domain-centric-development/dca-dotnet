@@ -142,7 +142,10 @@ public sealed class TacticalPatternRulesTests
 
         Assert.DoesNotContain("IsOverdrawn", message);
         Assert.Contains("field _overdraftCount is Int32", message);
-        Assert.Contains("property Closed is Boolean", message);
+        Assert.DoesNotContain("property Closed", message);
+        Assert.Contains("property Frozen is Boolean with a public setter", message);
+        Assert.Contains("MarkClosed(...) takes Boolean as parameter 1", message);
+        Assert.Contains("field Dormant is a public Boolean anyone may set", message);
         Assert.Contains("property OpenedAt is DateTimeOffset", message);
         Assert.Contains("property Tags is String", message);
         Assert.Contains("property OwnerId is Guid", message);

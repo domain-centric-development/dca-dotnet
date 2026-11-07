@@ -417,6 +417,33 @@ titles, same rationales; the mechanics texts speak namespaces instead of package
   type — the same classification `DomainMetadata` uses. Type level only.
 - **ERR-006 is informational in both libraries.** ArchUnitNET's type model contains no `throw` and no `catch`
   either; the diagnostic lists incoming adapters that drive an input port and depend on neither failure type.
+- **ERR-006 counts a switch over a closed result (WP-171, 2026-11-07).** C# has no sealed hierarchy the compiler
+  checks for exhaustiveness yet, so a closed result is a type deriving from a configured generic union base,
+  `FrameworkTypes.ClosedResultBaseTypes`, matched by name (default `OneOf.OneOfBase`, no package dependency); its
+  cases are the base's generic arguments. ArchUnitNET's type model already holds what a switch compiles to — a
+  type test (`TypeCheckDependency`) and a case in a `Func<Case, …>` handler (`GenericArgumentMemberDependency`) —
+  so no IL is read. Approximation: a member call on the union base names its cases as generic arguments as well,
+  so any such call counts. A C# 15 `union` is not recognised yet; its compiled shape is to be checked at release
+  and added as a further base name or as a separate detection. The Java twin reads sealed types and their
+  permitted subclasses.
+- **ERR-008 — a closed result has a refusal case (WP-171, 2026-11-07), experimental, enforced.** Same id as
+  `dca-archunit` and `dca-rust`. Selects the closed results ERR-006 knows (a type deriving from a configured
+  closed-result base, `FrameworkTypes.ClosedResultBaseTypes`), under `<Module>.Application`; asks one of the base's
+  generic arguments to be assignable to the new `Refusal` role of `DcaMarkers` (default `Application.IRefusal`).
+  Java reads a sealed type's permitted subclasses, recursively; here the cases are flat generic arguments.
+- **Port failures (WP-171, decision 8, 2026-11-07).** `PortException` → `InputPortException` → `UseCaseException`,
+  and `PortException` → `OutputPortException`, abstract, in `Application` — the Java names; no platform type
+  clashes. ERR-002 places every `PortException` subtype in the application layer, ERR-003 accepts `UseCaseException`
+  or `OutputPortException`, ERR-004/005/007 and TAC-025 select through the port-exception role. ERR-006 lists an
+  incoming-adapter type that catches an abstract port-failure base: Java reads the class file's constant pool,
+  here the catch types come from `MethodBody.ExceptionHandlingClauses` of the runtime type and its nested types.
+- **ERR-009 — a domain exception is constructed only in the domain layer (WP-186, 2026-11-07), experimental,
+  enforced.** Same id as `dca-archunit` and `dca-rust`. ArchUnitNET's model does not load the compiler's state
+  machines and closures, so the rule reads the IL through `IntraClassCalls` (as `DCA-TAC-005` does): every unit of a
+  top-level type outside the domain layer and of its nested types, each `newobj` whose constructor's type is
+  assignable to the `DomainException` role. A base-constructor chain is a `call`, not a `newobj`, so it is excluded
+  by the instruction itself; Java excludes it by origin. IL carries no line numbers, so a finding names the type and
+  the source-level method instead of a line.
 - **The base types are excluded by namespace** (`DomainCentric.BuildingBlocks`): they are library code, and
   ERR-002 would otherwise report them as residing outside the project's layers.
 
@@ -582,3 +609,11 @@ differently:
   root's own namespace and is not listed.
 - **`DCA-TAC-025`** counts a type's instance fields by reflection, a record's backing fields included, as the
   wrapper test always has; the nested-type exemption walks `DeclaringType`.
+
+## 2026-11-07 — DCA-TAC-025: a yes/no fact may be a bool field (WP-186)
+
+- Same change as `dca-archunit`: a field typed `bool` or `bool?` passes, a parameter is still reported. A property
+  has no Java twin: a `bool` property passes when nobody outside sets it - no setter, a non-public one, or an `init`
+  setter (read from the `IsExternalInit` modifier on the setter's return parameter) - and a public setter is
+  reported as a flag argument, because it takes the bool as a parameter. A public non-readonly `bool` field is
+  reported for the same reason, as Java reports a public non-final one and Rust a `pub` struct field.

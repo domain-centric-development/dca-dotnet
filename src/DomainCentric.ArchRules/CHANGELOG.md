@@ -4,6 +4,60 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Added
+
+**`DCA-ERR-009` — a domain exception is constructed only in the domain layer (WP-186), experimental** — the twin
+of the Java rule. The model refuses; a use case never invents a domain failure. A failure the application finds
+itself — an output port returned nothing, the caller does not own what it names — is a case of its result or a
+use-case exception. The rule reads the IL of every type outside the domain layer, its async state machines and
+lambda closures included, and fails for each `newobj` of a type assignable to the `DomainException` role. A
+constructor chaining to its base is no creation; the role's own namespace is library code and not selected.
+Reflection and generic factories are not seen. Enforced once experimental rules are switched on.
+
+**`DCA-ERR-008` — a closed use-case result has at least one case marked as a refusal (WP-171), experimental** — the
+twin of the Java rule. A use case that returns its expected refusals as cases of a closed result marks each
+refusing case with `IRefusal` from the building blocks, so the transaction boundary rolls a returned refusal back
+like a thrown failure. Selects the closed results `DCA-ERR-006` knows, under `<Module>.Application`, and fails for
+each one none of whose cases — the generic arguments of its closed-result base — is a refusal. Enforced once
+experimental rules are switched on.
+
+**`DcaMarkers.Refusal`** — a new role (default `DomainCentric.BuildingBlocks.Application.IRefusal`,
+`WithRefusal(DcaMarker)`).
+
+**Port failures (WP-171, decision 8).** `DcaMarkers` roles `PortException`, `InputPortException` and
+`OutputPortException` (defaults: the new building-block types).
+
+### Changed
+
+- **`DCA-TAC-025` lets a domain type keep a bool field; a bool parameter is still a flag argument (WP-186)** — the
+  twin of the Java change. A single yes/no fact of an aggregate may be a field typed `bool` or `bool?`, or a `bool`
+  property nobody outside sets (get-only, a private or an `init` setter): the type is told (`Complete()`) and
+  answers (`IsCompleted`). A `bool` parameter of a method — `SetCompleted(true)` — lets the caller set the state
+  instead of triggering the behaviour and is still reported, and so are a `bool` property with a public setter, a
+  public non-readonly `bool` field and an `IReadOnlyList<bool>`. A `bool` return passes as before. Constructors
+  stay unselected, so a constructor that restores the fact passes; a static factory taking a `bool` is a method and
+  is reported, like one taking a `string`. Title: "Domain types must not hold bare primitives, strings or time
+  types; a boolean only as a field or a predicate".
+- **`DCA-ERR-002`** places every subtype of the port-exception role — `UseCaseException`, `OutputPortException` —
+  under `<Module>.Application`; an output port's failure is declared beside the port although its adapter raises
+  it. Title: "Domain and port exceptions reside in the layer whose failure they name".
+- **`DCA-ERR-003`** accepts `OutputPortException` beside `UseCaseException`; deriving from `PortException` or
+  `InputPortException` directly does not count.
+- **`DCA-ERR-004`, `-005`, `-007`** and the failure exclusion of `DCA-TAC-025` select through the port-exception role.
+- **`DCA-ERR-006`** also lists every incoming-adapter type that catches one of the abstract bases `PortException`,
+  `InputPortException`, `OutputPortException` — read from the exception-handling clauses of its method bodies,
+  nested compiler-generated types (async state machines) included — or depends on one in the type model.
+
+**`DCA-ERR-006` counts a switch over a closed use-case result as translation (WP-171)** — the twin of the Java
+library's change. A use case may return its expected refusals as cases of a closed result instead of throwing
+them. An incoming adapter namespace that refers to a case of such a result — a type an input port answers with
+(a type argument of its use-case interface or a method's return type, tasks unwrapped) that derives from a
+closed-result base — is no longer listed. The base is a new role, `FrameworkTypes.ClosedResultBaseTypes`, matched
+by name; every preset names `OneOf.OneOfBase`, and the library takes no dependency on it. A type test, a cast, a
+case in a per-case handler's signature and a member call on the union base all count; whether every case is
+handled is left to the compiler. A namespace that only holds the result without looking at a case is still
+listed.
+
 ## [0.11.0] - 2026-10-29
 
 ### Added

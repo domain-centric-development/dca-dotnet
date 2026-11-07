@@ -40,6 +40,17 @@ namespace DomainCentric.BuildingBlocks.Application.Transactions;
 /// catches the exception: the outermost <c>InTransactionAsync</c> then rolls back and throws instead of committing
 /// half of the work. Implementations must preserve this; an in-memory implementation emulates it with a
 /// rollback-only flag.</para>
+/// <para><b>A returned refusal rolls back.</b> When the work completes with a value that is an
+/// <see cref="IRefusal"/> - a case of a closed use-case result that refuses the request - the boundary rolls the
+/// transaction back and returns that value unchanged; it does not throw. A closed result is usually a union
+/// wrapper around its cases, so "is a refusal" means: the value implements <see cref="IRefusal"/>, or it is a union
+/// whose current case does (for example the <c>Value</c> a OneOf result exposes through <c>IOneOf</c>). A refusal
+/// returned by the use case therefore undoes every write made before it, exactly as a thrown failure would. Only
+/// the returned value is looked at, not what it contains beyond the union's current case: a use case that carries
+/// the refusal in a value of its own lets the refusing case of that value implement <see cref="IRefusal"/> as
+/// well. Nested, a refusal behaves like a failure: an inner block that returns one marks the shared transaction
+/// rollback-only; the outermost block rolls back without throwing when it returns a refusal too - also after a
+/// caught inner failure - and throws, like after a caught inner failure, when it returns a success.</para>
 /// <para><b>Rules of thumb:</b></para>
 /// <list type="number">
 ///   <item><description>No remote call inside a transaction — neither in a decorated use case nor inside
@@ -53,7 +64,8 @@ public interface ITransactionBoundary
 {
     /// <summary>
     /// Runs <paramref name="work"/> inside one transaction and returns its result; the transaction commits when
-    /// the work completes and rolls back when it throws.
+    /// the work completes, and rolls back when it throws or when its result is a refusal (an
+    /// <see cref="IRefusal"/>, or a union whose current case is one) - which is then returned unchanged.
     /// </summary>
     Task<T> InTransactionAsync<T>(Func<CancellationToken, Task<T>> work, CancellationToken cancellationToken = default);
 

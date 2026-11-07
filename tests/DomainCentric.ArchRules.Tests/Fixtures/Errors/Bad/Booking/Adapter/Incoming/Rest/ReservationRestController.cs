@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using DomainCentric.ArchRules.Tests.Fixtures.Errors.Bad.Booking.Application.ConfirmReservation;
+using DomainCentric.BuildingBlocks.Application;
 
 namespace DomainCentric.ArchRules.Tests.Fixtures.Errors.Bad.Booking.Adapter.Incoming.Rest;
 
@@ -24,6 +25,19 @@ public sealed class ReservationRestController
         catch (Exception)
         {
             return "500";
+        }
+    }
+
+    /// <summary>DCA-ERR-006: catches every port failure alike.</summary>
+    public async Task<string> ConfirmOrConflictAsync(Guid reservationId)
+    {
+        try
+        {
+            return await ConfirmAsync(reservationId);
+        }
+        catch (PortException)
+        {
+            return "409";
         }
     }
 }

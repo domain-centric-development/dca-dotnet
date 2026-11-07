@@ -4,7 +4,28 @@ All notable changes to this package. Format: [Keep a Changelog](https://keepacha
 
 ## [Unreleased]
 
+### Added
+
+- `Application.IRefusal` — the twin of `dca-building-blocks`' `Refusal` (WP-171): a marker for a case of a
+  use-case result that refuses the request. A use case may return its expected refusals as cases of a closed
+  result instead of throwing them, chosen per bounded context; every refusing case implements `IRefusal`, a
+  success case never does.
+- `Application.PortException` (abstract) — the base of every failure a port's contract declares, with two abstract
+  branches: `InputPortException` (declared by an input port, raised by the use case, caught by the incoming
+  adapter) and `OutputPortException` (declared by an output port, raised by the adapter that implements it, caught
+  by the use case — for an expected conflict, not for infrastructure failure). The twins of the Java types, same
+  names: none clashes with a platform type.
+
 ### Changed
+
+- `UseCaseException` now derives from `InputPortException` (was `Exception`). Name, constructors and use are
+  unchanged; a concrete failure keeps deriving from it. XML docs: raised only by a use case; in a context that
+  returns its refusals as cases of a result, not-found and not-owned are cases — both styles valid, per context.
+
+- `ITransactionBoundary` contract: when the work's result is a refusal — it implements `IRefusal`, or it is a
+  union whose current case does — the boundary rolls back and returns the result unchanged, without throwing.
+  Nested, a refusal behaves like a failure. The package ships no implementation; the one a project writes over
+  its persistence framework keeps this contract.
 
 `IDomainEvent` XML documentation: a domain event has no published contract and no version number,
 but once an outbox stores it for a transactional listener, the next deployment reads what the

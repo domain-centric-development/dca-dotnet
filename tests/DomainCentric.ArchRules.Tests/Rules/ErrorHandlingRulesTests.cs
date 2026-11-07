@@ -23,6 +23,7 @@ public sealed class ErrorHandlingRulesTests
     private static readonly string[] ExpectedIds =
     {
         "DCA-ERR-001", "DCA-ERR-002", "DCA-ERR-003", "DCA-ERR-004", "DCA-ERR-005", "DCA-ERR-006", "DCA-ERR-007",
+        "DCA-ERR-008", "DCA-ERR-009",
     };
 
     private static DcaArchitecture Arch(string ns) =>
@@ -76,6 +77,11 @@ public sealed class ErrorHandlingRulesTests
     [InlineData("DCA-ERR-004", "ReservationOverbookedException")]
     [InlineData("DCA-ERR-004", "ReservationWindowClosedException")]
     [InlineData("DCA-ERR-005", "ReservationHttpResponseException")]
+    [InlineData("DCA-ERR-002", "StoreRefusedReservationException")]
+    [InlineData("DCA-ERR-003", "ReservationQuotaExceededException")]
+    [InlineData("DCA-ERR-009", "CancelReservationUseCase.CancelAsync constructs DomainCentric.ArchRules.Tests.Fixtures.Errors.Bad.Booking.Domain.Model.ReservationUnknownException")]
+    [InlineData("DCA-ERR-009", "CancelReservationUseCase.UnknownFor constructs")]
+    [InlineData("DCA-ERR-008", "CancelReservationResult is answered by [ICancelReservationInputPort] and none of its cases [Cancelled, NotFound]")]
     public void EachRuleNamesItsOffender(string id, string offender)
     {
         var rule = Rules(Bad).Rules.Single(r => r.Id == id);
@@ -114,10 +120,91 @@ public sealed class ErrorHandlingRulesTests
         Assert.Contains("no class of the scan is assignable", line, StringComparison.Ordinal);
     }
 
+    private const string Results = Root + ".Results";
+
+    private static IReadOnlyList<string> ObservedOnResults(FrameworkTypes? frameworkTypes = null)
+    {
+        var arch = DcaArchitecture.Load(
+            DcaLayout.ForRootNamespace(Results).WithFrameworkTypes(frameworkTypes ?? FrameworkTypes.None()),
+            typeof(ErrorHandlingRulesTests).Assembly);
+        return new ErrorHandlingRules(arch.Layout).Rules.Single(r => r.Id == "DCA-ERR-006").Observe(arch).ToList();
+    }
+
+    /// <summary>One function per case of a closed result translates the use case's refusals.</summary>
+    [Fact]
+    public void OneHandlerPerCaseOfAClosedResultCountsAsTranslation() =>
+        Assert.DoesNotContain(ObservedOnResults(), line => line.Contains("Adapter.Incoming.Page:", StringComparison.Ordinal));
+
+    /// <summary>A switch expression over the held case, binding no variable, translates as well.</summary>
+    [Fact]
+    public void ASwitchOverTheCasesOfAClosedResultCountsAsTranslation() =>
+        Assert.DoesNotContain(ObservedOnResults(), line => line.Contains("Adapter.Incoming.Web:", StringComparison.Ordinal));
+
+    /// <summary>Neither a failure type nor a case of a closed result: the namespace is still listed.</summary>
+    [Fact]
+    public void AnAdapterWithNeitherHandlerNorResultSwitchIsStillListed() =>
+        Assert.Contains(ObservedOnResults(), line => line.Contains("Adapter.Incoming.Rest:", StringComparison.Ordinal));
+
+    /// <summary>Holding the closed result without looking at a case is no translation.</summary>
+    [Fact]
+    public void ReceivingAClosedResultWithoutItsCasesIsStillListed() =>
+        Assert.Contains(ObservedOnResults(), line => line.Contains("Adapter.Incoming.Feed:", StringComparison.Ordinal));
+
+    /// <summary>The closed-result base is matched by name: without it the result is an ordinary type again.</summary>
+    [Fact]
+    public void WithoutAClosedResultBaseTheSwitchIsNotSeen() =>
+        Assert.Contains(
+            ObservedOnResults(FrameworkTypes.None() with { ClosedResultBaseTypes = Array.Empty<string>() }),
+            line => line.Contains("Adapter.Incoming.Page:", StringComparison.Ordinal));
+
     /// <summary>Where failure types derive from the markers, DCA-ERR-006 lists namespaces as before.</summary>
     [Fact]
     public void WithFailureMarkerTypesTheDiagnosticListsNamespaces() =>
         Assert.DoesNotContain(
             Rules(Bad).Rules.Single(r => r.Id == "DCA-ERR-006").Observe(Arch(Bad)),
             line => line.Contains("no class of the scan is assignable", StringComparison.Ordinal));
+
+    /// <summary>DCA-ERR-008: the result fixture marks its refusing cases, on a union returned two ways.</summary>
+    [Fact]
+    public void TheResultFixtureMarksItsRefusals()
+    {
+        var arch = DcaArchitecture.Load(
+            DcaLayout.ForRootNamespace(Results).WithFrameworkTypes(FrameworkTypes.None()),
+            typeof(ErrorHandlingRulesTests).Assembly);
+        new ErrorHandlingRules(arch.Layout).Rules.Single(r => r.Id == "DCA-ERR-008").Check(arch);
+    }
+
+    /// <summary>DCA-ERR-008 selects nothing when no closed-result base is configured.</summary>
+    [Fact]
+    public void WithoutAClosedResultBaseNothingIsSelected()
+    {
+        var arch = DcaArchitecture.Load(
+            DcaLayout.ForRootNamespace(Bad).WithFrameworkTypes(FrameworkTypes.None() with { ClosedResultBaseTypes = Array.Empty<string>() }),
+            typeof(ErrorHandlingRulesTests).Assembly);
+        new ErrorHandlingRules(arch.Layout).Rules.Single(r => r.Id == "DCA-ERR-008").Check(arch);
+    }
+
+    /// <summary>DCA-ERR-006 lists an incoming adapter that catches the abstract port failure, async body included.</summary>
+    [Fact]
+    public void AnAdapterCatchingThePortFailureGenericallyIsListed() =>
+        Assert.Contains(
+            Rules(Bad).Rules.Single(r => r.Id == "DCA-ERR-006").Observe(Arch(Bad)),
+            line => line.Contains("ReservationRestController: names the abstract base PortException", StringComparison.Ordinal));
+
+    /// <summary>DCA-ERR-006 lists no generic catch where the adapters name the failures.</summary>
+    [Fact]
+    public void NoGenericCatchInTheGoodFixture() =>
+        Assert.DoesNotContain(
+            Rules(Good).Rules.Single(r => r.Id == "DCA-ERR-006").Observe(Arch(Good)),
+            line => line.Contains("names the abstract base", StringComparison.Ordinal));
+
+    /// <summary>DCA-ERR-009: a constructor chaining to its base and the aggregate's own throw are no findings.</summary>
+    [Fact]
+    public void OnlyTheUseCaseConstructionIsReported()
+    {
+        var rule = Rules(Bad).Rules.Single(r => r.Id == "DCA-ERR-009");
+        var ex = Assert.Throws<DcaRuleViolationException>(() => rule.Check(Arch(Bad)));
+        Assert.DoesNotContain("Domain.Model.Reservation.", ex.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("ReservationOverbookedException", ex.Message, StringComparison.Ordinal);
+    }
 }

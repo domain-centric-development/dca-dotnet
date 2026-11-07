@@ -14,6 +14,19 @@ namespace DomainCentric.BuildingBlocks.Application;
 /// caller can tell them apart without reading a message.
 /// </para>
 /// <para>
+/// <b>Who declares, raises and catches it.</b> It is the failure of an input port's contract (see
+/// <see cref="InputPortException"/>): the input port declares it, <em>only the use case</em> raises it, and the
+/// incoming adapter catches each named subtype and answers it. An outgoing adapter never raises it - a failure an
+/// output port declares is an <see cref="OutputPortException"/>, which the use case catches.
+/// </para>
+/// <para>
+/// <b>Thrown or returned - per bounded context.</b> A use case answers its expected refusals (not found, not owned,
+/// a precondition) in one of two styles, chosen per bounded context and uniform within it: it throws them as
+/// subtypes of this class, or it returns them as cases of a closed result, each marked <see cref="IRefusal"/>. Both
+/// styles are equally valid. In a context that returns results, not-found and not-owned are cases of the result,
+/// not exceptions.
+/// </para>
+/// <para>
 /// <b>What is not a use-case failure.</b> A broken rule of the model is a
 /// <see cref="DomainCentric.BuildingBlocks.Ddd.Tactical.DomainException"/> and stays in the domain layer; an
 /// argument guard stays the platform's own argument exception. A use-case failure is raised by the use case,
@@ -31,7 +44,7 @@ namespace DomainCentric.BuildingBlocks.Application;
 /// <c>UseCaseException</c>, so one word names the concept in either stack.
 /// </para>
 /// </remarks>
-public abstract class UseCaseException : Exception
+public abstract class UseCaseException : InputPortException
 {
     /// <summary>A failure described in the language of the use case.</summary>
     protected UseCaseException(string message)
