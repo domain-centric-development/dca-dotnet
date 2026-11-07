@@ -17,10 +17,11 @@ public sealed class HexagonalRulesTests
         ["DCA-HEX-017"] = "its roles are empty in every preset - ListenersThatDriveAnInputPort* configure them on the Listeners fixture",
         ["DCA-HEX-018"] = "negative fixture in ControllerPlace - AControllerOutsideTheIncomingAdaptersIsReported",
         ["DCA-HEX-019"] = "negative fixture in PortPlace - AnOutputPortImplementedOutsideTheOutgoingAdaptersIsReported",
+        ["DCA-HEX-020"] = "informational diagnostic, never fails - a role read in the adapter's code is observed in Authorization.Bad",
 
     };
 
-    private static readonly string[] ExpectedIds = { "DCA-HEX-001", "DCA-HEX-002", "DCA-HEX-003", "DCA-HEX-004", "DCA-HEX-005", "DCA-HEX-006", "DCA-HEX-007", "DCA-HEX-008", "DCA-HEX-009", "DCA-HEX-010", "DCA-HEX-011", "DCA-HEX-012", "DCA-HEX-013", "DCA-HEX-014", "DCA-HEX-016", "DCA-HEX-017", "DCA-HEX-018", "DCA-HEX-019" };
+    private static readonly string[] ExpectedIds = { "DCA-HEX-001", "DCA-HEX-002", "DCA-HEX-003", "DCA-HEX-004", "DCA-HEX-005", "DCA-HEX-006", "DCA-HEX-007", "DCA-HEX-008", "DCA-HEX-009", "DCA-HEX-010", "DCA-HEX-011", "DCA-HEX-012", "DCA-HEX-013", "DCA-HEX-014", "DCA-HEX-016", "DCA-HEX-017", "DCA-HEX-018", "DCA-HEX-019", "DCA-HEX-020" };
 
     private static DcaArchitecture Arch(string ns) =>
         DcaArchitecture.Load(DcaLayout.ForRootNamespace(ns), typeof(HexagonalRulesTests).Assembly);
@@ -231,5 +232,30 @@ public sealed class HexagonalRulesTests
         Assert.Contains("OrderStatusText.Concatenated calls ToString on the enum", observed);
         Assert.Contains("OrderStatusText.Composite formats into text (String.Format) the enum", observed);
         Assert.Contains("OrderStatusText.Named calls Enum.GetName on the enum", observed);
+    }
+
+    private const string AuthorizationBad = "DomainCentric.ArchRules.Tests.Fixtures.Authorization.Bad";
+    private const string AuthorizationGood = "DomainCentric.ArchRules.Tests.Fixtures.Authorization.Good";
+
+    [Fact]
+    public void ARoleReadInTheAdaptersCodeIsObserved()
+    {
+        var observed = Rules(AuthorizationBad).Rules.Single(r => r.Id == "DCA-HEX-020").Observe(Arch(AuthorizationBad));
+
+        var line = Assert.Single(observed);
+        Assert.Contains("LedgerController.CloseBooks reads the caller's roles through ICaller.IsInRole()", line);
+        Assert.Contains("[Authorize]", line);
+    }
+
+    [Fact]
+    public void ACheckDeclaredWithTheAuthorizationAttributeIsNotObserved() =>
+        Assert.Empty(Rules(AuthorizationGood).Rules.Single(r => r.Id == "DCA-HEX-020").Observe(Arch(AuthorizationGood)));
+
+    [Fact]
+    public void WithoutAnAuthorizationAttributeNothingIsSelected()
+    {
+        var layout = DcaLayout.ForRootNamespace(AuthorizationBad).WithFrameworkTypes(FrameworkTypes.None());
+
+        Assert.Empty(new HexagonalRules(layout).Rules.Single(r => r.Id == "DCA-HEX-020").Observe(DcaArchitecture.Load(layout, typeof(HexagonalRulesTests).Assembly)));
     }
 }

@@ -91,3 +91,13 @@ namespace Microsoft.AspNetCore.Mvc
         public string Template { get; }
     }
 }
+
+namespace Microsoft.AspNetCore.Authorization
+{
+    /// <summary>Stand-in for the declarative authorization attribute.</summary>
+    [System.AttributeUsage(System.AttributeTargets.Class | System.AttributeTargets.Method, AllowMultiple = true)]
+    public sealed class AuthorizeAttribute : System.Attribute
+    {
+        public string? Roles { get; set; }
+    }
+}

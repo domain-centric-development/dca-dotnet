@@ -631,3 +631,11 @@ differently:
   only). Parameters compare by exact runtime type (a `CancellationToken` beside them is allowed); the return type is
   walked through generic arguments and arrays, so `Task<T?>` and `ValueTask<T?>` count. A repository found by name
   takes the name with or without the leading `I`.
+
+## 2026-11-07 — DCA-HEX-020: a claims-only check is declared on the route (WP-121 decision 2)
+
+- Same rule as `dca-archunit`, read from the IL through `IntraClassCalls` (as `DCA-HEX-016`): every `MethodBase`
+  operand of a non-nested incoming-adapter type and its compiler-generated units whose name matches
+  `^(is(user)?inrole|has(any)?(role|authority))$`, ignoring case - `ClaimsPrincipal.IsInRole` included. The
+  preset role is `FrameworkTypes.AuthorizationAttributeTypes` (`AuthorizeAttribute` in `AspNetCore()`). The Java
+  sample's first cut showed why the plain accessors stay out: issuing a token passes the roles on.

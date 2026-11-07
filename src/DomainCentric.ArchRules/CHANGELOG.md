@@ -6,6 +6,19 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ### Added
 
+**`DCA-HEX-020` — diagnostic: incoming adapters that read the caller's roles in their own code (WP-121 decision 2),
+experimental, informational** — the twin of the Java rule. A check that reads nothing but the caller's roles or
+claims is declared on the route with the framework's own attribute; a check that needs the stored data belongs to
+the use case. The rule reads the IL of every type in the incoming adapter layer, its async state machines and
+closures included, and lists each call of a method whose name asks whether the caller holds a role or an authority
+(`IsInRole`, `IsUserInRole`, `HasRole`, `HasAnyRole`, `HasAuthority`, `HasAnyAuthority`, ignoring case). A member
+that only hands roles over is not listed; a role claim searched with `FindAll`/`HasClaim` and a project helper
+declared elsewhere are not seen. Nothing is selected when the new role is empty. It never fails the build.
+
+**`FrameworkTypes.AuthorizationAttributeTypes`** — the attributes that declare a claims-only check on a route,
+controller or page; `AspNetCore()` names `Microsoft.AspNetCore.Authorization.AuthorizeAttribute`, `None()` is empty.
+No DCA attribute stands beside the framework's own.
+
 **`DCA-TAC-026` — the repository of an owned aggregate declares a lookup by the aggregate's id and the owner's id
 (WP-121), experimental** — the twin of the Java rule. An object loaded by its id alone is reachable by anyone who
 knows or guesses the id (OWASP A01, broken access control). The rule selects every concrete aggregate root that also

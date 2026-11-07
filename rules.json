@@ -300,6 +300,17 @@
       "maturity": "experimental"
     },
     {
+      "set": "hexagonal",
+      "id": "DCA-HEX-020",
+      "title": "Diagnostic: incoming adapters that read the caller's roles in their own code",
+      "rationale": "A check that reads nothing but the caller's roles or claims - is this caller staff? - is a property of the exposure and is declared on the route, with the framework's authorization annotation, where a reader of the route sees it and the framework answers an unauthenticated and an unauthorized caller apart. A branch on the caller's roles inside the adapter's code hides the gate and renders whatever status the branch writes. A check that needs the stored data - is this yours? - is not claims-only and belongs to the use case",
+      "selects": "Non-nested types in the incoming adapter layer of every module root - by default <Module>.Adapter.Incoming - with their runtime type in the loaded assemblies, together with their nested, async state-machine and closure types, and the calls their IL makes. Nothing is selected when the configured authorization-attribute role is empty: without a declarative form there is nothing to advise.",
+      "checks": "Informational diagnostic only: lists every call of a method whose name asks whether the caller holds a role or an authority - IsInRole, IsUserInRole, HasRole, HasAnyRole, HasAuthority, HasAnyAuthority, compared ignoring case - on any declaring type, and never fails. A policy or role named in the authorization attribute is metadata, not a call, and is not listed. A member that only hands the roles over is not listed, so an adapter that issues a token or builds the caller's principal passes; for the same reason a role compared by the adapter itself - a claim of the role type searched with FindAll or HasClaim - is not seen, nor is a helper of the project's own - IsAdmin(), IsStaff() - declared outside the incoming adapter.",
+      "implementation": "dotnet",
+      "status": "informational",
+      "maturity": "experimental"
+    },
+    {
       "set": "tactical",
       "id": "DCA-TAC-001",
       "title": "Aggregate Roots must implement IAggregateRoot",

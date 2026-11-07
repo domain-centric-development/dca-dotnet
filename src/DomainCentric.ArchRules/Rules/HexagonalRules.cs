@@ -49,6 +49,7 @@ public sealed class HexagonalRules : IDcaRuleSet
             ListenersThatDriveAnInputPortRunAfterTheCommit(),
             ControllersResideInIncomingAdapters(),
             OutputPortImplementationsResideInOutgoingAdapters(),
+            ClaimsOnlyAuthorizationIsDeclaredOnTheRoute(),
         }.AsReadOnly();
     }
 
@@ -744,6 +745,80 @@ public sealed class HexagonalRules : IDcaRuleSet
                 + " PrintMembers and ToString, are not read. A boxed value stored first and formatted later,"
                 + " a serializer that writes names, and a name read through a generic helper are not seen;"
                 + " whether the text reaches a client stays with review.");
+
+    /// <summary>
+    /// The names of the methods through which code asks whether the caller holds a role or an authority - a
+    /// principal's <c>IsInRole</c>, a security expression's <c>HasRole</c>. Matched by name, ignoring case, on any
+    /// declaring type, so the rule names no framework type. A member that only hands the roles over is no question.
+    /// </summary>
+    private static readonly Regex RoleQuestion = new("^(is(user)?inrole|has(any)?(role|authority))$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// DCA-HEX-020 (experimental, informational). A check that reads nothing but the caller's roles or claims is
+    /// declared on the route, with the framework's own authorization attribute - not decided by a branch in the
+    /// adapter's code. Read from the IL: every call an incoming adapter makes, its async state machines and closures
+    /// included.
+    /// </summary>
+    public IDcaRule ClaimsOnlyAuthorizationIsDeclaredOnTheRoute() =>
+        DcaRule.Informational(
+            "DCA-HEX-020",
+            "Diagnostic: incoming adapters that read the caller's roles in their own code",
+            "A check that reads nothing but the caller's roles or claims - is this caller staff? - is a property of"
+                + " the exposure and is declared on the route, with the framework's authorization annotation, where a"
+                + " reader of the route sees it and the framework answers an unauthenticated and an unauthorized"
+                + " caller apart. A branch on the caller's roles inside the adapter's code hides the gate and renders"
+                + " whatever status the branch writes. A check that needs the stored data - is this yours? - is not"
+                + " claims-only and belongs to the use case",
+            arch =>
+            {
+                var attributes = Layout.FrameworkTypes.AuthorizationAttributeTypes;
+                if (attributes.Count == 0)
+                {
+                    return new List<string>();
+                }
+
+                var declare = string.Join(" or ", attributes.Select(a => "[" + a[(a.LastIndexOf('.') + 1)..].Replace("Attribute", "", StringComparison.Ordinal) + "]"));
+                var observed = new SortedSet<string>(StringComparer.Ordinal);
+                foreach (var adapter in arch.Types.Where(arch.InIncomingAdapter))
+                {
+                    var runtime = arch.RuntimeType(adapter);
+                    if (runtime is null || runtime.IsNested)
+                    {
+                        continue;
+                    }
+
+                    foreach (var unit in new IntraClassCalls(runtime).Units)
+                    {
+                        foreach (var (_, operand) in IntraClassCalls.IlInstructions(unit))
+                        {
+                            if (operand is MethodBase call && RoleQuestion.IsMatch(call.Name))
+                            {
+                                observed.Add(
+                                    $"{adapter.FullName}.{IntraClassCalls.DisplayName(unit)} reads the caller's roles through"
+                                    + $" {call.DeclaringType?.Name}.{call.Name}() - declare a claims-only check on the route with"
+                                    + $" {declare}; a check that needs the stored data belongs to the use case");
+                            }
+                        }
+                    }
+                }
+
+                return observed.ToList();
+            })
+        .Experimental()
+        .Selecting(
+            "Non-nested types in the incoming adapter layer of every module root - by default <Module>.Adapter.Incoming"
+                + " - with their runtime type in the loaded assemblies, together with their nested, async state-machine"
+                + " and closure types, and the calls their IL makes. Nothing is selected when the configured"
+                + " authorization-attribute role is empty: without a declarative form there is nothing to advise.")
+        .Checking(
+            "Informational diagnostic only: lists every call of a method whose name asks whether the caller holds a"
+                + " role or an authority - IsInRole, IsUserInRole, HasRole, HasAnyRole, HasAuthority, HasAnyAuthority,"
+                + " compared ignoring case - on any declaring type, and never fails. A policy or role named in the"
+                + " authorization attribute is metadata, not a call, and is not listed. A member that only hands the"
+                + " roles over is not listed, so an adapter that issues a token or builds the caller's principal"
+                + " passes; for the same reason a role compared by the adapter itself - a claim of the role type"
+                + " searched with FindAll or HasClaim - is not seen, nor is a helper of the project's own - IsAdmin(),"
+                + " IsStaff() - declared outside the incoming adapter.");
 
     /// <summary>How a call spells an enum by its member name, or <c>null</c>; <paramref name="spelled"/> is the enum.</summary>
     private static string? EnumNameUse(MethodBase call, Type? boxedEnum, Func<Type?, bool> innerEnum, out Type? spelled)

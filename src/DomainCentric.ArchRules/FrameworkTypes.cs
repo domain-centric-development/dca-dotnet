@@ -125,6 +125,9 @@ public sealed record FrameworkTypes(
     /// <summary>Method-name prefixes by which a framework maps a handler of a controller or page model to an HTTP GET request without an attribute. <c>DCA-HEX-014</c> treats such a method like one carrying a <see cref="GetMappingAttributeTypes"/> attribute. Empty in <see cref="None"/>.</summary>
     public IReadOnlyList<string> GetHandlerNamePrefixes { get; init; } = Array.Empty<string>();
 
+    /// <summary>Full attribute type names that declare a claims-only authorization on a route, a controller or a page - a check that reads nothing but the caller's roles or claims (derived attributes included). The counterpart of the Java library's <c>authorizationAnnotation</c> role. <c>DCA-HEX-020</c> lists an incoming adapter that asks for the caller's roles in its own code instead; no DCA attribute stands beside the framework's own. Empty in <see cref="None"/>; the rule then selects nothing.</summary>
+    public IReadOnlyList<string> AuthorizationAttributeTypes { get; init; } = Array.Empty<string>();
+
     /// <summary>Always empty, and an assignment is ignored. The role was read only by <c>DCA-HEX-015</c>, which is retired; the property stays so a with-expression written against 0.8.0 still compiles.</summary>
     [Obsolete("DCA-HEX-015 is retired and nothing reads this role; remove the assignment.")]
     public IReadOnlyList<string> InstanceLocalStateTypes { get => Array.Empty<string>(); init { } }
@@ -145,6 +148,7 @@ public sealed record FrameworkTypes(
             GetMappingAttributeTypes = Array.AsReadOnly(new[] { "Microsoft.AspNetCore.Mvc.HttpGetAttribute", "Microsoft.AspNetCore.Mvc.AcceptVerbsAttribute#HttpMethods=GET", "Microsoft.AspNetCore.Mvc.Routing.IActionHttpMethodProvider#HttpMethods=" }),
             NonActionAttributeTypes = Array.AsReadOnly(new[] { "Microsoft.AspNetCore.Mvc.NonActionAttribute" }),
             GetHandlerNamePrefixes = Array.AsReadOnly(new[] { "OnGet" }),
+            AuthorizationAttributeTypes = Array.AsReadOnly(new[] { "Microsoft.AspNetCore.Authorization.AuthorizeAttribute" }),
         };
 
     /// <summary>
