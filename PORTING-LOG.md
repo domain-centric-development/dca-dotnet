@@ -620,3 +620,14 @@ differently:
   setter (read from the `IsExternalInit` modifier on the setter's return parameter) - and a public setter is
   reported as a flag argument, because it takes the bool as a parameter. A public non-readonly `bool` field is
   reported for the same reason, as Java reports a public non-final one and Rust a `pub` struct field.
+
+## 2026-11-07 — DCA-TAC-026: an owned aggregate is loaded through its owner (WP-121)
+
+- Same rule as `dca-archunit`. The marker follows the .NET convention of a non-generic base for reflection:
+  `IOwned` (the role's type) and `IOwned<TOwnerId> : IOwned where TOwnerId : IId`. The owner id type is read by
+  reflection from the generic interface with one argument whose definition carries the role; the aggregate id from
+  the repository's `IRepository<,>` second argument or the aggregate's `Id` property. Methods are read from the
+  runtime type and its interfaces, so the inherited `FindByIdAsync` is seen and does not count (one id parameter
+  only). Parameters compare by exact runtime type (a `CancellationToken` beside them is allowed); the return type is
+  walked through generic arguments and arrays, so `Task<T?>` and `ValueTask<T?>` count. A repository found by name
+  takes the name with or without the leading `I`.

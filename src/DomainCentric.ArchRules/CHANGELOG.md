@@ -6,6 +6,19 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ### Added
 
+**`DCA-TAC-026` — the repository of an owned aggregate declares a lookup by the aggregate's id and the owner's id
+(WP-121), experimental** — the twin of the Java rule. An object loaded by its id alone is reachable by anyone who
+knows or guesses the id (OWASP A01, broken access control). The rule selects every concrete aggregate root that also
+carries the new `Owned` role (`IOwned<TOwnerId>` of the building blocks) and asks each repository interface that
+binds it for at least one method — inherited interface methods included — taking exactly the aggregate's id type and
+the owner id type bound on `IOwned<>` (any name, either position, a cancellation token allowed) and returning the
+aggregate, nullable, in a `Task`/`ValueTask` or another container. A yes/no question (`Exists…`) does not count; an
+aggregate that implements only the non-generic `IOwned` is reported. Whether a use case calls the scoped lookup is
+not checked. Enforced once experimental rules are switched on.
+
+**`DcaMarkers` role `Owned`** (default `DomainCentric.BuildingBlocks.Ddd.Tactical.IOwned`, the non-generic base;
+`WithOwned(DcaMarker)`), listed among the domain-facing roles.
+
 **`DCA-ERR-009` — a domain exception is constructed only in the domain layer (WP-186), experimental** — the twin
 of the Java rule. The model refuses; a use case never invents a domain failure. A failure the application finds
 itself — an output port returned nothing, the caller does not own what it names — is a case of its result or a

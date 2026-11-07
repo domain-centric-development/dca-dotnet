@@ -60,6 +60,14 @@ public sealed record DcaMarkers(string Name)
     /// <summary>The marker of an aggregate root.</summary>
     public string AggregateRoot { get; init; } = DcaBuildingBlocks + ".Ddd.Tactical.IAggregateRoot";
 
+    /// <summary>
+    /// The marker of an aggregate root that belongs to someone. Its generic form names the owner's id type - read
+    /// by DCA-TAC-026, which asks the aggregate's repository for a lookup by the aggregate's id and the owner's id.
+    /// The role names the non-generic marker; the owner id type is read from the generic interface of the same
+    /// name with one type argument.
+    /// </summary>
+    public string Owned { get; init; } = DcaBuildingBlocks + ".Ddd.Tactical.IOwned";
+
     /// <summary>The marker of an entity.</summary>
     public string Entity { get; init; } = DcaBuildingBlocks + ".Ddd.Tactical.IEntity";
 
@@ -250,6 +258,7 @@ public sealed record DcaMarkers(string Name)
     private DcaMarkers WithRoleType(string role, string type) => role switch
     {
         nameof(AggregateRoot) => this with { AggregateRoot = type },
+        nameof(Owned) => this with { Owned = type },
         nameof(Entity) => this with { Entity = type },
         nameof(Value) => this with { Value = type },
         nameof(Id) => this with { Id = type },
@@ -405,6 +414,8 @@ public sealed record DcaMarkers(string Name)
 
     public DcaMarkers WithAggregateRoot(DcaMarker marker) => WithRole(nameof(AggregateRoot), marker);
 
+    public DcaMarkers WithOwned(DcaMarker marker) => WithRole(nameof(Owned), marker);
+
     public DcaMarkers WithEntity(DcaMarker marker) => WithRole(nameof(Entity), marker);
 
     public DcaMarkers WithValue(DcaMarker marker) => WithRole(nameof(Value), marker);
@@ -483,6 +494,7 @@ public sealed record DcaMarkers(string Name)
         var roles = new[]
         {
             new KeyValuePair<string, string>(nameof(AggregateRoot), AggregateRoot),
+            new KeyValuePair<string, string>(nameof(Owned), Owned),
             new KeyValuePair<string, string>(nameof(Entity), Entity),
             new KeyValuePair<string, string>(nameof(Value), Value),
             new KeyValuePair<string, string>(nameof(Id), Id),
@@ -561,6 +573,7 @@ public sealed record DcaMarkers(string Name)
     public static readonly IReadOnlyList<string> DomainFacingRoles = new[]
     {
         nameof(AggregateRoot),
+        nameof(Owned),
         nameof(Entity),
         nameof(Value),
         nameof(Id),

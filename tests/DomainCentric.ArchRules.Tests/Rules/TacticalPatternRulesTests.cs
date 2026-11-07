@@ -15,12 +15,13 @@ public sealed class TacticalPatternRulesTests
     private static readonly IReadOnlyDictionary<string, string> NoNegativeFixture = new Dictionary<string, string>
     {
         ["DCA-TAC-025"] = "negative fixture in Primitives - BarePrimitivesInTheDomainAreReported",
+        ["DCA-TAC-026"] = "negative fixture in Ownership - AnOwnedAggregateWithoutAScopedLookupIsReported",
     };
 
     /// <summary>Experimental and stricter than the shared good fixture; its positive fixture is Primitives.Good.</summary>
-    private static readonly string[] NotOnTheSharedGoodFixture = { "DCA-TAC-025" };
+    private static readonly string[] NotOnTheSharedGoodFixture = { "DCA-TAC-025", "DCA-TAC-026" };
 
-    private static readonly string[] ExpectedIds = Enumerable.Range(1, 21).Select(i => $"DCA-TAC-{i:000}").Append("DCA-TAC-023").Append("DCA-TAC-024").Append("DCA-TAC-025").ToArray();
+    private static readonly string[] ExpectedIds = Enumerable.Range(1, 21).Select(i => $"DCA-TAC-{i:000}").Append("DCA-TAC-023").Append("DCA-TAC-024").Append("DCA-TAC-025").Append("DCA-TAC-026").ToArray();
 
     public static IEnumerable<object[]> RuleIds() =>
         ExpectedIds.Where(id => !NotOnTheSharedGoodFixture.Contains(id)).Select(id => new object[] { id });
@@ -160,4 +161,20 @@ public sealed class TacticalPatternRulesTests
 
     [Fact]
     public void ADomainOfValueObjectsPasses() => Rule(PrimitivesGood, "DCA-TAC-025").Check(Arch(PrimitivesGood));
+
+    private const string OwnershipBad = "DomainCentric.ArchRules.Tests.Fixtures.Ownership.Bad";
+    private const string OwnershipGood = "DomainCentric.ArchRules.Tests.Fixtures.Ownership.Good";
+
+    [Fact]
+    public void AnOwnedAggregateWithoutAScopedLookupIsReported()
+    {
+        var message = Assert.Throws<DcaRuleViolationException>(
+            () => Rule(OwnershipBad, "DCA-TAC-026").Check(Arch(OwnershipBad))).Message;
+
+        Assert.Contains("IMedicalRecordRepository declares no lookup taking RecordId and PatientId for the owned aggregate", message);
+        Assert.Contains("Consent is owned but names no owner id type", message);
+    }
+
+    [Fact]
+    public void AnOwnedAggregateWithAScopedLookupPasses() => Rule(OwnershipGood, "DCA-TAC-026").Check(Arch(OwnershipGood));
 }

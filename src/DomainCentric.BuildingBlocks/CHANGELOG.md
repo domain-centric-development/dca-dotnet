@@ -6,6 +6,13 @@ All notable changes to this package. Format: [Keep a Changelog](https://keepacha
 
 ### Added
 
+- `Ddd.Tactical.IOwned<TOwnerId> where TOwnerId : IId` (with the non-generic base `IOwned`) — the twin of
+  `dca-building-blocks`' `Owned<OWNER>` (WP-121): an empty marker for an aggregate root that belongs to someone,
+  the type argument naming the owner's id type (`IOwned<PatientId>`, `IOwned<TenantId>`). The aggregate's
+  repository declares a lookup by its id and the owner's id; an object loaded by id alone is reachable by anyone
+  who knows or guesses the id (OWASP A01). The owner may change only through an explicit operation of the
+  aggregate after the use case proved the right to it; a guest with a pseudonymous identity from a signed token is
+  an owner; where no identity exists and the id itself is the secret, the aggregate is not owned.
 - `Application.IRefusal` — the twin of `dca-building-blocks`' `Refusal` (WP-171): a marker for a case of a
   use-case result that refuses the request. A use case may return its expected refusals as cases of a closed
   result instead of throwing them, chosen per bounded context; every refusing case implements `IRefusal`, a

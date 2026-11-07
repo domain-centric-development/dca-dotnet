@@ -16,7 +16,8 @@ The package has **zero dependencies** and targets `netstandard2.1`, `net8.0` and
 Marker interfaces for the Domain-Driven Design tactical patterns that guide domain model
 implementation: `IId` (identity value objects), `IEntity<,>` (objects with identity), `IValue`
 (immutable objects defined by attributes), `IAggregateRoot<,>` (entry point to aggregate clusters,
-with `AggregateRootBase<,>` as a ready-made event-collecting base class), `IDomainEvent` (important
+with `AggregateRootBase<,>` as a ready-made event-collecting base class), `IOwned<>` (an aggregate root that
+belongs to someone, loaded through its owner), `IDomainEvent` (important
 domain occurrences), `IIntegrationEvent` + `[IntegrationEventType]` (versioned cross-context events),
 `IDomainService` (stateless domain operations), `IDomainGateway` (domain-owned port to external
 facts), `IFactory` (complex object creation) and `ISpecification<>` (business rules as objects).
@@ -77,7 +78,7 @@ bounded context under `Application.Shared`, extending `IOutputPort` or `IStore`.
 * **Records for values and events.** Value objects (`IValue`) and events (`IDomainEvent`,
   `IIntegrationEvent`) are `record`s; identifiers (`IId`) are `readonly record struct`s. The
   compiler provides value equality and immutability.
-* **Non-generic bases for reflection.** `IEntity`, `IAggregateRoot` and `IRepository` exist as
+* **Non-generic bases for reflection.** `IEntity`, `IAggregateRoot`, `IOwned` and `IRepository` exist as
   empty (or minimal) non-generic bases so rules can test `IsAssignableFrom` without closing the
   generic definitions. Domain code always implements the generic variants.
 * **Self-referencing generics are Java parity, not C# idiom.** `IEntity<TSelf, TId>`,
@@ -122,6 +123,7 @@ This package is a port of the Java library `dev.domaincentric:dca-building-block
 | `ddd.tactical.Entity<T, ID>` | `Ddd.Tactical.IEntity` (non-generic base) + `IEntity<TSelf, TId>` |
 | `ddd.tactical.AggregateRoot<T, ID>` | `Ddd.Tactical.IAggregateRoot` (non-generic base) + `IAggregateRoot<TSelf, TId>` |
 | `ddd.tactical.BaseAggregateRoot<T, ID>` | `Ddd.Tactical.AggregateRootBase<TSelf, TId>` |
+| `ddd.tactical.Owned<OWNER extends Id>` | `Ddd.Tactical.IOwned` (non-generic base) + `IOwned<TOwnerId> where TOwnerId : IId` |
 | `ddd.tactical.DomainEvent` (`eventId()`, `occurredOn()`) | `Ddd.Tactical.IDomainEvent` (`EventId`, `OccurredOn`) |
 | `ddd.tactical.IntegrationEvent` | `Ddd.Tactical.IIntegrationEvent` |
 | `@IntegrationEventType(name, version)` | `[IntegrationEventType(name, Version = …)]` |

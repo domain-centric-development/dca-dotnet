@@ -66,6 +66,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
             AggregateRootsHaveNoPublicConstructors(),
             ValueObjectsHaveNoNeutralFactoryBesideAnOriginFactory(),
             DomainHoldsNoBarePrimitives(),
+            OwnedAggregatesAreLoadedThroughTheirOwner(),
         }.AsReadOnly();
     }
 
@@ -1119,6 +1120,198 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 + " any other type: each component is a value object itself. A reported type with exactly one"
                 + " instance field that is no value or id is told to carry the value or id role to count as a"
                 + " wrapper. An empty selection passes.");
+
+    // ---------------------------------------------------------------------------------------------
+    // Ownership
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// DCA-TAC-026 (experimental). An aggregate that belongs to someone is found through its owner: its repository
+    /// offers a lookup by the aggregate's id and the owner's id, so a use case acting for a caller never has to load
+    /// it by id alone.
+    /// </summary>
+    public static IDcaRule OwnedAggregatesAreLoadedThroughTheirOwner() =>
+        DcaRule.Check(
+            "DCA-TAC-026",
+            "The repository of an owned aggregate declares a lookup by the aggregate's id and the owner's id",
+            "An object loaded by its id alone is reachable by anyone who knows or guesses the id - the insecure direct"
+            + " object reference of broken access control (OWASP Top 10, A01). An aggregate marked as owned belongs to"
+            + " someone; its repository offers a lookup scoped to the owner, so a use case acting for a caller can load"
+            + " it through the caller and an unscoped lookup is never the only way in. Whether the use case calls the"
+            + " scoped lookup, and whether it proved the caller's right to a change of owner, is logic the rule does"
+            + " not see",
+            arch =>
+            {
+                var violations = new List<string>();
+                var repositories = RepositoryInterfaces(arch).ToList();
+                foreach (var aggregate in NonInterfaceTypes(arch).OfType<Class>()
+                             .Where(c => c.IsAbstract != true
+                                 && IsRole(arch, c, nameof(DcaMarkers.Owned))
+                                 && IsRole(arch, c, nameof(DcaMarkers.AggregateRoot))))
+                {
+                    var runtime = arch.RuntimeType(aggregate);
+                    if (runtime is null)
+                    {
+                        continue;
+                    }
+
+                    var ownerId = OwnerIdOf(arch, runtime);
+                    if (ownerId is null || ownerId.IsGenericParameter)
+                    {
+                        violations.Add(
+                            $"{aggregate.FullName} is owned but names no owner id type - implement the generic"
+                            + $" {SimpleTypeName(arch.Layout.Markers.Owned)}<TOwnerId> with the owner's id type");
+                        continue;
+                    }
+
+                    foreach (var repository in RepositoriesOf(arch, aggregate, runtime, repositories))
+                    {
+                        var repositoryType = arch.RuntimeType(repository);
+                        if (repositoryType is null)
+                        {
+                            continue;
+                        }
+
+                        var aggregateId = AggregateIdOf(arch, runtime, repositoryType);
+                        var methods = repositoryType.GetMethods()
+                            .Concat(repositoryType.GetInterfaces().SelectMany(i => i.GetMethods()));
+                        if (!methods.Any(m => IsScopedLookup(arch, m, runtime, aggregateId, ownerId)))
+                        {
+                            violations.Add(
+                                $"{repository.FullName} declares no lookup taking {aggregateId?.Name ?? "the aggregate's id"}"
+                                + $" and {ownerId.Name} for the owned aggregate {aggregate.FullName}");
+                        }
+                    }
+                }
+
+                DcaRule.Fail(
+                    "The repository of an owned aggregate must declare a lookup by the aggregate's id and the owner's id,"
+                    + " so the aggregate is never reachable by its id alone.",
+                    violations,
+                    "add a lookup such as FindByIdForOwnerAsync(id, ownerId) returning the aggregate, and load it through"
+                    + " that method wherever a caller is known");
+            })
+            .Experimental()
+            .Selecting(
+                "Concrete classes below the root namespace assignable to both the owned role (by default IOwned of"
+                + " the building blocks) and the aggregate-root role, with their runtime type in the loaded assemblies,"
+                + " each with the repository interfaces that bind it: the first type argument of the generic"
+                + " repository role, or - where the binding is raw or unresolved - the interface in the same context"
+                + " named after the aggregate plus the repository suffix, with or without the leading I. An owned"
+                + " aggregate without a repository is not selected.")
+            .Checking(
+                "The owner id type is the type argument of the generic interface the aggregate implements that carries"
+                + " the owned role; an aggregate that implements only the non-generic role, or binds a generic parameter,"
+                + " is reported. The aggregate's id type is the second type argument of the repository's binding, or"
+                + " else the type of the aggregate's Id property. At least one method of the repository, inherited"
+                + " interface methods included, takes a parameter of exactly the aggregate's id type and a further"
+                + " parameter of exactly the owner id type - in either position, under any name, other parameters such"
+                + " as a cancellation token allowed - and returns a type that involves the aggregate: the aggregate"
+                + " itself, nullable, in a Task or ValueTask or another generic container. A method that answers only"
+                + " yes or no does not count. Where the id type cannot be resolved, any parameter assignable to the id"
+                + " role stands for it. Whether a use case calls the scoped lookup or the unscoped FindByIdAsync is not"
+                + " checked; a generic intermediate port whose parameters are generic parameters is not seen through."
+                + " An empty selection passes.");
+
+    /// <summary>The owner id type an aggregate binds on the generic interface that carries the owned role.</summary>
+    private static Type? OwnerIdOf(DcaArchitecture arch, Type aggregate)
+    {
+        foreach (var candidate in aggregate.GetInterfaces())
+        {
+            if (candidate.IsGenericType
+                && candidate.GetGenericArguments().Length == 1
+                && DcaMarkers.CarriesRole(candidate.GetGenericTypeDefinition(), arch.Layout.Markers.Owned))
+            {
+                return candidate.GetGenericArguments()[0];
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>The repository interfaces that bind the aggregate, by type argument or, raw, by name.</summary>
+    private static IEnumerable<Interface> RepositoriesOf(
+        DcaArchitecture arch, IType aggregate, Type runtime, IReadOnlyList<Interface> repositories)
+    {
+        var context = arch.RootContextNamespace(NamespaceOf(aggregate));
+        foreach (var repository in repositories)
+        {
+            var bound = BoundAggregateArgument(arch, repository);
+            if (bound is not null)
+            {
+                if (!bound.IsGenericParameter && bound == runtime)
+                {
+                    yield return repository;
+                }
+
+                continue;
+            }
+
+            var expected = aggregate.Name + arch.Layout.RepositorySuffix;
+            if ((repository.Name == expected || repository.Name == "I" + expected)
+                && arch.RootContextNamespace(NamespaceOf(repository)) == context)
+            {
+                yield return repository;
+            }
+        }
+    }
+
+    /// <summary>The aggregate's id type: the repository binding's second argument, else the aggregate's Id property.</summary>
+    private static Type? AggregateIdOf(DcaArchitecture arch, Type aggregate, Type repository)
+    {
+        foreach (var candidate in repository.GetInterfaces())
+        {
+            if (candidate.IsGenericType
+                && DcaMarkers.CarriesRole(candidate.GetGenericTypeDefinition(), arch.Layout.Markers.Repository)
+                && candidate.GetGenericArguments().Length > 1
+                && !candidate.GetGenericArguments()[1].IsGenericParameter)
+            {
+                return candidate.GetGenericArguments()[1];
+            }
+        }
+
+        return aggregate.GetProperty("Id", BindingFlags.Public | BindingFlags.Instance)?.PropertyType is { } id
+            && DcaMarkers.IsAssignableToByName(id, arch.Layout.Markers.Id)
+            ? id
+            : null;
+    }
+
+    private static bool IsScopedLookup(DcaArchitecture arch, MethodInfo method, Type aggregate, Type? aggregateId, Type ownerId)
+    {
+        if (!InvolvesType(method.ReturnType, aggregate))
+        {
+            return false;
+        }
+
+        var parameters = method.GetParameters().Select(p => p.ParameterType).ToList();
+        if (!parameters.Remove(ownerId))
+        {
+            return false;
+        }
+
+        return parameters.Any(p => aggregateId is not null
+            ? p == aggregateId
+            : DcaMarkers.IsAssignableToByName(p, arch.Layout.Markers.Id));
+    }
+
+    /// <summary>Whether the type is the target or carries it in a generic argument or an array, nullable included.</summary>
+    private static bool InvolvesType(Type type, Type target)
+    {
+        if (type == target)
+        {
+            return true;
+        }
+
+        if (type.IsArray && type.GetElementType() is { } element)
+        {
+            return InvolvesType(element, target);
+        }
+
+        return type.IsGenericType && type.GetGenericArguments().Any(a => InvolvesType(a, target));
+    }
+
+    private static string SimpleTypeName(string fullName) =>
+        fullName.Contains('.') ? fullName[(fullName.LastIndexOf('.') + 1)..] : fullName;
 
     /// <summary>A bool or a nullable bool: a yes/no fact as a field or a property, a predicate as a return type.</summary>
     private static bool IsBoolean(Type type) => type == typeof(bool) || type == typeof(bool?);
