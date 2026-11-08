@@ -146,6 +146,9 @@ public sealed class TacticalPatternRulesTests
         Assert.DoesNotContain("property Closed", message);
         Assert.Contains("property Frozen is Boolean with a public setter", message);
         Assert.Contains("MarkClosed(...) takes Boolean as parameter 1", message);
+        Assert.Contains("Restore(...) takes Int32 as parameter 3", message);
+        Assert.Contains("Restore(...) takes Boolean as parameter 1", message);
+        Assert.DoesNotContain("Restore(...) takes Boolean as parameter 2", message);
         Assert.Contains("field Dormant is a public Boolean anyone may set", message);
         Assert.Contains("property OpenedAt is DateTimeOffset", message);
         Assert.Contains("property Tags is String", message);
@@ -161,6 +164,21 @@ public sealed class TacticalPatternRulesTests
 
     [Fact]
     public void ADomainOfValueObjectsPasses() => Rule(PrimitivesGood, "DCA-TAC-025").Check(Arch(PrimitivesGood));
+
+    /// <summary>
+    /// DCA-TAC-025 reads the reconstituting factory by the configured names: a project that names it otherwise lists its
+    /// own name, and the default Reconstitute is then a flag argument again.
+    /// </summary>
+    [Fact]
+    public void TheReconstitutingFactoryFollowsTheConfiguredNames()
+    {
+        var renamed = DcaLayout.ForRootNamespace(PrimitivesGood).WithReconstitutingFactories("Rehydrate");
+        var message = Assert.Throws<DcaRuleViolationException>(
+            () => new TacticalPatternRules(renamed).Rules.Single(r => r.Id == "DCA-TAC-025")
+                .Check(DcaArchitecture.Load(renamed, typeof(TacticalPatternRulesTests).Assembly))).Message;
+
+        Assert.Contains("Reconstitute(...) takes Boolean as parameter 4", message);
+    }
 
     private const string OwnershipBad = "DomainCentric.ArchRules.Tests.Fixtures.Ownership.Bad";
     private const string OwnershipGood = "DomainCentric.ArchRules.Tests.Fixtures.Ownership.Good";

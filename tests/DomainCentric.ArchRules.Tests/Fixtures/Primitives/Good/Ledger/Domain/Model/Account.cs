@@ -14,6 +14,10 @@ public sealed class Account
 
     public bool Archived { get; private set; }
 
+    /// <summary>Rebuilds a stored account; the stored yes/no fact comes back as the bool it was.</summary>
+    public static Account Reconstitute(AccountId id, AccountStatus status, Address? address, bool frozen) =>
+        new(id) { Status = status, Address = address, _frozen = frozen };
+
     public void MoveTo(Address address) => Address = address;
 
     public void Freeze() => _frozen = true;

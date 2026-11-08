@@ -233,8 +233,9 @@ follow the role, not the base class.
 
 **Your own names.** Where a rule finds something by name rather than by role — the use-case,
 controller, REST-controller, aggregate-root, repository, store, factory and specification suffixes,
-the segments of the namespace layout, and the types a domain event may store its occurrence time in
-(`WithTimestampTypes`) — `DcaLayout` has a `With…` for it. Configure the name; do not switch the
+the segments of the namespace layout, the types a domain event may store its occurrence time in
+(`WithTimestampTypes`) and the names of the factory that rebuilds a stored object (`WithReconstitutingFactories`,
+`Reconstitute` and `Restore` by default) — `DcaLayout` has a `With…` for it. Configure the name; do not switch the
 rule off.
 
 **Your own layers and attributes.** A layer is its namespace by default. A project that keeps a layer under

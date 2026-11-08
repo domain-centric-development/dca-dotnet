@@ -958,7 +958,8 @@ public sealed class TacticalPatternRules : IDcaRuleSet
     /// in a value object of its own - a postal code, a quantity, a moment. Held bare, its rules are repeated wherever it
     /// is used, or nowhere. A single yes/no fact is the exception: the domain type keeps it in a bool field or a bool
     /// property only it sets, is told to change it and answers it; only a bool parameter - a flag argument - is
-    /// reported. Read by reflection over the declared members.
+    /// reported. The factory that rebuilds a stored object hands that fact back to it and may take the bool. Read by
+    /// reflection over the declared members.
     /// </summary>
     public static IDcaRule DomainHoldsNoBarePrimitives() =>
         DcaRule.Check(
@@ -970,10 +971,12 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 + " value of exactly one component - holds the primitive it wraps. A single yes/no fact may stay a"
                 + " bool field: the type is told (Complete()) and answers (IsCompleted). A bool parameter is a flag"
                 + " argument - SetCompleted(true) lets the caller set the state instead of triggering the behaviour -"
-                + " and three or more states, or transitions with rules, are an enum or a value",
+                + " except in the factory that rebuilds a stored object, which hands the stored fact back to the type"
+                + " that holds it. Three or more states, or transitions with rules, are an enum or a value",
             arch =>
             {
                 var markers = arch.Layout.Markers;
+                var reconstituting = arch.Layout.ReconstitutingFactories.ToHashSet(StringComparer.OrdinalIgnoreCase);
                 var blockNamespaces = new[]
                     {
                         markers.AggregateRoot, markers.Entity, markers.Value, markers.Id, markers.DomainEvent,
@@ -1067,9 +1070,16 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                             bare.Add($"{method.Name}() returns {returned}");
                         }
 
+                        var rebuilds = method.IsStatic && method.ReturnType == runtime
+                            && reconstituting.Contains(method.Name);
                         var parameters = method.GetParameters();
                         for (var i = 0; i < parameters.Length; i++)
                         {
+                            if (rebuilds && IsBoolean(parameters[i].ParameterType))
+                            {
+                                continue;
+                            }
+
                             var taken = BareTypesIn(parameters[i].ParameterType);
                             if (taken.Length > 0)
                             {
@@ -1108,7 +1118,9 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 + " and EventId. A field typed bool or bool? - a single yes/no fact - and a bool return - a question to"
                 + " the object, a predicate - pass, and so does a bool property without a public setter (get-only, a"
                 + " private or init setter); a bool parameter, a bool property with a public setter and a public non-readonly bool field are flag"
-                + " arguments and do not.")
+                + " arguments and do not. A bool parameter of the factory that rebuilds a stored object - a static"
+                + " method returning its own type and named as configured, Reconstitute or Restore by default, case"
+                + " ignored - passes.")
             .Checking(
                 "No selected field, property, return type or parameter type involves string, bool, a numeric"
                 + " primitive or char, a point in time (DateTime, DateTimeOffset, DateOnly, TimeOnly), or a bare Guid -"
@@ -1116,7 +1128,8 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 + " and generic arguments and arrays included, so IReadOnlyList<string> counts. decimal, TimeSpan"
                 + " and the project's own types pass. A field or a property typed bool or bool? and a method"
                 + " returning one pass, unless anyone may set it - a public setter, a public non-readonly field; a bool among the parameters is a"
-                + " flag argument and counts, and so does an IReadOnlyList<bool>. A value object with several components is checked like"
+                + " flag argument and counts - except in the reconstituting factory, whose other parameters are checked"
+                + " like any other - and so does an IReadOnlyList<bool>. A value object with several components is checked like"
                 + " any other type: each component is a value object itself. A reported type with exactly one"
                 + " instance field that is no value or id is told to carry the value or id role to count as a"
                 + " wrapper. An empty selection passes.");

@@ -165,6 +165,9 @@ public sealed class DcaLayout
     /// <summary>Types a domain event may store its occurrence time in, unless a project names its own.</summary>
     private static readonly string[] DefaultTimestampTypes = { "System.DateTimeOffset", "System.DateTime" };
 
+    private static readonly IReadOnlyList<string> DefaultReconstitutingFactories =
+        Array.AsReadOnly(new[] { "Reconstitute", "Restore" });
+
     private static IReadOnlyList<string> RequireTypeNames(IReadOnlyList<string> values, string name)
     {
         if (values.Count == 0)
@@ -279,6 +282,12 @@ public sealed class DcaLayout
     /// </summary>
     /// <summary>Types a domain event may store its occurrence time in, read by <c>DCA-ADV-008</c>.</summary>
     public IReadOnlyList<string> TimestampTypes { get; }
+
+    /// <summary>
+    /// Names of the static factory method that rebuilds a stored domain object, read by <c>DCA-TAC-025</c>;
+    /// <c>Reconstitute</c> and <c>Restore</c> by default, matched ignoring case.
+    /// </summary>
+    public IReadOnlyList<string> ReconstitutingFactories { get; private init; } = DefaultReconstitutingFactories;
 
     public IReadOnlyList<string> ThirdPartyNamespacesAllowedInDomain { get; }
 
@@ -598,6 +607,23 @@ public sealed class DcaLayout
     /// </summary>
     public DcaLayout WithTimestampTypes(params string[] typeNames) => Copy(timestampTypes: typeNames);
 
+    /// <summary>
+    /// Replaces the names of the static factory method that rebuilds a stored domain object (<c>Reconstitute</c>
+    /// and <c>Restore</c> by default), matched ignoring case. <c>DCA-TAC-025</c> lets such a factory take a bool
+    /// parameter: it hands a stored yes/no fact back to the object that holds it, which is no flag argument. An
+    /// empty list exempts no factory.
+    /// </summary>
+    public DcaLayout WithReconstitutingFactories(params string[] names)
+    {
+        ArgumentNullException.ThrowIfNull(names);
+        if (names.Any(string.IsNullOrWhiteSpace))
+        {
+            throw new ArgumentException("reconstitutingFactories must not contain a blank name", nameof(names));
+        }
+
+        return Copy(reconstitutingFactories: Array.AsReadOnly(names.ToArray()));
+    }
+
     public DcaLayout WithThirdPartyNamespacesAllowedInDomain(IEnumerable<string> prefixes) =>
         Copy(thirdParty: prefixes.ToArray());
 
@@ -676,7 +702,8 @@ public sealed class DcaLayout
         IReadOnlyList<string>? excludedNamespaces = null,
         IReadOnlyList<string>? localOutputPorts = null,
         IReadOnlyDictionary<Layer, IReadOnlyList<string>>? layerAttributes = null,
-        IReadOnlyCollection<Layer>? pathlessLayers = null) =>
+        IReadOnlyCollection<Layer>? pathlessLayers = null,
+        IReadOnlyList<string>? reconstitutingFactories = null) =>
         new(
             RootNamespace,
             sharedKernel ?? SharedKernelSegment,
@@ -712,6 +739,7 @@ public sealed class DcaLayout
             FrameworkTypesSource = frameworkTypesSource ?? FrameworkTypesSource,
             LayerAttributesByLayer = layerAttributes ?? LayerAttributesByLayer,
             PathlessLayers = pathlessLayers ?? PathlessLayers,
+            ReconstitutingFactories = reconstitutingFactories ?? ReconstitutingFactories,
         };
 
     // ---------------------------------------------------------------------------------------------

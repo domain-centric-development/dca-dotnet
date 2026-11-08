@@ -5,7 +5,9 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Primitives.Bad.Ledger.Domain.Mo
 
 /// <summary>
 /// An aggregate holding a count, a moment and a list of strings bare, and taking flag arguments - a bool parameter, a public
-/// bool field and a bool property with a public setter. Its yes/no fact Closed, a bool property with a private setter, passes.
+/// bool field and a bool property with a public setter. Its yes/no fact Closed, a bool property with a private setter, passes,
+/// and so does the bool its reconstituting factory Restore takes - the factory's bare count does not. An instance method of
+/// the same name is no factory: its bool is a flag argument.
 /// </summary>
 public sealed class Account
 {
@@ -32,6 +34,11 @@ public sealed class Account
     }
 
     public void MarkClosed(bool closed) => Closed = closed;
+
+    public static Account Restore(AccountId id, bool closed, int overdraftCount) =>
+        new(id) { Closed = closed, _overdraftCount = overdraftCount };
+
+    public void Restore(bool closed) => Closed = closed;
 
     public bool IsOverdrawn() => _overdraftCount > 0;
 

@@ -4,6 +4,15 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Changed
+
+**`DCA-TAC-025` exempts the factory that rebuilds a stored object** — the twin of the Java change. A `bool` parameter
+of a static method that returns its own type and is named as the layout configures — `Reconstitute` and `Restore` by
+default, case ignored — is no flag argument: it hands a stored yes/no fact back to the type that holds it. The
+factory's other parameters are checked as before; an instance method of the same name is no factory.
+`DcaLayout.WithReconstitutingFactories(params string[])` replaces the names (an empty list exempts none). No
+reconstitution marker is added to the building blocks.
+
 ## [0.12.0] - 2026-11-07
 
 ### Added
