@@ -1059,6 +1059,17 @@
       "maturity": "released"
     },
     {
+      "set": "advanced",
+      "id": "DCA-ADV-021",
+      "title": "Domain services are used only by the application and by other domain services",
+      "rationale": "A domain service holds logic that spans aggregates, and the use case decides when it runs and puts its outcome into the result. A model type, a read model, an adapter or the composition root that calls one takes that decision outside the application - the incoming adapter and the model type are each held by a narrower rule too (DCA-HEX-012, DCA-ADV-019)",
+      "selects": "Every type under scan, with its runtime type in the loaded assemblies, outside the application layer that does not carry the domain-service role - the domain model, the adapters of both directions, the composition root (the infrastructure layer) and types outside every layer - with the types nested in it, compiler-generated state machines and closures included. A type nested in an application type or in a domain service counts as its outer type and is not selected.",
+      "checks": "No method body calls a method or property of, constructs, or makes a delegate of a method of a type carrying the domain-service role. A type in the infrastructure layer - the composition root - may construct one to hand it to a use case; a call there is reported. Naming the type as a parameter, a field or a return type is not a use and is not reported; a public field of a service read directly is not seen. An empty selection passes.",
+      "implementation": "dotnet",
+      "status": "enforced",
+      "maturity": "experimental"
+    },
+    {
       "set": "usecase",
       "id": "DCA-USE-001",
       "title": "The base InputPort contract is not redeclared in the project",

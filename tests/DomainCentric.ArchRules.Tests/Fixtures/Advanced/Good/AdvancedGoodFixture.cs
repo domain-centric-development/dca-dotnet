@@ -114,7 +114,8 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Advanced.Good.Order.Application
 
     public sealed record PlaceOrderCommand(decimal Total);
 
-    public sealed record PlaceOrderResult(OrderId OrderId);
+    // DCA-ADV-021: the domain service's outcome travels in the result.
+    public sealed record PlaceOrderResult(OrderId OrderId, Money TotalWithTax);
 
     public interface IPlaceOrderInputPort : IUseCase<PlaceOrderCommand, PlaceOrderResult>
     {
@@ -124,17 +125,19 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Advanced.Good.Order.Application
     {
         private readonly IOrderRepository _orders;
         private readonly OrderFactory _factory;
+        private readonly Domain.Service.OrderTotalCalculator _calculator;
 
-        public PlaceOrderUseCase(IOrderRepository orders, OrderFactory factory)
+        public PlaceOrderUseCase(IOrderRepository orders, OrderFactory factory, Domain.Service.OrderTotalCalculator calculator)
         {
             _orders = orders;
             _factory = factory;
+            _calculator = calculator;
         }
 
         public async Task<PlaceOrderResult> ExecuteAsync(PlaceOrderCommand input, CancellationToken cancellationToken = default)
         {
             var order = await _orders.SaveAsync(_factory.Create(new Money(input.Total)), cancellationToken);
-            return new PlaceOrderResult(order.Id);
+            return new PlaceOrderResult(order.Id, _calculator.TotalWithTax(order));
         }
     }
 }
@@ -180,5 +183,20 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Advanced.Good.Order.Adapter.Out
             _store.TryRemove(id, out _);
             return Task.CompletedTask;
         }
+    }
+}
+
+namespace DomainCentric.ArchRules.Tests.Fixtures.Advanced.Good.Order.Infrastructure
+{
+    using DomainCentric.ArchRules.Tests.Fixtures.Advanced.Good.Order.Adapter.Outgoing;
+    using DomainCentric.ArchRules.Tests.Fixtures.Advanced.Good.Order.Application.PlaceOrder;
+    using DomainCentric.ArchRules.Tests.Fixtures.Advanced.Good.Order.Domain.Model;
+    using DomainCentric.ArchRules.Tests.Fixtures.Advanced.Good.Order.Domain.Service;
+
+    // DCA-ADV-021: the composition root constructs the domain service and hands it to the use case - it calls nothing on it.
+    public sealed class OrderWiring
+    {
+        public IPlaceOrderInputPort PlaceOrder() =>
+            new PlaceOrderUseCase(new InMemoryOrderRepository(), new OrderFactory(), new OrderTotalCalculator(0.19m));
     }
 }

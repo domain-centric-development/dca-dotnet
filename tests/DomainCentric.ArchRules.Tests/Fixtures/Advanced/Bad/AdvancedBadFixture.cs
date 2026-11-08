@@ -212,3 +212,33 @@ namespace DomainCentric.ArchRules.Tests.Fixtures.Advanced.Bad.Order.Application.
         public bool IsSatisfiedBy(Order candidate) => true;
     }
 }
+
+namespace DomainCentric.ArchRules.Tests.Fixtures.Advanced.Bad.Order.Adapter.Outgoing
+{
+    using System.Threading.Tasks;
+    using DomainCentric.ArchRules.Tests.Fixtures.Advanced.Bad.Order.Domain.Service;
+
+    // DCA-ADV-021: an outgoing adapter computes with a domain service while it writes - in an async method, whose
+    // body the compiler moves into a state machine.
+    public sealed class OrderTotalExport
+    {
+        public async Task<string> LineAsync(decimal net)
+        {
+            await Task.Yield();
+            return new OrderTotalCalculator().WithTax(net).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+    }
+}
+
+namespace DomainCentric.ArchRules.Tests.Fixtures.Advanced.Bad.Order.Infrastructure
+{
+    using DomainCentric.ArchRules.Tests.Fixtures.Advanced.Bad.Order.Domain.Service;
+
+    // DCA-ADV-021: the composition root may construct the domain service, but it calls it.
+    public sealed class OrderWiring
+    {
+        private readonly OrderTotalCalculator _calculator = new OrderTotalCalculator();
+
+        public decimal MinimumWithTax(decimal net) => _calculator.WithTax(net);
+    }
+}

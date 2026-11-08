@@ -639,3 +639,19 @@ differently:
   `^(is(user)?inrole|has(any)?(role|authority))$`, ignoring case - `ClaimsPrincipal.IsInRole` included. The
   preset role is `FrameworkTypes.AuthorizationAttributeTypes` (`AuthorizeAttribute` in `AspNetCore()`). The Java
   sample's first cut showed why the plain accessors stay out: issuing a token passes the roles on.
+
+## 2026-11-08 — DCA-TAC-025: the reconstituting factory may take a bool (WP-194 item 5)
+
+- Same change as `dca-archunit`: a static method whose `ReturnType` is the runtime type and whose name is in
+  `DcaLayout.ReconstitutingFactories` (`Reconstitute`, `Restore`, `OrdinalIgnoreCase`) skips its `bool`/`bool?`
+  parameters. Recognised by name: no reconstitution marker exists in the building blocks.
+
+## 2026-11-08 — DCA-ADV-021: domain services are used by the application only (WP-189)
+
+- Same rule as `dca-archunit`, read from the IL through `IntraClassCalls` (as `DCA-ERR-007`): every non-nested
+  runtime type outside the application layer that carries no domain-service role, with its compiler-generated
+  units, so an async method's state machine counts as its owner. A `MethodBase` operand (call, callvirt, newobj,
+  ldftn) whose declaring type carries the role is reported; a `newobj` from a type in the infrastructure layer is
+  the composition root's construction and passes. Deviation from Java: a field operand is not read, so a public
+  field of a service read directly is not seen (Java reports a field access); a property is a method and is seen.
+

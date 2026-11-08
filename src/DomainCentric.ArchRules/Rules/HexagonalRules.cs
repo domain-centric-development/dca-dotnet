@@ -361,7 +361,8 @@ public sealed class HexagonalRules : IDcaRuleSet
                 DcaRule.Fail(
                     "Incoming Adapters must not depend on domain services",
                     violations.Distinct().OrderBy(v => v, StringComparer.Ordinal).ToList(),
-                    "move the collaboration into the use case and carry its outcome in the result");
+                    "move the collaboration into the use case and carry its outcome in the result; DCA-ADV-021 holds"
+                    + " the same for every caller outside the application");
             })
         .Selecting(
             "Classes in <module>.Adapter.Incoming of every module root, event consumers"

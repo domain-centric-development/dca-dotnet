@@ -16,7 +16,7 @@ public sealed class AdvancedPatternRulesTests
         "DCA-ADV-001", "DCA-ADV-002", "DCA-ADV-004", "DCA-ADV-005", "DCA-ADV-006",
         "DCA-ADV-007", "DCA-ADV-008", "DCA-ADV-010", "DCA-ADV-011", "DCA-ADV-012",
         "DCA-ADV-013", "DCA-ADV-014", "DCA-ADV-015", "DCA-ADV-016", "DCA-ADV-017", "DCA-ADV-018",
-        "DCA-ADV-019", "DCA-ADV-020",
+        "DCA-ADV-019", "DCA-ADV-020", "DCA-ADV-021",
     };
 
     private static readonly IReadOnlyDictionary<string, string> NoNegativeFixture = new Dictionary<string, string>();
@@ -57,6 +57,23 @@ public sealed class AdvancedPatternRulesTests
         var rule = RuleSet(Bad).Rules.Single(r => r.Id == id);
         var ex = Assert.Throws<DcaRuleViolationException>(() => rule.Check(Arch(Bad)));
         Assert.False(string.IsNullOrWhiteSpace(ex.Message));
+    }
+
+    /// <summary>
+    /// DCA-ADV-021: the aggregate, the outgoing adapter (through its async state machine) and the composition root's call
+    /// are reported; the composition root's construction and the use case are not.
+    /// </summary>
+    [Fact]
+    public void OnlyTheApplicationCallsADomainService()
+    {
+        var message = Assert.Throws<DcaRuleViolationException>(
+            () => RuleSet(Bad).Rules.Single(r => r.Id == "DCA-ADV-021").Check(Arch(Bad))).Message;
+
+        Assert.Contains("SelfPricingOrder.", message, StringComparison.Ordinal);
+        Assert.Contains("OrderTotalExport.LineAsync", message, StringComparison.Ordinal);
+        Assert.Contains("Infrastructure.OrderWiring.MinimumWithTax calls", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Infrastructure.OrderWiring..ctor constructs", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("PlaceOrderUseCase", message, StringComparison.Ordinal);
     }
 
     /// <summary>

@@ -4,6 +4,14 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Added
+
+**`DCA-ADV-021` — domain services are used only by the application and by other domain services (WP-189),
+experimental** — the twin of the Java rule, read from the IL of each runtime type and the types nested in it. Every
+type outside the application layer that carries no domain-service role is selected; a call, a construction or a
+delegate of a domain service's method is reported, except a construction in the infrastructure layer, the
+composition root. `DCA-ADV-019` and `DCA-HEX-012` stay; their remedies point at `DCA-ADV-021`.
+
 ### Changed
 
 **`DCA-TAC-025` exempts the factory that rebuilds a stored object** — the twin of the Java change. A `bool` parameter
