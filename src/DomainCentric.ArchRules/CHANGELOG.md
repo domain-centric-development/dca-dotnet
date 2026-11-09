@@ -4,6 +4,8 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-11-09
+
 ### Added
 
 **The baseline dial — `dca.rules.freeze` (WP-52).** `DcaRuleSelection.Frozen(...)` / `dca.rules.freeze` and
