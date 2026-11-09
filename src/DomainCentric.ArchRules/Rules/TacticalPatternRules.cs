@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Text.RegularExpressions;
 using ArchUnitNET.Domain;
 using ArchUnitNET.Domain.Extensions;
+using ArchUnitNET.Fluent;
 using DomainCentric.BuildingBlocks.Ddd.Tactical;
 using DomainCentric.BuildingBlocks.Hexagonal.Ports.Out;
 using Enum = ArchUnitNET.Domain.Enum;
@@ -82,30 +83,18 @@ public sealed class TacticalPatternRules : IDcaRuleSet
     // ---------------------------------------------------------------------------------------------
 
     public static IDcaRule AggregateRootsImplementMarker(DcaLayout layout) =>
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-TAC-001",
             "Aggregate Roots must implement IAggregateRoot",
             "Classes named *AggregateRoot must implement the IAggregateRoot interface (DDD pattern)",
-            arch =>
-            {
-                var violations = new List<string>();
-                foreach (var type in NonInterfaceTypes(arch))
-                {
-                    if (!type.Name.EndsWith(arch.Layout.AggregateRootSuffix, StringComparison.Ordinal)
-                        || type.Name == arch.Layout.AggregateRootSuffix
-                        || !arch.InDomainModel(type))
-                    {
-                        continue;
-                    }
-
-                    if (!IsRole(arch, type, nameof(DcaMarkers.AggregateRoot)))
-                    {
-                        violations.Add($"{type.FullName} is named *AggregateRoot but does not implement {nameof(IAggregateRoot)}");
-                    }
-                }
-
-                DcaRule.Fail("Classes named *AggregateRoot must implement the IAggregateRoot marker.", violations);
-            })
+            arch => SelectionArchRule.ForEach(
+                "types in the domain model named *AggregateRoot should implement IAggregateRoot",
+                () => NonInterfaceTypes(arch).Where(type => type.Name.EndsWith(arch.Layout.AggregateRootSuffix, StringComparison.Ordinal)
+                    && type.Name != arch.Layout.AggregateRootSuffix
+                    && arch.InDomainModel(type)),
+                type => IsRole(arch, type, nameof(DcaMarkers.AggregateRoot))
+                    ? []
+                    : [$"{type.FullName} is named *AggregateRoot but does not implement {nameof(IAggregateRoot)}"]))
             .Selecting(
                 "Non-interface types - classes, structs and enums - in <module>.Domain.Model of "
                 + "every module root whose name ends with AggregateRoot; the type named exactly "
@@ -382,31 +371,19 @@ public sealed class TacticalPatternRules : IDcaRuleSet
             "No instance state, including inherited state, arrays and nested generic arguments, involves IAggregateRoot or IEntity. Same-type references and interfaces extending the marker are included. Interfaces that do not extend the marker are invisible; references by id are valid.");
 
     public static IDcaRule ValueObjectClassesAreFinal(DcaLayout layout) =>
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-TAC-009",
             "Value Object classes should be sealed (immutability)",
             "Value objects should be immutable and not extensible - Vernon's DDD recommendation;"
             + " .NET: a sealed class, a sealed record, or a struct",
-            arch =>
-            {
-                var violations = new List<string>();
-                foreach (var valueObject in arch.Classes)
-                {
-                    if (valueObject.IsCompilerGenerated
-                        || !arch.InDomainModel(valueObject)
-                        || !IsRole(arch, valueObject, nameof(DcaMarkers.Value)))
-                    {
-                        continue;
-                    }
-
-                    if (valueObject.IsSealed != true && valueObject.IsAbstract != true)
-                    {
-                        violations.Add($"{valueObject.FullName} is a Value Object {(valueObject.IsRecord == true ? "record" : "class")} that is not sealed");
-                    }
-                }
-
-                DcaRule.Fail("Value Object classes and records must be sealed (or be structs).", violations);
-            })
+            arch => SelectionArchRule.ForEach(
+                "value object classes and records in the domain model should be sealed",
+                () => arch.Classes.Where(valueObject => !valueObject.IsCompilerGenerated
+                    && arch.InDomainModel(valueObject)
+                    && IsRole(arch, valueObject, nameof(DcaMarkers.Value))),
+                valueObject => valueObject.IsSealed != true && valueObject.IsAbstract != true
+                    ? [$"{valueObject.FullName} is a Value Object {(valueObject.IsRecord == true ? "record" : "class")} that is not sealed"]
+                    : []))
             .Selecting(
                 "Classes - record classes included, structs and enums not - in "
                 + "<module>.Domain.Model of every module root that are assignable to IValue; "
@@ -532,29 +509,17 @@ public sealed class TacticalPatternRules : IDcaRuleSet
     // ---------------------------------------------------------------------------------------------
 
     public static IDcaRule RepositoryInterfacesExtendMarker(DcaLayout layout) =>
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-TAC-013",
             "Repository Interfaces should extend the IRepository Marker Interface",
             "Repository interfaces should extend the IRepository marker interface",
-            arch =>
-            {
-                var violations = new List<string>();
-                foreach (var candidate in arch.Interfaces)
-                {
-                    if (!arch.InApplication(candidate)
-                        || !HasSuffixButIsNotMarker(candidate, arch.Layout.RepositorySuffix))
-                    {
-                        continue;
-                    }
-
-                    if (!IsRole(arch, candidate, nameof(DcaMarkers.Repository)))
-                    {
-                        violations.Add($"{candidate.FullName} is named *Repository but does not extend {nameof(IRepository)}");
-                    }
-                }
-
-                DcaRule.Fail("Repository interfaces must extend the IRepository marker.", violations);
-            })
+            arch => SelectionArchRule.ForEach(
+                "interfaces in the application layer named *Repository should extend IRepository",
+                () => arch.Interfaces.Where(candidate => arch.InApplication(candidate)
+                    && HasSuffixButIsNotMarker(candidate, arch.Layout.RepositorySuffix)),
+                candidate => IsRole(arch, candidate, nameof(DcaMarkers.Repository))
+                    ? []
+                    : [$"{candidate.FullName} is named *Repository but does not extend {nameof(IRepository)}"]))
             .Selecting(
                 "Interfaces in <module>.Application of every module root whose name ends with "
                 + "Repository; interfaces named exactly Repository or IRepository excluded.")
@@ -563,11 +528,11 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 + "interface elsewhere is not selected; an empty selection passes.");
 
     public static IDcaRule RepositoryInterfacesResideInSharedOutputPorts(DcaLayout layout) =>
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-TAC-014",
             "Repository interfaces must reside in the application layer (local to a use case or shared)",
             "Repository interfaces are output ports in the application layer (Hexagonal Architecture)",
-            arch => RequireNamespace(RepositoryInterfaces(arch), arch.InApplication, "Repository interfaces", "an application namespace of its module (use-case-local or Shared)"))
+            arch => NamespaceRule(arch, RepositoryInterfaces, arch.InApplication, "repository interfaces should reside in an application namespace of their module"))
             .Selecting(
                 "Interfaces below the root namespace assignable to IRepository, whatever "
                 + "their name; an interface named exactly Repository excluded.")
@@ -577,13 +542,15 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 + "selection passes.");
 
     public static IDcaRule RepositoryImplementationsResideInOutgoingAdapters(DcaLayout layout) =>
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-TAC-015",
             "Repository Implementations must reside in the Adapter.Outgoing namespace",
             "Repository implementations are outgoing adapters in bounded contexts",
-            arch => RequireNamespace(
-                ConcreteTypesAssignableTo(arch, nameof(DcaMarkers.Repository)),
-                arch.InOutgoingAdapter, "Repository implementations", "the outgoing adapter namespace"))
+            arch => NamespaceRule(
+                arch,
+                a => ConcreteTypesAssignableTo(a, nameof(DcaMarkers.Repository)),
+                arch.InOutgoingAdapter,
+                "repository implementations should reside in the outgoing adapter namespace"))
             .Selecting(
                 "Non-interface types below the root namespace assignable to IRepository, "
                 + "abstract base classes included.")
@@ -726,23 +693,19 @@ public sealed class TacticalPatternRules : IDcaRuleSet
     // ---------------------------------------------------------------------------------------------
 
     public static IDcaRule StoreInterfacesExtendStoreMarker() =>
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-TAC-018",
             "Store interfaces must extend the IStore marker, not IRepository",
             "Stores extend the IStore marker; IRepository is reserved for Aggregate Roots",
-            arch =>
-            {
-                var violations = new List<string>();
-                foreach (var candidate in arch.Interfaces)
+            arch => SelectionArchRule.ForEach(
+                "interfaces named *Store outside adapters and infrastructure should extend IStore and not IRepository",
+                () => arch.Interfaces.Where(candidate => HasSuffixButIsNotMarker(candidate, arch.Layout.StoreSuffix)
+                    && candidate.FullName != arch.Layout.Markers.Store
+                    && !arch.InAdapter(candidate)
+                    && !arch.InInfrastructure(candidate)),
+                candidate =>
                 {
-                    if (!HasSuffixButIsNotMarker(candidate, arch.Layout.StoreSuffix)
-                        || candidate.FullName == arch.Layout.Markers.Store
-                        || arch.InAdapter(candidate)
-                        || arch.InInfrastructure(candidate))
-                    {
-                        continue;
-                    }
-
+                    var violations = new List<string>();
                     if (!IsRole(arch, candidate, nameof(DcaMarkers.Store)))
                     {
                         violations.Add($"{candidate.FullName} is named *Store but does not extend {nameof(IStore)}");
@@ -752,10 +715,9 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                     {
                         violations.Add($"{candidate.FullName} is named *Store but extends {nameof(IRepository)}");
                     }
-                }
 
-                DcaRule.Fail("Store interfaces must extend IStore and must not extend IRepository.", violations);
-            })
+                    return violations;
+                }))
             .Selecting(
                 "Interfaces below the root namespace whose name ends with Store, those named exactly Store or"
                 + " IStore and the type the Store role names excluded, outside every adapter and"
@@ -767,11 +729,11 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 + "interface not named *Store is never reported; an empty selection passes.");
 
     public static IDcaRule StoreInterfacesResideInSharedOutputPorts(DcaLayout layout) =>
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-TAC-019",
             "Store interfaces must reside in the application layer (local to a use case or shared)",
             "Store interfaces are output ports in the application layer (Hexagonal Architecture)",
-            arch => RequireNamespace(StoreInterfaces(arch), arch.InApplication, "Store interfaces", "an application namespace of its module (use-case-local or Shared)"))
+            arch => NamespaceRule(arch, StoreInterfaces, arch.InApplication, "store interfaces should reside in an application namespace of their module"))
             .Selecting(
                 "Interfaces below the root namespace assignable to IStore, whatever their "
                 + "name; an interface named exactly Store excluded.")
@@ -781,13 +743,15 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 + "selection passes.");
 
     public static IDcaRule StoreImplementationsResideInOutgoingAdapters(DcaLayout layout) =>
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-TAC-020",
             "Store implementations must reside in the Adapter.Outgoing namespace",
             "Store implementations are outgoing adapters in bounded contexts",
-            arch => RequireNamespace(
-                ConcreteTypesAssignableTo(arch, nameof(DcaMarkers.Store)),
-                arch.InOutgoingAdapter, "Store implementations", "the outgoing adapter namespace"))
+            arch => NamespaceRule(
+                arch,
+                a => ConcreteTypesAssignableTo(a, nameof(DcaMarkers.Store)),
+                arch.InOutgoingAdapter,
+                "store implementations should reside in the outgoing adapter namespace"))
             .Selecting(
                 "Non-interface types below the root namespace assignable to IStore, abstract "
                 + "base classes included.")
@@ -1786,14 +1750,15 @@ public sealed class TacticalPatternRules : IDcaRuleSet
         return method is not null && method.DeclaringType != typeof(object) && method.DeclaringType != typeof(ValueType);
     }
 
-    private static void RequireNamespace(IEnumerable<IType> types, Func<IType, bool> placed, string subject, string location)
-    {
-        var violations = types
-            .Where(t => !placed(t))
-            .Select(t => $"{t.FullName} resides in {NamespaceOf(t)}")
-            .ToList();
-        DcaRule.Fail($"{subject} must reside in {location}.", violations);
-    }
+    private static IArchRule NamespaceRule(
+        DcaArchitecture arch,
+        Func<DcaArchitecture, IEnumerable<IType>> types,
+        Func<IType, bool> placed,
+        string description) =>
+        SelectionArchRule.ForEach(
+            description,
+            () => types(arch),
+            t => placed(t) ? [] : [$"{t.FullName} resides in {NamespaceOf(t)}"]);
 
     private static string FieldDescription(IType owner, DataMember member) =>
         $"{owner.FullName} has field '{member.Name}' of type {member.Type.FullName}";

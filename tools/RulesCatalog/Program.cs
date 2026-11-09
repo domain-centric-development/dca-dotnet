@@ -1,6 +1,6 @@
 // Renders the DCA rule catalog of DomainCentric.ArchRules to rules.json and RULES.md — the same
 // shape dca-archunit's `rulesCatalog` Gradle task produces (id, title, rationale, selects, checks, status,
-// maturity), so the
+// maturity, freezable), so the
 // knowledge catalog can merge both.
 //
 //   dotnet run --project tools/RulesCatalog -- <repo-root>
@@ -20,12 +20,12 @@ foreach (var set in ruleSets)
 {
     foreach (var rule in set.Rules)
     {
-        entries.Add(new Entry(set.Name, rule.Id, rule.Title, rule.Rationale, rule.Selects, rule.Checks, rule.Kind == DcaRuleKind.Informational ? "informational" : "enforced", null, rule.Maturity == DcaRuleMaturity.Experimental ? "experimental" : "released"));
+        entries.Add(new Entry(set.Name, rule.Id, rule.Title, rule.Rationale, rule.Selects, rule.Checks, rule.Kind == DcaRuleKind.Informational ? "informational" : "enforced", null, rule.Maturity == DcaRuleMaturity.Experimental ? "experimental" : "released", rule.Freezable));
     }
 
     foreach (var (id, reason) in NotApplicable(set))
     {
-        entries.Add(new Entry(set.Name, id, "(not applicable in .NET)", reason, "", "", "n/a", reason, null));
+        entries.Add(new Entry(set.Name, id, "(not applicable in .NET)", reason, "", "", "n/a", reason, null, false));
     }
 }
 
@@ -49,7 +49,7 @@ var json = JsonSerializer.Serialize(
         library = "DomainCentric.ArchRules",
         version = libraryVersion,
         rules = entries.Select(e => e.Status != "n/a"
-        ? (object)new { set = e.Set, id = e.Id, title = e.Title, rationale = e.Rationale, selects = e.Selects, checks = e.Checks, implementation = "dotnet", status = e.Status, maturity = e.Maturity }
+        ? (object)new { set = e.Set, id = e.Id, title = e.Title, rationale = e.Rationale, selects = e.Selects, checks = e.Checks, implementation = "dotnet", status = e.Status, maturity = e.Maturity, freezable = e.Freezable }
         : new { set = e.Set, id = e.Id, status = "n/a", reason = e.Reason }),
         retired = DcaRules.Retired().OrderBy(e => e.Key).Select(e => new { id = e.Key, reason = e.Value.Reason, replacement = e.Value.Replacement, since = e.Value.Since })
     },
@@ -110,4 +110,4 @@ static IEnumerable<(string, string)> NotApplicable(IDcaRuleSet set)
     }
 }
 
-sealed record Entry(string Set, string Id, string Title, string Rationale, string Selects, string Checks, string Status, string? Reason, string? Maturity);
+sealed record Entry(string Set, string Id, string Title, string Rationale, string Selects, string Checks, string Status, string? Reason, string? Maturity, bool Freezable);

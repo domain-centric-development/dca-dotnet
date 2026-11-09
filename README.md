@@ -103,14 +103,16 @@ DcaLayout.ForRootNamespace("Acme.Shop")
 
 The catalog is opinionated, and no team adopts all of it on day one. A rule you disagree with, or
 cannot satisfy yet, is a decision to record — not a reason to drop the library. `DcaRuleSelection`
-expresses three things:
+expresses four things:
 
 ```csharp
 protected override DcaRuleSelection AdditionalSelection => DcaRuleSelection.All()
     .OnlySets("cycles", "layered", "hexagonal")             // scope: adopt in stages
     .Excluding("DCA-NAM-005", "no MVC controllers here")    // off, with the reason
     .Warning("DCA-TAC-009", "being made sealed step by step")   // reported, does not fail the build
-    .IgnoringViolationsMatching("DCA-STR-003", ".*Legacy.*");   // a documented exception
+    .IgnoringViolationsMatching("DCA-STR-003", ".*Legacy.*")    // a documented exception
+    .Frozen("DCA-ONI-002")                                  // baseline: only new violations fail
+    .WithFreezeStore("../../../arch/frozen");
 ```
 
 The same configuration can live in `dca-archunit.properties` next to the test assembly (copy it to the
@@ -125,6 +127,8 @@ dca.rules.warn              = DCA-TAC-009
 dca.rules.warn.sets         = naming
 dca.rule.DCA-STR-003.ignore = .*Legacy.*
 dca.rule.DCA-STR-003.ignore.1 = Generated.{1,3}Client
+dca.rules.freeze            = DCA-ONI-002
+dca.rules.freeze.store      = ../../../arch/frozen
 dca.framework               = none
 dca.rules.experimental      = true
 ```
@@ -145,13 +149,24 @@ Both sources combine: the file is the base, `AdditionalSelection` is merged on t
 wins per rule id. Override `AdditionalSelection`, not `Selection` — the latter *replaces* the file, so
 a `dca-archunit.properties` added later would be ignored without a word.
 
-**Four differences from the Java library.** There is no baseline dial yet (`frozen` /
-`dca.rules.freeze`). ArchUnitNET does ship a `FreezingArchRule`, but the rules of this library do not
-expose the ArchUnitNET rule behind them, so there is nothing to build a baseline from; the properties
-key is rejected with a message saying so. **On an existing code base, use `dca.rule.<id>.ignore`
-instead**: one regular expression over what is already broken, so the rule reports only what you break
-from now on. It works for every rule, not only the ones a baseline could bind to, and it means the
-same thing in both libraries. Because xUnit v2
+**A baseline for an existing code base.** `dca.rules.freeze` (in code: `Frozen(...)`) records the
+violations a rule finds at its first run as the accepted baseline; from then on only a violation the
+baseline does not hold fails, and a violation fixed since leaves it. `dca.rules.freeze.store` names the
+directory the baseline lives in — commit it with the code; a relative path is resolved against the
+working directory of the test run. A baseline needs a single ArchUnit rule to build on: the rules marked
+`"freezable": true` in `rules.json` have one, and they are the same ids in both libraries. A rule that runs
+several checks internally — the context-map set, for example, or a rule that iterates over the bounded
+contexts — refuses: running it frozen fails with *"Rule \<id> cannot be frozen: it runs several checks
+internally and has no single ArchUnit rule to build a baseline from. Lower it to WARN instead."* For
+those, and for any rule, `dca.rule.<id>.ignore` is the other way in: one regular expression over what is
+already broken. A baseline adds to `ignore`, it does not replace it — the baseline is the quick start
+that shrinks on its own, `ignore` the exception a reviewer can read. **The baseline file is per project
+and per language**, even though the keys are the same: the Java library keeps ArchUnit's text store (a
+directory with one file per rule, by default `archunit_store`), the .NET library a JSON file,
+`FrozenRules.json` (by default in `../../../ArchUnitNET/Storage`, which from a test project's output
+directory is the project directory). A baseline recorded by one does not carry over to the other.
+
+**Three differences from the Java library.** Because xUnit v2
 cannot skip a test dynamically, a rule at `WARN` or `OFF` is reported green rather than skipped. And
 only the **file** shapes the report: theory cases are built statically, before an instance exists, so a
 rule the file scopes out produces no case at all and one it lowers is named

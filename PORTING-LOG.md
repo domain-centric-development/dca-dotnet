@@ -697,3 +697,24 @@ the new layered rule is `DCA-LAY-008`. The shared hexagonal good fixture draws i
 `Fixtures/PersistenceApi/.../Declarative` shows the attribute passing and the scope beside it reported. Both negative fixtures are their own
 trees (`Fixtures/Asynchrony`, `Fixtures/PersistenceApi`).
 
+## Baseline dial (WP-52, 2026-11-09)
+
+`dca.rules.freeze` and `dca.rules.freeze.store` are read as in Java; a frozen rule runs as
+`FreezingArchRule.Freeze(rule, new JsonViolationStore(<store>/FrozenRules.json))`. Two adaptations sit between the
+rule and the store, in `DcaRuleExecution`: the stored rule is keyed by the rule id rather than by ArchUnitNET's
+generated description (which changes with the implementation and would silently start a new baseline), and a
+violation is identified by its report line rather than by the evaluated type (ArchUnitNET's default), so a new
+violation on a type that already had one is new - Java's text store keys by line as well. A failed result that
+only says the selection was empty is not recorded. The store is a directory in both languages; the default is
+ArchUnitNET's `../../../ArchUnitNET/Storage`, which from `bin/<configuration>/<framework>` is the test project.
+
+Survey of the `DcaRule.Check` rules: 45 matched an id Java builds with `DcaRule.of` and were converted; each
+selects types (or, in the cycles set, slices) and finds violations per selected object, so it is one rule. The
+hand-written checks became `SelectionArchRule.ForEach(description, select, violations)`, an `IArchRule` that
+evaluates every selected object and yields one failed result per violation line - the lines are the ones the
+check reported before, and the fixtures did not change. The cycles set reports each cycle on the slice it starts
+from (the smallest name in it). The remaining `Check` rules stay unfreezable for the reason Java gives: they loop
+over contexts, declared relationships or code paths and assert across them (the `contextmap` set, most of
+`tactical`, the reflective `ADV` checks, `ERR-002/004/005/009`, `HEX-005/007/019/021`, `LAY-004`, `NAM-013`,
+`ONI-003`, `STR-002…004/006/011…013`, `USE-014…018/022`), and the `DCA-NET` rules have no Java twin. Freezable in
+both: 75 ids (`rules.json`, `"freezable"`); `FreezeParityTests` fails when the sets drift apart.

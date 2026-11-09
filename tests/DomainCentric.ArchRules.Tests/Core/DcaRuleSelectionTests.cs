@@ -168,13 +168,38 @@ public sealed class DcaRuleSelectionTests
     }
 
     [Fact]
-    public void FreezingIsRejectedWithAPointerToTheAlternative()
+    public void FreezeKeysAreReadWithTheJavaNames()
     {
-        var failure = Assert.Throws<ArgumentException>(() =>
-            DcaRuleSelection.FromProperties(Properties("dca.rules.freeze = DCA-ONI-002")));
+        var selection = DcaRuleSelection.FromProperties(Properties(
+            "dca.rules.freeze = DCA-ONI-002, DCA-NAM-001",
+            "dca.rules.freeze.store = arch/frozen"));
 
-        Assert.Contains("FreezingArchRule", failure.Message, StringComparison.Ordinal);
-        Assert.Contains("dca.rules.warn", failure.Message, StringComparison.Ordinal);
+        Assert.True(selection.IsFrozen("DCA-ONI-002"));
+        Assert.True(selection.IsFrozen("DCA-NAM-001"));
+        Assert.False(selection.IsFrozen("DCA-HEX-001"));
+        Assert.Equal("arch/frozen", selection.FreezeStore);
+        Assert.Equal(Path.Combine("arch/frozen", DcaRuleSelection.FreezeStoreFileName), selection.FreezeStoreFile);
+    }
+
+    [Fact]
+    public void WithoutAStoreTheBaselineLivesInArchUnitNetsOwnStorage() =>
+        Assert.Equal(
+            Path.Combine(DcaRuleSelection.DefaultFreezeStore, DcaRuleSelection.FreezeStoreFileName),
+            DcaRuleSelection.All().Frozen("DCA-ONI-002").FreezeStoreFile);
+
+    [Fact]
+    public void FreezingAnUnknownIdFailsLoudly() =>
+        Assert.Throws<ArgumentException>(() => DcaRuleSelection.FromProperties(Properties("dca.rules.freeze = DCA-ONI-042")));
+
+    [Fact]
+    public void AMergeKeepsTheFrozenRulesOfBothSides()
+    {
+        var merged = DcaRuleSelection.All().Frozen("DCA-ONI-002")
+            .MergedWith(DcaRuleSelection.All().Frozen("DCA-NAM-001").WithFreezeStore("other"));
+
+        Assert.True(merged.IsFrozen("DCA-ONI-002"));
+        Assert.True(merged.IsFrozen("DCA-NAM-001"));
+        Assert.Equal("other", merged.FreezeStore);
     }
 
     [Fact]

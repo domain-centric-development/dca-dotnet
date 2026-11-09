@@ -49,24 +49,16 @@ public sealed class NamingRules : IDcaRuleSet
     public DcaLayout Layout { get; }
 
     public static IDcaRule InputPortImplementationsEndWithUseCaseSuffix(DcaLayout layout) =>
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-NAM-001",
             $"Application layer InputPort implementations must end with '{layout.UseCaseSuffix}'",
             "InputPort implementations (use cases) should follow consistent naming conventions (Hexagonal Architecture)",
-            arch =>
-            {
-                var violations = arch.Classes
-                    .Where(c => arch.InApplication(c)
-                        && c.IsRecord != true
-                        && ImplementsUseCase(arch, c)
-                        && !c.Name.EndsWith(arch.Layout.UseCaseSuffix, StringComparison.Ordinal))
-                    .Select(c => $"{c.FullName} implements an input port but does not end with '{arch.Layout.UseCaseSuffix}'")
-                    .ToList();
-                DcaRule.Fail(
-                    $"Application layer InputPort implementations must end with '{arch.Layout.UseCaseSuffix}'",
-                    violations,
-                    $"rename the class to *{arch.Layout.UseCaseSuffix}");
-            })
+            arch => SelectionArchRule.ForEach(
+                "input port implementations in the application layer should end with the use-case suffix",
+                () => arch.Classes.Where(c => arch.InApplication(c) && c.IsRecord != true && ImplementsUseCase(arch, c)),
+                c => c.Name.EndsWith(arch.Layout.UseCaseSuffix, StringComparison.Ordinal)
+                    ? []
+                    : [$"{c.FullName} implements an input port but does not end with '{arch.Layout.UseCaseSuffix}'"]))
         .Selecting(
             "Non-record classes in <module>.Application of every module root that implement"
                 + " IUseCase<TInput, TOutput> - directly or through an I*InputPort interface that"
@@ -74,34 +66,27 @@ public sealed class NamingRules : IDcaRuleSet
         .Checking(
             "The name ends with the configured use-case suffix. Interfaces and records are"
                 + " not selected; a class implementing only IInputPort without IUseCase is not"
-                + " selected either. An empty selection passes.");
+                + " selected either. An empty selection passes.",
+            $"rename the class to *{layout.UseCaseSuffix}");
 
     public static IDcaRule InputPortInterfacesEndWithInputPort(DcaLayout layout) =>
         // Matched by marker, not by namespace: DCA places each input port in its own use-case
         // namespace, so there is no single ..Application.Port.In.. namespace to point at.
         // .NET interfaces additionally carry the customary 'I' prefix: IPlaceOrderInputPort.
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-NAM-003",
             $"InputPort interfaces must end with '{layout.InputPortSuffix}'",
             "Input port interfaces should follow consistent naming conventions (Hexagonal Architecture)",
-            arch =>
-            {
-                var suffix = arch.Layout.InputPortSuffix;
-                var markers = arch.Layout.Markers;
-                var violations = arch.Interfaces
-                    .Where(i => arch.InApplication(i)
-                        && IsRole(arch, i, nameof(DcaMarkers.InputPort))
-                        && !IsBaseInputPortName(i.Name)
-                        && !IsRoleType(i, markers.InputPort)
-                        && !IsRoleType(i, markers.UseCase)
-                        && !(i.Name.StartsWith("I", StringComparison.Ordinal) && i.Name.Split('`')[0].EndsWith(suffix, StringComparison.Ordinal)))
-                    .Select(i => $"{i.FullName} is an input port but is not named I*{suffix}")
-                    .ToList();
-                DcaRule.Fail(
-                    $"InputPort interfaces must end with '{suffix}'",
-                    violations,
-                    $"rename the interface to I<UseCaseName>{suffix}");
-            })
+            arch => SelectionArchRule.ForEach(
+                "input port interfaces in the application layer should be named I*<input-port suffix>",
+                () => arch.Interfaces.Where(i => arch.InApplication(i)
+                    && IsRole(arch, i, nameof(DcaMarkers.InputPort))
+                    && !IsBaseInputPortName(i.Name)
+                    && !IsRoleType(i, arch.Layout.Markers.InputPort)
+                    && !IsRoleType(i, arch.Layout.Markers.UseCase)),
+                i => i.Name.StartsWith("I", StringComparison.Ordinal) && i.Name.Split('`')[0].EndsWith(arch.Layout.InputPortSuffix, StringComparison.Ordinal)
+                    ? []
+                    : [$"{i.FullName} is an input port but is not named I*{arch.Layout.InputPortSuffix}"]))
         .Selecting(
             "Interfaces in <module>.Application of every module root that are assignable to"
                 + " IInputPort, except the types the InputPort and UseCase roles name and those named"
@@ -113,25 +98,21 @@ public sealed class NamingRules : IDcaRuleSet
                 + " platform convention and is checked here only: the Java twin requires the suffix and"
                 + " nothing else, because Java interfaces carry no prefix. Classes and records are not"
                 + " selected, and an interface extending IInputPort outside an application namespace is"
-                + " not checked. An empty selection passes.");
+                + " not checked. An empty selection passes.",
+            $"rename the interface to I<UseCaseName>{layout.InputPortSuffix}");
 
     public static IDcaRule RepositoryInterfacesEndWithRepository(DcaLayout layout) =>
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-NAM-004",
             "Repository Interfaces must end with 'Repository' (name-based discovery)",
             "Repository interfaces should follow consistent naming conventions (DDD pattern)",
-            arch =>
-            {
-                var violations = arch.Interfaces
-                    .Where(i => arch.InApplication(i)
-                        && i.Name.Contains("Repository", StringComparison.Ordinal)
-                        && i.Name != "Repository"
-                        && i.Name != "IRepository"
-                        && !i.Name.EndsWith("Repository", StringComparison.Ordinal))
-                    .Select(i => $"{i.FullName} does not end with 'Repository'")
-                    .ToList();
-                DcaRule.Fail("Repository Interfaces must end with 'Repository'", violations, "rename the interface to I<Aggregate>Repository");
-            })
+            arch => SelectionArchRule.ForEach(
+                "interfaces in the application layer named after a repository should end with 'Repository'",
+                () => arch.Interfaces.Where(i => arch.InApplication(i)
+                    && i.Name.Contains("Repository", StringComparison.Ordinal)
+                    && i.Name != "Repository"
+                    && i.Name != "IRepository"),
+                i => i.Name.EndsWith("Repository", StringComparison.Ordinal) ? [] : [$"{i.FullName} does not end with 'Repository'"]))
         .Selecting(
             "Interfaces in <module>.Application of every module root whose name contains"
                 + " Repository, except one named exactly Repository or IRepository.")
@@ -139,25 +120,22 @@ public sealed class NamingRules : IDcaRuleSet
             "The name ends with Repository (IRepositoryPort or IProductRepositoryAdapter is"
                 + " reported). Selection is by name only - whether the interface extends the"
                 + " IRepository marker is not checked, and classes are not selected. An empty"
-                + " selection passes.");
+                + " selection passes.",
+            "rename the interface to I<Aggregate>Repository");
 
     public static IDcaRule ControllersEndWithController(DcaLayout layout) =>
         // Java: @Controller (MVC). .NET: MVC controllers (derive from ControllerBase without [ApiController])
         // and Razor page models (derive from PageModel).
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-NAM-005",
             $"Controller classes must end with '{layout.ControllerSuffix}'",
             "MVC controller and page model classes should follow naming conventions",
-            arch =>
-            {
-                var violations = arch.Classes
-                    .Where(c => arch.InIncomingAdapter(c)
-                        && IsMvcController(arch, c)
-                        && !c.Name.EndsWith(arch.Layout.ControllerSuffix, StringComparison.Ordinal))
-                    .Select(c => $"{c.FullName} is a controller but does not end with '{arch.Layout.ControllerSuffix}'")
-                    .ToList();
-                DcaRule.Fail($"Controller classes must end with '{arch.Layout.ControllerSuffix}'", violations, $"rename the class to *{arch.Layout.ControllerSuffix}");
-            })
+            arch => SelectionArchRule.ForEach(
+                "controllers in incoming adapters should end with the controller suffix",
+                () => arch.Classes.Where(c => arch.InIncomingAdapter(c) && IsMvcController(arch, c)),
+                c => c.Name.EndsWith(arch.Layout.ControllerSuffix, StringComparison.Ordinal)
+                    ? []
+                    : [$"{c.FullName} is a controller but does not end with '{arch.Layout.ControllerSuffix}'"]))
         .Selecting(
             "Classes in <module>.Adapter.Incoming of every module root that derive from the"
                 + " configured controller base class without carrying the configured API-controller"
@@ -166,34 +144,29 @@ public sealed class NamingRules : IDcaRuleSet
             "The name ends with the configured controller suffix (default Controller). A"
                 + " class carrying the API-controller attribute is not selected here, and a"
                 + " controller outside an incoming-adapter namespace is not checked. An empty"
-                + " selection passes.");
+                + " selection passes.",
+            $"rename the class to *{layout.ControllerSuffix}");
 
     public static IDcaRule RestControllersEndWithRestControllerSuffix(DcaLayout layout) =>
         // Java: @RestController. .NET: classes carrying [ApiController].
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-NAM-006",
             $"REST Controllers must end with '{layout.RestControllerSuffix}' (REST best practice)",
             $"[ApiController] classes should end with '{layout.RestControllerSuffix}' following RESTful naming conventions",
-            arch =>
-            {
-                var violations = arch.Classes
-                    .Where(c => arch.InIncomingAdapter(c)
-                        && IsApiController(arch, c)
-                        && !c.Name.EndsWith(arch.Layout.RestControllerSuffix, StringComparison.Ordinal))
-                    .Select(c => $"{c.FullName} is an API controller but does not end with '{arch.Layout.RestControllerSuffix}'")
-                    .ToList();
-                DcaRule.Fail(
-                    $"REST Controllers must end with '{arch.Layout.RestControllerSuffix}'",
-                    violations,
-                    $"rename the class to *{arch.Layout.RestControllerSuffix}");
-            })
+            arch => SelectionArchRule.ForEach(
+                "API controllers in incoming adapters should end with the REST-controller suffix",
+                () => arch.Classes.Where(c => arch.InIncomingAdapter(c) && IsApiController(arch, c)),
+                c => c.Name.EndsWith(arch.Layout.RestControllerSuffix, StringComparison.Ordinal)
+                    ? []
+                    : [$"{c.FullName} is an API controller but does not end with '{arch.Layout.RestControllerSuffix}'"]))
         .Selecting(
             "Classes in <module>.Adapter.Incoming of every module root that carry the"
                 + " configured API-controller attribute ([ApiController] by default).")
         .Checking(
             "The name ends with the configured REST-controller suffix. Controllers without the"
                 + " attribute are not selected, and an API controller outside an incoming-adapter"
-                + " namespace is not checked. An empty selection passes.");
+                + " namespace is not checked. An empty selection passes.",
+            $"rename the class to *{layout.RestControllerSuffix}");
 
     public static IDcaRule DtosResideInAdapterLayer(DcaLayout layout) =>
         DcaRule.Of(

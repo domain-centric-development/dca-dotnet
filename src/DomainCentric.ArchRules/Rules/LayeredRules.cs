@@ -287,20 +287,18 @@ public sealed class LayeredRules : IDcaRuleSet
                 + " shared across all bounded contexts. These must be interfaces to ensure the"
                 + " application layer remains framework-independent and follows the Dependency"
                 + " Inversion Principle. Implementations belong in infrastructure or adapter namespaces.";
-        return DcaRule.Check(
+        return DcaRule.Of(
             "DCA-LAY-005",
             title,
             rationale,
-            arch =>
-            {
-                var violations = arch.Architecture.Types.Select(arch.RuntimeType).Where(t => t is not null).Cast<Type>()
-                    .Where(t => t.Namespace == DcaLayout.BuildingBlocksPortsOutNamespace && !t.IsInterface)
+            arch => SelectionArchRule.ForEach(
+                "types in the building blocks' outgoing-port namespace should be interfaces",
+                () => arch.Architecture.Types.Select(arch.RuntimeType).Where(t => t is not null).Cast<Type>()
+                    .Where(t => t.Namespace == DcaLayout.BuildingBlocksPortsOutNamespace)
                     // closures and async state machines of default interface methods are not port types
-                    .Where(t => !t.IsDefined(typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute), false) && !t.Name.Contains('<'))
-                    .Select(t => $"{t.FullName} is not an interface")
-                    .ToList();
-                DcaRule.Fail($"{title}\nbecause {rationale}", violations);
-            })
+                    .Where(t => !t.IsDefined(typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute), false) && !t.Name.Contains('<')),
+                t => t.FullName!,
+                t => t.IsInterface ? [] : [$"{t.FullName} is not an interface"]))
             .Selecting(
                 "Types declared in the building-blocks namespace "
                 + "DomainCentric.BuildingBlocks.Hexagonal.Ports.Out, read from types imported in the architecture, including consumer assemblies. Compiler-generated "
@@ -315,7 +313,7 @@ public sealed class LayeredRules : IDcaRuleSet
     /// transaction APIs (<see cref="DcaLayout.WithPersistenceApiPrefixes"/>).
     /// </summary>
     public static IDcaRule ApplicationLayerMustNotUsePersistenceApis() =>
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-LAY-008",
             "Application layer must not use persistence or transaction APIs",
             "A use case declares its transaction with the configured transactional annotation or"
@@ -334,8 +332,10 @@ public sealed class LayeredRules : IDcaRuleSet
                 bool IsDeclarative(string name) =>
                     FrameworkTypes.IsSet(declarative)
                     && (name == declarative || name.StartsWith(declarative + "+", StringComparison.Ordinal));
-                var violations = new List<string>();
-                foreach (var type in arch.Types.Where(arch.InApplication))
+                return SelectionArchRule.ForEach(
+                    "types in the application layer should not depend on a persistence or transaction API",
+                    () => arch.Types.Where(arch.InApplication),
+                    type =>
                 {
                     var apis = type.Dependencies
                         .Select(d => d.Target.FullName)
@@ -343,16 +343,10 @@ public sealed class LayeredRules : IDcaRuleSet
                         .Distinct()
                         .OrderBy(n => n, StringComparer.Ordinal)
                         .ToList();
-                    if (apis.Count > 0)
-                    {
-                        violations.Add($"{type.FullName} depends on {string.Join(", ", apis)}");
-                    }
-                }
-
-                DcaRule.Fail(
-                    "Application layer must not use persistence or transaction APIs\nbecause the transaction boundary belongs to the transaction-boundary port or a decorator",
-                    violations,
-                    "Program the use case against an output port, declare the transaction with the configured transactional attribute or draw it through the transaction-boundary port, and move the API call into an outgoing adapter.");
+                    return apis.Count > 0
+                        ? [$"{type.FullName} depends on {string.Join(", ", apis)}"]
+                        : (IEnumerable<string>)[];
+                });
             })
         .Experimental()
         .Selecting("Types the layout places in the application layer of every module root.")
@@ -366,5 +360,6 @@ public sealed class LayeredRules : IDcaRuleSet
                 + " transaction-boundary port. The default names the platform's common persistence,"
                 + " data-access and transaction APIs; another persistence library is not reported unless"
                 + " the layout setting for persistence APIs names it, and the domain and adapter layers"
-                + " are not selected. An empty list checks nothing; an empty selection passes.");
+                + " are not selected. An empty list checks nothing; an empty selection passes.",
+            "Program the use case against an output port, declare the transaction with the configured transactional attribute or draw it through the transaction-boundary port, and move the API call into an outgoing adapter.");
 }

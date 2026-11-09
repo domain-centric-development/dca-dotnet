@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using ArchUnitNET.Domain;
 using ArchUnitNET.Domain.Extensions;
+using ArchUnitNET.Fluent;
 using DomainCentric.BuildingBlocks.Ddd.Tactical;
 using DomainCentric.BuildingBlocks.Hexagonal.Ports.In;
 using DomainCentric.BuildingBlocks.Hexagonal.Ports.Out;
@@ -144,7 +145,7 @@ public sealed class UseCaseRules : IDcaRuleSet
     /// publishes nothing.
     /// </summary>
     public static IDcaRule QueryUseCasesDoNotWrite(DcaLayout layout) =>
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-USE-019",
             "Query use cases must not write or publish",
             "A read never creates. A query has no side effect: it does not create, save or publish, and when"
@@ -152,34 +153,34 @@ public sealed class UseCaseRules : IDcaRuleSet
                 + " to change state; a caller that only shows what exists asks the query",
             arch =>
             {
-                var violations = new List<string>();
                 var markers = arch.Layout.Markers;
-                foreach (var type in arch.Types.Where(t => OperationPolicy.Operation(t, arch)).OrderBy(t => t.FullName, StringComparer.Ordinal))
-                {
-                    var runtime = arch.RuntimeType(type)!;
-                    if (!InputTypesOf(runtime, markers).Any(t => markers.Is("Query", t)))
+                return SelectionArchRule.ForEach(
+                    "operations that take a query should not write or publish",
+                    () => arch.Types.Where(t => OperationPolicy.Operation(t, arch)).OrderBy(t => t.FullName, StringComparer.Ordinal),
+                    type =>
                     {
-                        continue;
-                    }
-
-                    foreach (var unit in new IntraClassCalls(runtime).Units)
-                    {
-                        foreach (var call in IntraClassCalls.IlCalls(unit))
+                        var violations = new List<string>();
+                        var runtime = arch.RuntimeType(type)!;
+                        if (!InputTypesOf(runtime, markers).Any(t => markers.Is("Query", t)))
                         {
-                            var effect = WriteEffectOf(call, markers);
-                            if (effect is not null)
+                            return violations;
+                        }
+
+                        foreach (var unit in new IntraClassCalls(runtime).Units)
+                        {
+                            foreach (var call in IntraClassCalls.IlCalls(unit))
                             {
-                                violations.Add($"{type.FullName}.{IntraClassCalls.DisplayName(unit)} takes a query and {effect}"
-                                    + $" ({call.DeclaringType!.Name.Split('`')[0]}.{call.Name})");
+                                var effect = WriteEffectOf(call, markers);
+                                if (effect is not null)
+                                {
+                                    violations.Add($"{type.FullName}.{IntraClassCalls.DisplayName(unit)} takes a query and {effect}"
+                                        + $" ({call.DeclaringType!.Name.Split('`')[0]}.{call.Name})");
+                                }
                             }
                         }
-                    }
-                }
 
-                DcaRule.Fail(
-                    "Query use cases must not write or publish",
-                    violations.Distinct().ToList(),
-                    "answer none when nothing exists, and move the write into a command use case the caller runs where it is about to change state");
+                        return violations;
+                    });
             })
         .Experimental()
         .Selecting(
@@ -195,14 +196,15 @@ public sealed class UseCaseRules : IDcaRuleSet
                 + " Create, Append, Archive, Purge, Clear, Set or Mark), or any method of the domain-event or"
                 + " integration-event publisher. Only the class's own calls are read: a write reached through"
                 + " a helper class or a second port is not seen, and a store write under another verb passes."
-                + " An empty selection passes.");
+                + " An empty selection passes.",
+            "answer none when nothing exists, and move the write into a command use case the caller runs where it is about to change state");
 
     /// <summary>
     /// DCA-USE-020 (experimental). The adapter turns raw input into the types the input port takes; an id arrives
     /// as the id's value type, never as text the application parses.
     /// </summary>
     public static IDcaRule UseCasesDoNotParseIds(DcaLayout layout) =>
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-USE-020",
             "Use cases must not parse raw input into an id",
             "The adapter turns raw input into the types the input port takes: an id arrives in the command as"
@@ -211,30 +213,30 @@ public sealed class UseCaseRules : IDcaRuleSet
                 + " the use case never sees it",
             arch =>
             {
-                var violations = new List<string>();
-                foreach (var type in arch.Types
+                return SelectionArchRule.ForEach(
+                    "types in the application layer should not parse raw input into an id",
+                    () => arch.Types
                     .Where(t => t.Namespace is not null && arch.InApplication(t))
-                    .OrderBy(t => t.FullName, StringComparer.Ordinal))
-                {
-                    var runtime = arch.RuntimeType(type);
-                    if (runtime is null || runtime.IsNested)
+                    .OrderBy(t => t.FullName, StringComparer.Ordinal),
+                    type =>
                     {
-                        continue;
-                    }
-
-                    foreach (var unit in new IntraClassCalls(runtime).Units)
-                    {
-                        foreach (var call in IntraClassCalls.IlCalls(unit).Where(c => c.DeclaringType == typeof(Guid) && IdParseMethods.Contains(c.Name)))
+                        var violations = new List<string>();
+                        var runtime = arch.RuntimeType(type);
+                        if (runtime is null || runtime.IsNested)
                         {
-                            violations.Add($"{type.FullName}.{IntraClassCalls.DisplayName(unit)} parses an id with Guid.{call.Name}");
+                            return violations;
                         }
-                    }
-                }
 
-                DcaRule.Fail(
-                    "Use cases must not parse raw input into an id",
-                    violations.Distinct().ToList(),
-                    "let the input port take the id's value type and parse the text in the adapter, or in the value type's own factory");
+                        foreach (var unit in new IntraClassCalls(runtime).Units)
+                        {
+                            foreach (var call in IntraClassCalls.IlCalls(unit).Where(c => c.DeclaringType == typeof(Guid) && IdParseMethods.Contains(c.Name)))
+                            {
+                                violations.Add($"{type.FullName}.{IntraClassCalls.DisplayName(unit)} parses an id with Guid.{call.Name}");
+                            }
+                        }
+
+                        return violations;
+                    });
             })
         .Experimental()
         .Selecting(
@@ -245,7 +247,8 @@ public sealed class UseCaseRules : IDcaRuleSet
             "No method calls the platform's parse API for a unique identifier: System.Guid.Parse, TryParse,"
                 + " ParseExact or TryParseExact, in any overload. Parsing a project's own id type, or an id"
                 + " held as a number or another text format, is not seen; the value type's own factory in the"
-                + " domain is outside the selection and may parse. An empty selection passes.");
+                + " domain is outside the selection and may parse. An empty selection passes.",
+            "let the input port take the id's value type and parse the text in the adapter, or in the value type's own factory");
 
     /// <summary>
     /// DCA-USE-021 (experimental). One instance of a use case serves every caller: what it holds is set once, by its
@@ -253,7 +256,7 @@ public sealed class UseCaseRules : IDcaRuleSet
     /// primary-constructor parameter is read from the IL.
     /// </summary>
     public static IDcaRule UseCasesAreStateless(DcaLayout layout) =>
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-USE-021",
             "Use cases should be stateless (only final fields for dependencies)",
             "One instance of a use case serves every caller. A field it writes while it runs is shared by the next"
@@ -261,36 +264,36 @@ public sealed class UseCaseRules : IDcaRuleSet
                 + " holds is set once, by its constructor: the ports and services it is wired with",
             arch =>
             {
-                var violations = new List<string>();
                 const BindingFlags instance = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
-                foreach (var type in arch.Types.Where(t => OperationPolicy.Operation(t, arch)).OrderBy(t => t.FullName, StringComparer.Ordinal))
-                {
-                    var runtime = arch.RuntimeType(type)!;
-                    for (var current = runtime; current is not null && current != typeof(object); current = current.BaseType)
+                return SelectionArchRule.ForEach(
+                    "operations should hold only fields their constructor sets",
+                    () => arch.Types.Where(t => OperationPolicy.Operation(t, arch)).OrderBy(t => t.FullName, StringComparer.Ordinal),
+                    type =>
                     {
-                        foreach (var field in current.GetFields(instance).Where(f => !f.IsInitOnly && !f.IsLiteral))
+                        var violations = new List<string>();
+                        var runtime = arch.RuntimeType(type)!;
+                        for (var current = runtime; current is not null && current != typeof(object); current = current.BaseType)
                         {
-                            if (CapturedParameter(field) is { } parameter)
+                            foreach (var field in current.GetFields(instance).Where(f => !f.IsInitOnly && !f.IsLiteral))
                             {
-                                if (WrittenOutsideConstructors(current, field))
+                                if (CapturedParameter(field) is { } parameter)
                                 {
-                                    violations.Add($"{type.FullName} assigns its constructor parameter '{parameter}' outside the constructor");
+                                    if (WrittenOutsideConstructors(current, field))
+                                    {
+                                        violations.Add($"{type.FullName} assigns its constructor parameter '{parameter}' outside the constructor");
+                                    }
+
+                                    continue;
                                 }
 
-                                continue;
+                                violations.Add(field.Name.StartsWith("<", StringComparison.Ordinal)
+                                    ? $"{type.FullName} has property '{CapturedName(field.Name)}' with a setter"
+                                    : $"{type.FullName} has non-readonly field '{field.Name}'");
                             }
-
-                            violations.Add(field.Name.StartsWith("<", StringComparison.Ordinal)
-                                ? $"{type.FullName} has property '{CapturedName(field.Name)}' with a setter"
-                                : $"{type.FullName} has non-readonly field '{field.Name}'");
                         }
-                    }
-                }
 
-                DcaRule.Fail(
-                    "Use cases should be stateless (only final fields for dependencies)",
-                    violations,
-                    "pass what a call needs through the command or keep it in a local; the constructor sets only the collaborators");
+                        return violations;
+                    });
             })
         .Experimental()
         .Selecting(
@@ -302,7 +305,8 @@ public sealed class UseCaseRules : IDcaRuleSet
                 + " property passes. A parameter of a primary constructor that the class captures is held in a"
                 + " compiler-generated field the language cannot make readonly; it is reported only when a method other"
                 + " than a constructor assigns it. Static fields and the types of the fields are not inspected, so a"
-                + " readonly field holding mutable state passes. An empty selection passes.");
+                + " readonly field holding mutable state passes. An empty selection passes.",
+            "pass what a call needs through the command or keep it in a local; the constructor sets only the collaborators");
 
     /// <summary>The parameter name of a primary-constructor capture field (<c>&lt;orders&gt;P</c>), or <c>null</c>.</summary>
     private static string? CapturedParameter(FieldInfo field) =>
@@ -482,24 +486,26 @@ public sealed class UseCaseRules : IDcaRuleSet
                 + " (<module>.Application).");
 
     public static IDcaRule CommandsAreImmutable(DcaLayout layout) =>
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-USE-004",
             "Use Case Commands should be immutable (sealed or records)",
             "Use case commands should be immutable (value objects)",
             arch => ImmutableApplicationModels(arch, "Command", t => arch.Layout.Markers.Is("Command", t)))
         .Selecting("Classes and structs, including record classes and record structs, in each module application namespace that the configured command role recognises - by default a simple name ending with Command.")
         .Checking(
-            "Classes are sealed or records; structs are allowed. Every inherited instance field is readonly, every property is get-only or init-only and no instance Set*(x): void method exists. Referenced objects and collection contents are not inspected.");
+            "Classes are sealed or records; structs are allowed. Every inherited instance field is readonly, every property is get-only or init-only and no instance Set*(x): void method exists. Referenced objects and collection contents are not inspected.",
+            "declare *Command types with immutable instance state");
 
     public static IDcaRule QueriesAreImmutable(DcaLayout layout) =>
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-USE-005",
             "Use Case Queries should be immutable (sealed or records)",
             "Use case queries should be immutable (value objects)",
             arch => ImmutableApplicationModels(arch, "Query", t => arch.Layout.Markers.Is("Query", t)))
         .Selecting("Classes and structs, including record classes and record structs, in each module application namespace that the configured query role recognises - by default a simple name ending with Query.")
         .Checking(
-            "Classes are sealed or records; structs are allowed. Every inherited instance field is readonly, every property is get-only or init-only and no instance Set*(x): void method exists. Referenced objects and collection contents are not inspected.");
+            "Classes are sealed or records; structs are allowed. Every inherited instance field is readonly, every property is get-only or init-only and no instance Set*(x): void method exists. Referenced objects and collection contents are not inspected.",
+            "declare *Query types with immutable instance state");
 
     public static IDcaRule ResultsResideInApplication(DcaLayout layout) =>
         DcaRule.Of(
@@ -531,14 +537,15 @@ public sealed class UseCaseRules : IDcaRuleSet
                 + " model.");
 
     public static IDcaRule ResultsAreImmutable(DcaLayout layout) =>
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-USE-007",
             "Use Case Result Models should be immutable (sealed or records)",
             "Use case result models should be immutable (value objects)",
             arch => ImmutableApplicationModels(arch, "Result", t => t.Name.EndsWith("Result", StringComparison.Ordinal)))
         .Selecting("Classes and structs in each module application namespace with the corresponding Command, Query or Result suffix, including record classes and record structs.")
         .Checking(
-            "Classes are sealed or records; structs are allowed. Every inherited instance field is readonly, every property is get-only or init-only and no instance Set*(x): void method exists. Referenced objects and collection contents are not inspected.");
+            "Classes are sealed or records; structs are allowed. Every inherited instance field is readonly, every property is get-only or init-only and no instance Set*(x): void method exists. Referenced objects and collection contents are not inspected.",
+            "declare *Result types with immutable instance state");
 
     public static IDcaRule ResponsesResideInIncomingAdapters(DcaLayout layout) =>
         // Matched by pattern: every incoming adapter, in any context or none, including the shared
@@ -568,7 +575,7 @@ public sealed class UseCaseRules : IDcaRuleSet
     /// through another; a helper two entry methods share does not connect them.
     /// </summary>
     public static IDcaRule UseCasesPublishDomainEventsAfterSaving(DcaLayout layout) =>
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-USE-009",
             "Use cases that save an aggregate must publish its domain events",
             "A saved aggregate must not keep its events: unpublished, they are lost, and stored on the"
@@ -585,46 +592,46 @@ public sealed class UseCaseRules : IDcaRuleSet
                 + " ClearDomainEvents(), separates dispatch from acknowledgement and is not accepted",
             arch =>
             {
-                var violations = new List<string>();
                 var useCases = arch.Classes
                     .Where(c => c.Namespace is not null
                         && arch.InApplication(c)
                         && (IsRole(arch, c, nameof(DcaMarkers.InputPort)) || c.Name.Split('`')[0].EndsWith(arch.Layout.UseCaseSuffix, StringComparison.Ordinal)))
                     .OrderBy(c => c.FullName, StringComparer.Ordinal);
-                foreach (var useCase in useCases)
-                {
-                    var runtime = arch.RuntimeType(useCase);
-                    if (runtime is null)
+                return SelectionArchRule.ForEach(
+                    "use cases that save an aggregate should publish its domain events on every entry path",
+                    () => useCases,
+                    useCase =>
                     {
-                        continue;
-                    }
-
-                    var calls = new IntraClassCalls(runtime);
-                    foreach (var unit in calls.Units.Where(u => IntraClassCalls.Calls(u, "SaveAsync", t => arch.Layout.Markers.Is(nameof(DcaMarkers.Repository), t))))
-                    {
-                        if (IntraClassCalls.IlCalls(unit).Where(m => m.Name == "SaveAsync" && m.DeclaringType is not null && arch.Layout.Markers.Is(nameof(DcaMarkers.Repository), m.DeclaringType))
-                            .All(m => EventFreeAggregate.Repository(m, arch)))
+                        var violations = new List<string>();
+                        var runtime = arch.RuntimeType(useCase);
+                        if (runtime is null)
                         {
-                            continue;
+                            return violations;
                         }
 
-                        foreach (var entry in calls.EntryPointsOf(unit))
+                        var calls = new IntraClassCalls(runtime);
+                        foreach (var unit in calls.Units.Where(u => IntraClassCalls.Calls(u, "SaveAsync", t => arch.Layout.Markers.Is(nameof(DcaMarkers.Repository), t))))
                         {
-                            var publishes = calls.ReachableFrom(entry)
-                                .Any(u => IntraClassCalls.Calls(u, "PublishAndClearEventsAsync", t => arch.Layout.Markers.Is(nameof(DcaMarkers.DomainEventPublisher), t)));
-                            if (!publishes)
+                            if (IntraClassCalls.IlCalls(unit).Where(m => m.Name == "SaveAsync" && m.DeclaringType is not null && arch.Layout.Markers.Is(nameof(DcaMarkers.Repository), m.DeclaringType))
+                                .All(m => EventFreeAggregate.Repository(m, arch)))
                             {
-                                violations.Add($"{useCase.FullName}.{IntraClassCalls.PathName(entry, unit)} saves an aggregate without"
-                                    + " publishing its domain events - no method reached from there calls PublishAndClearEventsAsync");
+                                continue;
+                            }
+
+                            foreach (var entry in calls.EntryPointsOf(unit))
+                            {
+                                var publishes = calls.ReachableFrom(entry)
+                                    .Any(u => IntraClassCalls.Calls(u, "PublishAndClearEventsAsync", t => arch.Layout.Markers.Is(nameof(DcaMarkers.DomainEventPublisher), t)));
+                                if (!publishes)
+                                {
+                                    violations.Add($"{useCase.FullName}.{IntraClassCalls.PathName(entry, unit)} saves an aggregate without"
+                                        + " publishing its domain events - no method reached from there calls PublishAndClearEventsAsync");
+                                }
                             }
                         }
-                    }
-                }
 
-                DcaRule.Fail(
-                    "Use cases that save an aggregate must publish its domain events",
-                    violations.Distinct().ToList(),
-                    "call IDomainEventPublisher.PublishAndClearEventsAsync(aggregate) after IRepository.SaveAsync(aggregate) on every path that saves");
+                        return violations;
+                    });
             })
         .Selecting(
             "Classes in <module>.Application of every module root selected by IInputPort assignability or the"
@@ -637,10 +644,11 @@ public sealed class UseCaseRules : IDcaRuleSet
                 + " the class and its nested state-machine and closure types, so async methods and"
                 + " lambdas are followed. Only PublishAndClearEventsAsync counts - PublishAsync(event),"
                 + " even followed by ClearDomainEvents(), does not. A use case without a save (a query,"
-                + " a bulk delete) is selected but has nothing to check and passes. The method names are fixed and are not part of the marker roles: a vocabulary whose repository writes under another name is selected and then found to save nothing, so this rule passes over it.");
+                + " a bulk delete) is selected but has nothing to check and passes. The method names are fixed and are not part of the marker roles: a vocabulary whose repository writes under another name is selected and then found to save nothing, so this rule passes over it.",
+            "call IDomainEventPublisher.PublishAndClearEventsAsync(aggregate) after IRepository.SaveAsync(aggregate) on every path that saves");
 
     public static IDcaRule MutatingUseCasesAreTransactional(DcaLayout layout) =>
-        DcaRule.Check("DCA-USE-012", "Use cases that save an aggregate or publish domain events must have a transaction boundary",
+        DcaRule.Of("DCA-USE-012", "Use cases that save an aggregate or publish domain events must have a transaction boundary",
             "The use case owns the unit of work. Saving an aggregate is one business fact, yet the repository may write it as"
             + " several statements - an aggregate of entities and value objects often spans several tables - and a repository"
             + " adapter draws no boundary of its own; without one, a failure between the statements leaves half an aggregate"
@@ -654,41 +662,43 @@ public sealed class UseCaseRules : IDcaRuleSet
             + " one route does not cover a second route",
             arch =>
             {
-                var violations = new List<string>();
-                foreach (var type in arch.Types.Where(t => OperationPolicy.Operation(t, arch)))
-                {
-                    var runtime = arch.RuntimeType(type)!;
-                    var graph = new IntraClassCalls(runtime);
-                    foreach (var unit in graph.Units)
+                return SelectionArchRule.ForEach(
+                    "operations that save, delete or publish should run inside a transaction boundary on every entry path",
+                    () => arch.Types.Where(t => OperationPolicy.Operation(t, arch)),
+                    type =>
                     {
-                        var effect = TransactionalEffectOf(unit, arch.Layout.Markers);
-                        if (effect is null)
+                        var violations = new List<string>();
+                        var runtime = arch.RuntimeType(type)!;
+                        var graph = new IntraClassCalls(runtime);
+                        foreach (var unit in graph.Units)
                         {
-                            continue;
-                        }
-
-                        foreach (var entry in graph.EntryPointsOf(unit))
-                        {
-                            if (!Transactional(runtime, layout.FrameworkTypes.TransactionalAttribute)
-                                && graph.ReachableThrough(entry, u => !Transactional(u, layout.FrameworkTypes.TransactionalAttribute) && !CallsBoundary(u, arch.Layout.Markers)).Contains(unit))
+                            var effect = TransactionalEffectOf(unit, arch.Layout.Markers);
+                            if (effect is null)
                             {
-                                violations.Add(
-                                    $"{type.FullName}.{IntraClassCalls.PathName(entry, unit)} {effect} without "
-                                    + DescribeTransactionalAttribute(layout.FrameworkTypes.TransactionalAttribute)
-                                    + " on the class or on a method of that path, and without"
-                                    + " ITransactionBoundary.InTransactionAsync(...) on it");
+                                continue;
+                            }
+
+                            foreach (var entry in graph.EntryPointsOf(unit))
+                            {
+                                if (!Transactional(runtime, layout.FrameworkTypes.TransactionalAttribute)
+                                    && graph.ReachableThrough(entry, u => !Transactional(u, layout.FrameworkTypes.TransactionalAttribute) && !CallsBoundary(u, arch.Layout.Markers)).Contains(unit))
+                                {
+                                    violations.Add(
+                                        $"{type.FullName}.{IntraClassCalls.PathName(entry, unit)} {effect} without "
+                                        + DescribeTransactionalAttribute(layout.FrameworkTypes.TransactionalAttribute)
+                                        + " on the class or on a method of that path, and without"
+                                        + " ITransactionBoundary.InTransactionAsync(...) on it");
+                                }
                             }
                         }
-                    }
-                }
-                DcaRule.Fail(
-                    "Use cases that save an aggregate or publish domain events must have a transaction boundary",
-                    violations.Distinct().ToList(),
-                    "wrap load, mutate, save and publish in ITransactionBoundary.InTransactionAsync(...),"
-                    + " or carry the configured transactional attribute on the class or on every entry path");
+
+                        return violations;
+                    });
             })
         .Selecting("Concrete application operations selected by IInputPort marker or suffix with loadable runtime types, including closure and async units.")
-        .Checking("Every entry path to a unit calling IRepository.SaveAsync, IRepository.DeleteByIdAsync or an IDomainEventPublisher crosses a unit calling ITransactionBoundary.InTransactionAsync (including its extension overloads) or carrying the configured TransactionalAttribute; a type-level attribute covers all paths. The declarative path is empty by default in .NET - AspNetCore() and None() both leave TransactionalAttribute unset, because ASP.NET Core has no ambient transaction attribute - so out of the box only the explicit boundary satisfies the rule, while the Java twin also accepts the framework's transactional annotation. A use case that neither saves, deletes nor publishes (a query, a Store write) is selected but has nothing to check and passes. Static limit: a boundary call in the same unit passes even when the save or publication follows an empty boundary block. Runtime rollback containment must be tested separately. The method names are fixed and are not part of the marker roles: a vocabulary whose repository writes under another name is selected and then found to save nothing, so this rule passes over it.");
+        .Checking("Every entry path to a unit calling IRepository.SaveAsync, IRepository.DeleteByIdAsync or an IDomainEventPublisher crosses a unit calling ITransactionBoundary.InTransactionAsync (including its extension overloads) or carrying the configured TransactionalAttribute; a type-level attribute covers all paths. The declarative path is empty by default in .NET - AspNetCore() and None() both leave TransactionalAttribute unset, because ASP.NET Core has no ambient transaction attribute - so out of the box only the explicit boundary satisfies the rule, while the Java twin also accepts the framework's transactional annotation. A use case that neither saves, deletes nor publishes (a query, a Store write) is selected but has nothing to check and passes. Static limit: a boundary call in the same unit passes even when the save or publication follows an empty boundary block. Runtime rollback containment must be tested separately. The method names are fixed and are not part of the marker roles: a vocabulary whose repository writes under another name is selected and then found to save nothing, so this rule passes over it.",
+            "wrap load, mutate, save and publish in ITransactionBoundary.InTransactionAsync(...),"
+                    + " or carry the configured transactional attribute on the class or on every entry path");
 
     /// <summary>
     /// Names the declarative form the violation is missing, the way <c>dca-archunit</c>'s
@@ -830,7 +840,7 @@ public sealed class UseCaseRules : IDcaRuleSet
     /// application namespace, one nested deeper than a feature, or a module that mixes both forms.
     /// </summary>
     public static IDcaRule TransactionalUseCasesDoNotCallRemotePorts(DcaLayout layout) =>
-        DcaRule.Check("DCA-USE-013", "Declaratively transactional use cases must not call remote-capable output ports",
+        DcaRule.Of("DCA-USE-013", "Declaratively transactional use cases must not call remote-capable output ports",
             "A declaratively transactional use case holds a database connection for its whole run. Calling an output port"
             + " that may leave the process (another context's API, a payment provider, a mail gateway) inside it blocks"
             + " that connection for the remote round trip; under load the pool runs dry, and a rollback cannot undo the"
@@ -842,11 +852,12 @@ public sealed class UseCaseRules : IDcaRuleSet
             arch =>
             {
                 var attribute = layout.FrameworkTypes.TransactionalAttribute;
-                var violations = new List<string>();
-                if (FrameworkTypes.IsSet(attribute))
-                {
-                    foreach (var type in arch.Types.Where(t => OperationPolicy.Operation(t, arch)))
+                return SelectionArchRule.ForEach(
+                    "declaratively transactional operations should not call a remote-capable output port inside the transaction",
+                    () => FrameworkTypes.IsSet(attribute) ? arch.Types.Where(t => OperationPolicy.Operation(t, arch)) : [],
+                    type =>
                     {
+                        var violations = new List<string>();
                         var runtime = arch.RuntimeType(type)!;
                         var graph = new IntraClassCalls(runtime);
                         foreach (var unit in graph.Units)
@@ -871,17 +882,14 @@ public sealed class UseCaseRules : IDcaRuleSet
                                 + " inside the transaction - call it before, or draw the boundary with"
                                 + " ITransactionBoundary.InTransactionAsync(...)");
                         }
-                    }
-                }
 
-                DcaRule.Fail(
-                    "Declaratively transactional use cases must not call remote-capable output ports",
-                    violations.Distinct().ToList(),
-                    "call the remote port before the transaction, or draw the boundary explicitly with"
-                    + " ITransactionBoundary.InTransactionAsync(...) around the transactional part only");
+                        return violations;
+                    });
             })
         .Selecting("Concrete application operations selected by IInputPort marker or configured use-case suffix, with loadable runtime types. Nothing at all while no transactional attribute is configured, which is the default: neither .NET preset names one, because ASP.NET Core has no ambient transaction attribute.")
-        .Checking("Every code unit that runs under the configured transactional attribute - on the class, on itself, or on an entry point that reaches it within the class - calls no output port other than IRepository, IStore, IDomainEventPublisher, IIntegrationEventPublisher or a port the layout declares local (a hasher, a clock, an id source - DcaLayout.WithLocalOutputPorts). A use case without such an attribute (an explicit ITransactionBoundary, or none) is selected but never reported, and with no attribute configured nothing is ever reported - the rule then carries the id without checking anything, as the Java twin does where no framework annotation is on the class path. What happens inside an InTransactionAsync block is not inspected; the explicit boundary is the developer's own and its extent is visible at the call site.");
+        .Checking("Every code unit that runs under the configured transactional attribute - on the class, on itself, or on an entry point that reaches it within the class - calls no output port other than IRepository, IStore, IDomainEventPublisher, IIntegrationEventPublisher or a port the layout declares local (a hasher, a clock, an id source - DcaLayout.WithLocalOutputPorts). A use case without such an attribute (an explicit ITransactionBoundary, or none) is selected but never reported, and with no attribute configured nothing is ever reported - the rule then carries the id without checking anything, as the Java twin does where no framework annotation is on the class path. What happens inside an InTransactionAsync block is not inspected; the explicit boundary is the developer's own and its extent is visible at the call site.",
+            "call the remote port before the transaction, or draw the boundary explicitly with"
+                + " ITransactionBoundary.InTransactionAsync(...) around the transactional part only");
 
     public static IDcaRule UseCasePackagesUseOneDepth(DcaLayout layout) =>
         DcaRule.Check(
@@ -1156,22 +1164,14 @@ public sealed class UseCaseRules : IDcaRuleSet
         && parameters[0].ParameterType == type
         && type.GetMethod("<Clone>$", BindingFlags.Public | BindingFlags.Instance) is not null;
 
-    private static void ImmutableApplicationModels(DcaArchitecture arch, string suffix, Func<IType, bool> model)
-    {
-        // Selects classes and structs only: an enum is its own kind in the type model and immutable by
-        // construction - its one instance field, the underlying value, is not readonly.
-        var violations = arch.Types.Where(t => t is Class or Struct)
-            .Where(c => c.Namespace is not null
-                && arch.InApplication(c)
-                && model(c)
-                && !TacticalPatternRules.IsImmutableShape(c))
-            .Select(c => $"{c.FullName} does not have immutable instance state")
-            .ToList();
-        DcaRule.Fail(
-            $"Use case {suffix} models should be immutable (sealed or records)",
-            violations,
-            $"declare *{suffix} types with immutable instance state");
-    }
+    // Selects classes and structs only: an enum is its own kind in the type model and immutable by
+    // construction - its one instance field, the underlying value, is not readonly.
+    private static IArchRule ImmutableApplicationModels(DcaArchitecture arch, string suffix, Func<IType, bool> model) =>
+        SelectionArchRule.ForEach(
+            $"use case {suffix} models in the application layer should have immutable instance state",
+            () => arch.Types.Where(t => t is Class or Struct)
+                .Where(c => c.Namespace is not null && arch.InApplication(c) && model(c)),
+            c => TacticalPatternRules.IsImmutableShape(c) ? [] : [$"{c.FullName} does not have immutable instance state"]);
 
     /// <summary>The input ports (interfaces and classes assignable to the role) a class depends on, as runtime types.</summary>
     private static IEnumerable<Type> InputPortsOf(DcaArchitecture arch, Class adapter)

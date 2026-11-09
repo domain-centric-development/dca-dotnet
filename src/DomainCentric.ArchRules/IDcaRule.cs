@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using ArchUnitNET.Fluent;
+
 namespace DomainCentric.ArchRules;
 
 /// <summary>
@@ -57,4 +59,20 @@ public interface IDcaRule
     /// <see cref="DcaRuleExecution"/> carries the lines in the rule's outcome.
     /// </summary>
     IReadOnlyList<string> Observe(DcaArchitecture architecture) => Array.Empty<string>();
+
+    /// <summary>
+    /// Whether the rule is one ArchUnitNET rule — <see cref="ArchRule"/> returns it — and so can run
+    /// against a frozen baseline (<see cref="DcaRuleSelection.Frozen"/>).
+    /// </summary>
+    bool Freezable => false;
+
+    /// <summary>
+    /// The single ArchUnitNET rule behind this check, when there is one.
+    /// </summary>
+    /// <remarks>
+    /// Rules built with <see cref="DcaRule.Of"/> expose theirs, which is what makes freezing a baseline
+    /// possible. Rules built with <see cref="DcaRule.Check"/> run several checks internally (once per
+    /// bounded context, say) and return <c>null</c>.
+    /// </remarks>
+    IArchRule? ArchRule(DcaArchitecture architecture) => null;
 }

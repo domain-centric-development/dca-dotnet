@@ -2,12 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using ArchUnitNET.Domain;
+using ArchUnitNET.Fluent;
+using ArchUnitNET.Fluent.Freeze;
 
 namespace DomainCentric.ArchRules;
 
 /// <summary>
 /// Runs a single rule the way a <see cref="DcaRuleSelection"/> asks for it: at its configured severity,
-/// with the tolerated violations filtered out.
+/// against a frozen baseline where one was requested, with the tolerated violations filtered out.
 /// </summary>
 /// <remarks>
 /// Nothing here throws on a violation — the caller decides what a <see cref="DcaRuleOutcome"/> means.
@@ -56,7 +59,7 @@ public static class DcaRuleExecution
         string? violations;
         try
         {
-            violations = Evaluate(rule, architecture, ignored);
+            violations = Evaluate(rule, architecture, selection, ignored);
         }
         finally
         {
@@ -82,11 +85,31 @@ public static class DcaRuleExecution
     }
 
     /// <summary>The violation report, or <c>null</c> when the rule holds.</summary>
-    private static string? Evaluate(IDcaRule rule, DcaArchitecture architecture, IReadOnlyList<Regex> ignored)
+    private static string? Evaluate(IDcaRule rule, DcaArchitecture architecture, DcaRuleSelection selection, IReadOnlyList<Regex> ignored)
     {
+        IArchRule? frozen = null;
+        if (selection.IsFrozen(rule.Id))
+        {
+            var archRule = rule.ArchRule(architecture)
+                ?? throw new ArgumentException(
+                    "Rule "
+                    + rule.Id
+                    + " cannot be frozen: it runs several checks internally and has no single ArchUnit"
+                    + " rule to build a baseline from. Lower it to WARN instead.");
+            frozen = FreezingArchRule.Freeze(new Baseline(rule.Id, archRule), new JsonViolationStore(selection.FreezeStoreFile));
+        }
+
         try
         {
-            rule.Check(architecture);
+            if (frozen is null)
+            {
+                rule.Check(architecture);
+            }
+            else
+            {
+                DcaRule.EvaluateWrapped(rule, frozen, architecture);
+            }
+
             return null;
         }
         catch (DcaRuleViolationException violation)
@@ -99,6 +122,48 @@ public static class DcaRuleExecution
             var remaining = violation.Violations.Where(v => !MatchesAny(v, ignored)).ToList();
             return remaining.Count == 0 ? null : violation.Retaining(remaining).Message;
         }
+    }
+
+    /// <summary>
+    /// The rule as the baseline sees it: stored under the rule id rather than the rule's generated
+    /// description, which changes with its implementation, and each violation identified by its report
+    /// line rather than by the type it was found on — so a new violation on a type that already had one is
+    /// still new. A selection that matched nothing is not a violation and is not recorded.
+    /// </summary>
+    private sealed class Baseline : IArchRule
+    {
+        private readonly IArchRule _rule;
+
+        internal Baseline(string id, IArchRule rule)
+        {
+            Description = id;
+            _rule = rule;
+        }
+
+        public string Description { get; }
+
+        public bool HasNoViolations(Architecture architecture) => Evaluate(architecture).All(result => result.Passed);
+
+        public IEnumerable<EvaluationResult> Evaluate(Architecture architecture) =>
+            _rule.Evaluate(architecture)
+                .Select(result => result.Passed
+                    ? result
+                    : new EvaluationResult(
+                        result.EvaluatedObject,
+                        new StringIdentifier(result.Description),
+                        DcaRule.IsEmptySelection(result.Description),
+                        result.Description,
+                        this,
+                        result.Architecture))
+                .ToList();
+
+        public CombinedArchRuleDefinition And() => new(this, LogicalConjunctionDefinition.And);
+
+        public CombinedArchRuleDefinition Or() => new(this, LogicalConjunctionDefinition.Or);
+
+        public IArchRule And(IArchRule archRule) => new CombinedArchRule(this, LogicalConjunctionDefinition.And, archRule);
+
+        public IArchRule Or(IArchRule archRule) => new CombinedArchRule(this, LogicalConjunctionDefinition.Or, archRule);
     }
 
     /// <summary>Prefixes every line of a violation report with the rule id.</summary>

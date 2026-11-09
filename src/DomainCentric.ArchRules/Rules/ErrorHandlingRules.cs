@@ -57,21 +57,16 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
     public DcaLayout Layout { get; }
 
     public IDcaRule DomainExceptionsExtendDomainException() =>
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-ERR-001",
             "Exceptions declared in the domain layer must extend DomainException",
             "A failure the model raises is a broken business rule and says so through its type; a caller"
                 + " that cannot tell one from the platform's own failures cannot answer either of them"
                 + " properly",
-            arch =>
-            {
-                var violations = ProjectExceptions(arch)
-                    .Where(arch.InDomain)
-                    .Where(t => !arch.Layout.Markers.Is(nameof(DcaMarkers.DomainException), t))
-                    .Select(t => $"{t.FullName} does not extend DomainException")
-                    .ToList();
-                DcaRule.Fail("A domain failure without the domain base type", violations);
-            })
+            arch => SelectionArchRule.ForEach(
+                "exceptions declared in the domain layer should extend DomainException",
+                () => ProjectExceptions(arch).Where(arch.InDomain),
+                t => arch.Layout.Markers.Is(nameof(DcaMarkers.DomainException), t) ? [] : [$"{t.FullName} does not extend DomainException"]))
             .Selecting(
                 "Types under <Module>.Domain of every module root that are assignable to Exception - the "
                 + "exception types the domain layer declares itself. The base type DomainException lives in "
@@ -120,27 +115,24 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                 + "empty selection passes.");
 
     public IDcaRule ApplicationExceptionsExtendUseCaseException() =>
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-ERR-003",
             "Exceptions declared in the application layer must extend UseCaseException or OutputPortException",
             "A use case that cannot serve a request reports why through its type, so that one incoming"
                 + " adapter can map each outcome onto its protocol and another adapter can map the same"
                 + " outcome onto a different one; an output port that declares a failure in its contract names it"
                 + " the same way, so the use case can catch exactly that outcome",
-            arch =>
-            {
-                var violations = ProjectExceptions(arch)
+            arch => SelectionArchRule.ForEach(
+                "exceptions declared in the application layer should extend UseCaseException or OutputPortException",
+                // A subtype of DomainException here is misplaced, not mis-based: DCA-ERR-002 owns it and says
+                // to move it to the domain. This rule's remedy would turn a broken rule of the model into a
+                // use-case failure.
+                () => ProjectExceptions(arch)
                     .Where(arch.InApplication)
-                    // A subtype of DomainException here is misplaced, not mis-based: DCA-ERR-002 owns it
-                    // and says to move it to the domain. This rule's remedy would turn a broken rule of
-                    // the model into a use-case failure.
-                    .Where(t => !arch.Layout.Markers.Is(nameof(DcaMarkers.DomainException), t))
-                    .Where(t => !arch.Layout.Markers.Is(nameof(DcaMarkers.UseCaseException), t))
-                    .Where(t => !arch.Layout.Markers.Is(nameof(DcaMarkers.OutputPortException), t))
-                    .Select(t => $"{t.FullName} extends neither UseCaseException nor OutputPortException")
-                    .ToList();
-                DcaRule.Fail("A use-case failure without the application base type", violations);
-            })
+                    .Where(t => !arch.Layout.Markers.Is(nameof(DcaMarkers.DomainException), t)),
+                t => arch.Layout.Markers.Is(nameof(DcaMarkers.UseCaseException), t) || arch.Layout.Markers.Is(nameof(DcaMarkers.OutputPortException), t)
+                    ? []
+                    : [$"{t.FullName} extends neither UseCaseException nor OutputPortException"]))
             .Selecting(
                 "Types under <Module>.Application of every module root that are assignable to Exception and "
                 + "not to DomainException - the exception types the application layer declares itself. The "

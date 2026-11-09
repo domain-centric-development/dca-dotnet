@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using ArchUnitNET.Domain;
 using ArchUnitNET.Domain.Dependencies;
 using ArchUnitNET.Domain.Extensions;
+using ArchUnitNET.Fluent;
 using DomainCentric.BuildingBlocks.Ddd.Tactical;
 using static ArchUnitNET.Fluent.ArchRuleDefinition;
 
@@ -56,37 +57,27 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
 
     /// <summary>DCA-ADV-019 — the model does not reach for a domain service.</summary>
     public IDcaRule ModelTypesDoNotUseDomainServices() =>
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-ADV-019",
             "Aggregates, entities and value objects must not use domain services",
             "A domain service exists for logic that spans several aggregates, so the application calls it; "
                 + "a model type that reaches for one would drive another aggregate from inside its own",
-            arch =>
-            {
-                var violations = new List<string>();
-                foreach (var type in arch.Types.Where(t => IsModelType(arch, t)))
-                {
-                    foreach (var target in type.Dependencies
-                        .Where(d => d is MethodCallDependency)
-                        .Select(d => d.Target)
-                        .Distinct())
-                    {
-                        if (arch.Layout.Markers.Is(nameof(DcaMarkers.DomainService), target))
-                        {
-                            violations.Add($"{type.FullName} uses {target.FullName}");
-                        }
-                    }
-                }
-
-                DcaRule.Fail("A model type reaches for a domain service", violations.Distinct().ToList(),
-                    "let the use case call the domain service and hand the model the result; DCA-ADV-021 holds the"
-                    + " same for every caller outside the application");
-            })
+            arch => SelectionArchRule.ForEach(
+                "aggregates, entities and value objects should not call a domain service",
+                () => arch.Types.Where(t => IsModelType(arch, t)),
+                type => type.Dependencies
+                    .Where(d => d is MethodCallDependency)
+                    .Select(d => d.Target)
+                    .Distinct()
+                    .Where(target => arch.Layout.Markers.Is(nameof(DcaMarkers.DomainService), target))
+                    .Select(target => $"{type.FullName} uses {target.FullName}")))
             .Selecting("Types anywhere under scan that carry the aggregate-root, entity or value role.")
             .Checking(
                 "None of them calls a method of, or constructs, a type carrying the domain-service role. "
                 + "Holding one as a parameter or a field type is not a call and is not reported. A domain "
-                + "service calling another domain service is outside this selection. An empty selection passes.");
+                + "service calling another domain service is outside this selection. An empty selection passes.",
+            "let the use case call the domain service and hand the model the result; DCA-ADV-021 holds the"
+            + " same for every caller outside the application");
 
     /// <summary>DCA-ADV-020 — a domain service works on the model, not on extracted values.</summary>
     public IDcaRule DomainServiceOperationsTakeAModelObject() =>
@@ -229,18 +220,17 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
     // ============================================================================
 
     public IDcaRule DomainEventsAreRecords() =>
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-ADV-001",
             "Domain Events must implement IDomainEvent and have immutable shape",
             "Domain events should be immutable records implementing IDomainEvent (named in past tense,"
                 + " e.g., ProductCreated, CartCleared)",
-            arch => DcaRule.Fail(
-                "Domain Events must have immutable instance state:",
-                Violations(
-                    arch,
-                    t => t is not Interface && IsDomainEvent(t, arch.Layout.Markers),
-                    t => !TacticalPatternRules.IsImmutableShape(t),
-                    t => $"{t.FullName} implements IDomainEvent but has mutable shape")))
+            arch => ViolationRule(
+                "domain events should have immutable shape",
+                arch,
+                t => t is not Interface && IsDomainEvent(t, arch.Layout.Markers),
+                t => !TacticalPatternRules.IsImmutableShape(t),
+                t => $"{t.FullName} implements IDomainEvent but has mutable shape"))
             .Selecting(
                 "Non-interface types anywhere under scan that are assignable to IDomainEvent - directly "
                 + "or through a supertype.")
@@ -274,19 +264,18 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
         .Checking("Configured attribute namespaces classify the attribute type or any base type: types prohibit container, persistence and transaction roles; fields and properties prohibit injection and persistence; methods prohibit transaction and, except on events, injection; constructors prohibit injection. There is no default event-listener attribute role. Unclassified attributes are allowed; runtime types that cannot load are skipped.");
 
     public IDcaRule IntegrationEventsAreAnnotatedWithIntegrationEventType() =>
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-ADV-005",
             "Integration Events must be annotated with IntegrationEventType",
             "[IntegrationEventType(name, Version)] is the contract identity of every integration event"
                 + " — the serializer keys (name, version) to the class and stamps both onto the wire"
                 + " envelope",
-            arch => DcaRule.Fail(
-                "Integration Events must be annotated with [IntegrationEventType]:",
-                Violations(
-                    arch,
-                    t => t is not Interface && IsIntegrationEvent(t, arch.Layout.Markers),
-                    t => !t.HasAttribute(arch.Layout.Markers.IntegrationEventType),
-                    t => $"{t.FullName} is not annotated with [IntegrationEventType]")))
+            arch => ViolationRule(
+                "integration events should be annotated with the integration-event-type attribute",
+                arch,
+                t => t is not Interface && IsIntegrationEvent(t, arch.Layout.Markers),
+                t => !t.HasAttribute(arch.Layout.Markers.IntegrationEventType),
+                t => $"{t.FullName} is not annotated with [IntegrationEventType]"))
             .Selecting(
                 "Non-interface types anywhere under scan that are assignable to IIntegrationEvent - "
                 + "records, structs and abstract classes included.")
@@ -395,15 +384,14 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
         .Checking("Configured attribute namespaces classify the attribute type or any base type: types prohibit container, persistence and transaction roles; fields and properties prohibit injection and persistence; methods prohibit transaction and, except on events, injection; constructors prohibit injection. There is no default event-listener attribute role. Unclassified attributes are allowed; runtime types that cannot load are skipped.");
 
     public IDcaRule DomainServicesAreStateless() =>
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-ADV-012",
             "Domain Services should be stateless (only readonly fields for dependencies)",
             "Domain services should be stateless (only readonly fields for dependencies)",
-            arch => DcaRule.Fail(
-                "Domain Services must have only readonly fields:",
-                NonReadonlyFieldViolations(
-                    arch,
-                    t => t is not Interface && InDomain(arch, t) && arch.Layout.Markers.Is(nameof(DcaMarkers.DomainService), t))))
+            arch => NonReadonlyFieldRule(
+                "domain services should have only readonly fields",
+                arch,
+                t => t is not Interface && InDomain(arch, t) && arch.Layout.Markers.Is(nameof(DcaMarkers.DomainService), t)))
             .Selecting(
                 "Non-interface types in <module>.Domain of every module root that are assignable to "
                 + "IDomainService.")
@@ -464,15 +452,14 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
         .Checking("Configured attribute namespaces classify the attribute type or any base type: types prohibit container, persistence and transaction roles; fields and properties prohibit injection and persistence; methods prohibit transaction and, except on events, injection; constructors prohibit injection. There is no default event-listener attribute role. Unclassified attributes are allowed; runtime types that cannot load are skipped.");
 
     public IDcaRule FactoriesAreStateless() =>
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-ADV-016",
             "Factories should be stateless (only readonly fields for dependencies)",
             "Factories should be stateless (only readonly fields for dependencies)",
-            arch => DcaRule.Fail(
-                "Factories must have only readonly fields:",
-                NonReadonlyFieldViolations(
-                    arch,
-                    t => t is not Interface && InDomain(arch, t) && arch.Layout.Markers.Is(nameof(DcaMarkers.Factory), t))))
+            arch => NonReadonlyFieldRule(
+                "factories should have only readonly fields",
+                arch,
+                t => t is not Interface && InDomain(arch, t) && arch.Layout.Markers.Is(nameof(DcaMarkers.Factory), t)))
             .Selecting(
                 "Non-interface types in <module>.Domain of every module root that are assignable to "
                 + "IFactory.")
@@ -615,20 +602,22 @@ public sealed class AdvancedPatternRules : IDcaRuleSet
         AllFields(arch, type).Any(f =>
             f.TypeFullName is not null && arch.Layout.TimestampTypes.Contains(f.TypeFullName));
 
-    private static List<string> NonReadonlyFieldViolations(DcaArchitecture arch, Func<IType, bool> candidate)
-    {
-        var violations = new List<string>();
-        foreach (var type in arch.Types.Where(candidate))
-        {
-            foreach (var field in AllFields(arch, type).Where(f => f.Writable == true))
-            {
-                violations.Add($"{type.FullName} has non-readonly field '{field.Name}' — a stateless service/factory"
-                    + " holds only readonly dependencies");
-            }
-        }
+    private static IArchRule NonReadonlyFieldRule(string description, DcaArchitecture arch, Func<IType, bool> candidate) =>
+        SelectionArchRule.ForEach(
+            description,
+            () => arch.Types.Where(candidate),
+            type => AllFields(arch, type)
+                .Where(f => f.Writable == true)
+                .Select(field => $"{type.FullName} has non-readonly field '{field.Name}' — a stateless service/factory"
+                    + " holds only readonly dependencies"));
 
-        return violations;
-    }
+    private static IArchRule ViolationRule(
+        string description,
+        DcaArchitecture arch,
+        Func<IType, bool> candidate,
+        Func<IType, bool> violates,
+        Func<IType, string> message) =>
+        SelectionArchRule.ForEach(description, () => arch.Types.Where(candidate), t => violates(t) ? [message(t)] : (IEnumerable<string>)[]);
 
     private static List<string> Violations(
         DcaArchitecture arch,

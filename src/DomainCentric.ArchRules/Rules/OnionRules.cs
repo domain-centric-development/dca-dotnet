@@ -62,7 +62,7 @@ public sealed class OnionRules : IDcaRuleSet
         const string title =
             "The Domain Model should be framework independent and should not use 3rd party libraries when possible";
         const string rationale = "Domain should be framework-independent (Dependency Inversion Principle)";
-        return DcaRule.Check(
+        return DcaRule.Of(
             "DCA-ONI-002",
             title,
             rationale,
@@ -81,16 +81,14 @@ public sealed class OnionRules : IDcaRuleSet
                 bool Allowed(IType target) =>
                     arch.InDomain(target) || allowedPrefixes.Any(p => DcaLayout.IsBelow(target.Namespace.FullName, p));
 
-                var violations = arch.Types
-                    .Where(t => t.Namespace is not null && arch.InDomain(t))
-                    .SelectMany(t => t.Dependencies
+                return SelectionArchRule.ForEach(
+                    "types in the domain should depend only on the domain and the allowed namespaces",
+                    () => arch.Types.Where(t => t.Namespace is not null && arch.InDomain(t)),
+                    t => t.Dependencies
                         .Select(d => d.Target)
                         .Where(target => target.Namespace is not null && !string.IsNullOrEmpty(target.Namespace.FullName))
                         .Where(target => !Allowed(target))
-                        .Select(target => $"{t.FullName} depends on {target.FullName}"))
-                    .Distinct()
-                    .ToList();
-                DcaRule.Fail($"{title}\nbecause {rationale}", violations);
+                        .Select(target => $"{t.FullName} depends on {target.FullName}"));
             })
             .Selecting(
                 "Types below the root namespace whose namespace lies under <Module>.Domain of "
@@ -126,34 +124,26 @@ public sealed class OnionRules : IDcaRuleSet
     /// (<see cref="DcaLayout.WithAsynchronousTypes"/>).
     /// </summary>
     public static IDcaRule DomainLayerMustStaySynchronous() =>
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-ONI-004",
             "Domain layer must stay synchronous",
             "Asynchrony is an I/O concern of ports and adapters; a synchronous domain model stays"
                 + " testable, deterministic and free of sync-over-async hazards",
-            arch =>
-            {
-                var configured = arch.Layout.AsynchronousTypes;
-                var violations = new List<string>();
-                foreach (var type in arch.Types.Where(arch.InDomain))
+            arch => SelectionArchRule.ForEach(
+                "types in the domain layer should not depend on an asynchronous type",
+                () => arch.Types.Where(arch.InDomain),
+                type =>
                 {
                     var asynchronous = type.Dependencies
                         .Select(d => d.Target.FullName)
-                        .Where(name => IsOrIsNestedIn(name, configured))
+                        .Where(name => IsOrIsNestedIn(name, arch.Layout.AsynchronousTypes))
                         .Distinct()
                         .OrderBy(n => n, StringComparer.Ordinal)
                         .ToList();
-                    if (asynchronous.Count > 0)
-                    {
-                        violations.Add($"{type.FullName} depends on {string.Join(", ", asynchronous)}");
-                    }
-                }
-
-                DcaRule.Fail(
-                    "Domain layer must stay synchronous\nbecause asynchrony is an I/O concern of ports and adapters",
-                    violations,
-                    "Move the awaiting code into a use case or adapter and pass plain values into the domain.");
-            })
+                    return asynchronous.Count > 0
+                        ? [$"{type.FullName} depends on {string.Join(", ", asynchronous)}"]
+                        : (IEnumerable<string>)[];
+                }))
         .Experimental()
         .Selecting("Types the layout places in the domain layer of every module root.")
         .Checking(
@@ -163,7 +153,8 @@ public sealed class OnionRules : IDcaRuleSet
                 + " awaitables, asynchronous sequences and a library's own reactive types are not"
                 + " checked unless the layout setting for asynchronous types names them. The"
                 + " application and adapter layers are not selected. An empty list checks nothing;"
-                + " an empty selection passes.");
+                + " an empty selection passes.",
+            "Move the awaiting code into a use case or adapter and pass plain values into the domain.");
 
     /// <summary>The type itself, a generic form of it or a type nested in it.</summary>
     private static bool IsOrIsNestedIn(string fullName, IReadOnlyList<string> types) =>

@@ -288,29 +288,21 @@ public sealed class HexagonalRules : IDcaRuleSet
                 + " is not checked here. An empty selection passes.");
 
     public IDcaRule IncomingAdaptersMustDependOnInputPortsNotUseCaseClasses() =>
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-HEX-011",
             "Incoming Adapters must depend on input port interfaces, not on use case classes",
             "A driving adapter drives the application through its port. Injecting the concrete"
                 + " implementation instead couples the adapter to one realisation of the use case,"
                 + " defeats the Dependency Inversion Principle the port exists for, and makes the"
                 + " adapter untestable without the real use case and everything it depends on",
-            arch =>
-            {
-                var violations = arch.Classes
-                    .Where(arch.InIncomingAdapter)
-                    .SelectMany(c => c.Dependencies
-                        .Select(d => d.Target)
-                        .Where(t => IsUseCaseImplementation(arch, t))
-                        .Select(t => $"{c.FullName} depends on the use case class {t.FullName}"))
-                    .Distinct()
-                    .OrderBy(v => v, StringComparer.Ordinal)
-                    .ToList();
-                DcaRule.Fail(
-                    "Incoming Adapters must depend on input port interfaces, not on use case classes",
-                    violations,
-                    "inject the I<UseCaseName>InputPort interface instead of the <UseCaseName> class");
-            })
+            arch => SelectionArchRule.ForEach(
+                "classes in incoming adapters should not depend on a use case class",
+                () => arch.Classes.Where(arch.InIncomingAdapter),
+                c => c.Dependencies
+                    .Select(d => d.Target)
+                    .Where(t => IsUseCaseImplementation(arch, t))
+                    .Select(t => $"{c.FullName} depends on the use case class {t.FullName}")
+                    .OrderBy(v => v, StringComparer.Ordinal)))
         .Selecting(
             "Classes in <module>.Adapter.Incoming of every module root, event consumers"
                 + " included.")
@@ -318,7 +310,8 @@ public sealed class HexagonalRules : IDcaRuleSet
             "No dependency on a use case implementation: a class assignable to"
                 + " IInputPort, directly or through an I*InputPort interface - abstract base classes"
                 + " included. Depending on the input port interfaces themselves is what the rule"
-                + " expects. An empty selection passes.");
+                + " expects. An empty selection passes.",
+            "inject the I<UseCaseName>InputPort interface instead of the <UseCaseName> class");
 
     /// <summary>
     /// DCA-HEX-012. Selects every class in an incoming adapter namespace (event consumers included) and reports each
@@ -327,7 +320,7 @@ public sealed class HexagonalRules : IDcaRuleSet
     /// body of an async member to its state machine. Outgoing adapters are outside the selection.
     /// </summary>
     public IDcaRule IncomingAdaptersMustNotDependOnDomainServices() =>
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-HEX-012",
             "Incoming Adapters must not depend on domain services",
             "An incoming adapter translates external input, calls an input port and formats its result."
@@ -335,10 +328,10 @@ public sealed class HexagonalRules : IDcaRuleSet
                 + " that collaboration and puts its outcome into the result. Outgoing adapters are outside this"
                 + " rule - repositories and other driven adapters may construct or reconstitute domain objects"
                 + " while implementing output ports",
-            arch =>
-            {
-                var violations = new List<string>();
-                foreach (var adapter in arch.Classes.Where(arch.InIncomingAdapter))
+            arch => SelectionArchRule.ForEach(
+                "classes in incoming adapters should not depend on a domain service",
+                () => arch.Classes.Where(arch.InIncomingAdapter),
+                adapter =>
                 {
                     var services = adapter.Dependencies
                         .Select(d => d.Target)
@@ -355,16 +348,10 @@ public sealed class HexagonalRules : IDcaRuleSet
                             .Select(t => t.FullName!));
                     }
 
-                    violations.AddRange(services.Distinct()
-                        .Select(s => $"{adapter.FullName} depends on the domain service {s}"));
-                }
-
-                DcaRule.Fail(
-                    "Incoming Adapters must not depend on domain services",
-                    violations.Distinct().OrderBy(v => v, StringComparer.Ordinal).ToList(),
-                    "move the collaboration into the use case and carry its outcome in the result; DCA-ADV-021 holds"
-                    + " the same for every caller outside the application");
-            })
+                    return services.Distinct()
+                        .Select(s => $"{adapter.FullName} depends on the domain service {s}")
+                        .OrderBy(v => v, StringComparer.Ordinal);
+                }))
         .Selecting(
             "Classes in <module>.Adapter.Incoming of every module root, event consumers"
                 + " included. Outgoing adapters are not selected.")
@@ -374,7 +361,9 @@ public sealed class HexagonalRules : IDcaRuleSet
                 + " class without the marker is not a domain service by this rule. Injecting it,"
                 + " calling it or naming it in a signature all count as a dependency; constructor"
                 + " parameters are read from the runtime type as well, so a service injected into an"
-                + " adapter whose members are all async is still found. An empty selection passes.");
+                + " adapter whose members are all async is still found. An empty selection passes.",
+            "move the collaboration into the use case and carry its outcome in the result; DCA-ADV-021 holds"
+                + " the same for every caller outside the application");
 
     /// <summary>
     /// DCA-HEX-013. The direction of an adapter is decided by who calls whom: an adapter that invokes an input port
@@ -382,17 +371,17 @@ public sealed class HexagonalRules : IDcaRuleSet
     /// the runtime type as well, because ArchUnitNET attributes the body of an async member to its state machine.
     /// </summary>
     public IDcaRule OutgoingAdaptersMustNotDependOnInputPorts() =>
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-HEX-013",
             "Outgoing Adapters must not depend on input ports",
             "An outgoing adapter is driven: the application calls it through an output port. One that"
                 + " calls an input port drives the application instead - it is an incoming adapter"
                 + " filed on the wrong side, and the call it makes runs a second use case from inside"
                 + " the first one's outgoing edge",
-            arch =>
-            {
-                var violations = new List<string>();
-                foreach (var adapter in arch.Classes.Where(arch.InOutgoingAdapter))
+            arch => SelectionArchRule.ForEach(
+                "classes in outgoing adapters should not depend on an input port",
+                () => arch.Classes.Where(arch.InOutgoingAdapter),
+                adapter =>
                 {
                     var ports = adapter.Dependencies
                         .Select(d => d.Target)
@@ -409,16 +398,10 @@ public sealed class HexagonalRules : IDcaRuleSet
                             .Select(t => t.FullName!));
                     }
 
-                    violations.AddRange(ports.Distinct()
-                        .Select(p => $"{adapter.FullName} depends on the input port {p}"));
-                }
-
-                DcaRule.Fail(
-                    "Outgoing Adapters must not depend on input ports",
-                    violations.Distinct().OrderBy(v => v, StringComparer.Ordinal).ToList(),
-                    "move the class to the incoming adapter namespace, or let the use case reach the"
-                        + " capability through an output port");
-            })
+                    return ports.Distinct()
+                        .Select(p => $"{adapter.FullName} depends on the input port {p}")
+                        .OrderBy(v => v, StringComparer.Ordinal);
+                }))
         .Selecting("Classes in <module>.Adapter.Outgoing of every module root.")
         .Checking(
             "No dependency on a type assignable to IInputPort - the input port interfaces and the use"
@@ -426,29 +409,32 @@ public sealed class HexagonalRules : IDcaRuleSet
                 + " api is not a dependency on an input port, even where that api delegates to one"
                 + " - only direct dependencies are read; constructor parameters are read from the"
                 + " runtime type as well, so a port injected into an adapter whose members are all"
-                + " async is still found. An empty selection passes.");
+                + " async is still found. An empty selection passes.",
+            "move the class to the incoming adapter namespace, or let the use case reach the"
+                + " capability through an output port");
 
     /// <summary>
     /// DCA-HEX-014 (experimental). A state-changing use case is reached only by an unsafe method. Handlers are found
     /// through the GET-mapping roles of the framework preset; the call is followed through the class's own helpers.
     /// </summary>
     public IDcaRule GetHandlersMustNotDriveCommands() =>
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-HEX-014",
             "GET handlers must not drive an input port that takes a command",
             "A state-changing use case is reached only by an unsafe HTTP method, never by GET; links do not"
                 + " create state. Prefetching, crawlers and cross-site navigation follow a link without asking,"
                 + " and would otherwise trigger the change. A handler that names no HTTP method answers GET as well",
-            arch =>
-            {
-                var roles = arch.Layout.FrameworkTypes;
-                var violations = new List<string>();
-                foreach (var adapter in arch.Classes.Where(c => !c.IsCompilerGenerated && arch.InIncomingAdapter(c)).OrderBy(c => c.FullName, StringComparer.Ordinal))
+            arch => SelectionArchRule.ForEach(
+                "GET handlers in incoming adapters should not drive an input port that takes a command",
+                () => arch.Classes.Where(c => !c.IsCompilerGenerated && arch.InIncomingAdapter(c)),
+                adapter =>
                 {
+                    var roles = arch.Layout.FrameworkTypes;
+                    var violations = new List<string>();
                     var runtime = arch.RuntimeType(adapter);
                     if (runtime is null)
                     {
-                        continue;
+                        return violations;
                     }
 
                     var byPrefix = IsController(adapter, arch.Layout);
@@ -467,13 +453,9 @@ public sealed class HexagonalRules : IDcaRuleSet
                             }
                         }
                     }
-                }
 
-                DcaRule.Fail(
-                    "GET handlers must not drive an input port that takes a command",
-                    violations.Distinct().ToList(),
-                    "map the handler to POST, PUT or DELETE, or let the GET handler ask a query");
-            })
+                    return violations;
+                }))
         .Experimental()
         .Selecting(
             "Methods declared by classes in <module>.Adapter.Incoming of every module root that carry an"
@@ -494,7 +476,8 @@ public sealed class HexagonalRules : IDcaRuleSet
                 + " parameter. A mapping that names no HTTP method is checked like"
                 + " a GET handler. A handler mapped by a routing call rather than"
                 + " by an attribute or a name is not seen, and a command reached through a second class is"
-                + " not followed. An empty selection passes.");
+                + " not followed. An empty selection passes.",
+            "map the handler to POST, PUT or DELETE, or let the GET handler ask a query");
 
     /// <summary>
     /// DCA-HEX-017 (experimental). A reaction to an event drives a use case after the publishing transaction
@@ -502,7 +485,7 @@ public sealed class HexagonalRules : IDcaRuleSet
     /// framework preset; the call is followed through the class's own helpers.
     /// </summary>
     public IDcaRule ListenersThatDriveAnInputPortRunAfterTheCommit() =>
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-HEX-017",
             "Event listeners that drive an input port must run after the commit in their own transaction",
             "A reaction to an event changes state or performs an external effect through a use case. Run inside"
@@ -513,22 +496,19 @@ public sealed class HexagonalRules : IDcaRuleSet
             arch =>
             {
                 var roles = arch.Layout.FrameworkTypes;
-                var violations = new List<string>();
-                if (roles.EventListenerTypes.Count > 0 && roles.TransactionalEventListenerTypes.Count > 0)
-                {
-                    foreach (var listener in arch.Classes
-                        .Where(c => !c.IsCompilerGenerated && roles.EventListenerTypes.Any(t => c.IsAssignableTo(t)))
-                        .OrderBy(c => c.FullName, StringComparer.Ordinal))
+                return SelectionArchRule.ForEach(
+                    "event listeners that run in the raising transaction should not drive an input port",
+                    () => roles.EventListenerTypes.Count > 0 && roles.TransactionalEventListenerTypes.Count > 0
+                        ? arch.Classes.Where(c => !c.IsCompilerGenerated
+                            && roles.EventListenerTypes.Any(t => c.IsAssignableTo(t))
+                            && !roles.TransactionalEventListenerTypes.Any(t => c.IsAssignableTo(t)))
+                        : [],
+                    listener =>
                     {
-                        if (roles.TransactionalEventListenerTypes.Any(t => listener.IsAssignableTo(t)))
-                        {
-                            continue;
-                        }
-
                         var runtime = arch.RuntimeType(listener);
                         if (runtime is null)
                         {
-                            continue;
+                            return [];
                         }
 
                         var ports = new IntraClassCalls(runtime).Units
@@ -538,18 +518,10 @@ public sealed class HexagonalRules : IDcaRuleSet
                             .Distinct()
                             .OrderBy(name => name, StringComparer.Ordinal)
                             .ToList();
-                        if (ports.Count > 0)
-                        {
-                            violations.Add($"{listener.FullName} drives {string.Join(", ", ports)} inside the transaction that raised the event");
-                        }
-                    }
-                }
-
-                DcaRule.Fail(
-                    "Event listeners that drive an input port must run after the commit in their own transaction",
-                    violations,
-                    "deliver the reaction after the commit in its own transaction - a transactional listener backed"
-                        + " by an outbox - or let the listener call only output ports");
+                        return ports.Count > 0
+                            ? [$"{listener.FullName} drives {string.Join(", ", ports)} inside the transaction that raised the event"]
+                            : (IEnumerable<string>)[];
+                    });
             })
         .Experimental()
         .Selecting(
@@ -559,7 +531,9 @@ public sealed class HexagonalRules : IDcaRuleSet
         .Checking(
             "No method of such a class - async state machines and lambdas included - calls a method of a type"
                 + " assignable to IInputPort. The rule reads the listener's kind, not whether an outbox backs it; an"
-                + " input port reached through a second class is not followed. An empty selection passes.");
+                + " input port reached through a second class is not followed. An empty selection passes.",
+            "deliver the reaction after the commit in its own transaction - a transactional listener backed"
+                + " by an outbox - or let the listener call only output ports");
 
     /// <summary>
     /// DCA-HEX-018 (experimental). A controller is an incoming adapter: it lives where the incoming adapters live, or
@@ -567,7 +541,7 @@ public sealed class HexagonalRules : IDcaRuleSet
     /// by name.
     /// </summary>
     public IDcaRule ControllersResideInIncomingAdapters() =>
-        DcaRule.Check(
+        DcaRule.Of(
             "DCA-HEX-018",
             "Controllers must reside in an incoming adapter package",
             "A controller turns a request into a command or a query and is an incoming adapter. Outside the incoming"
@@ -576,19 +550,14 @@ public sealed class HexagonalRules : IDcaRuleSet
             arch =>
             {
                 var roles = arch.Layout.FrameworkTypes;
-                var violations = arch.Classes
-                    .Where(c => !c.IsCompilerGenerated && c.IsAbstract != true
-                        && ((FrameworkTypes.IsSet(roles.ControllerBase) && c.IsAssignableTo(roles.ControllerBase))
-                            || (FrameworkTypes.IsSet(roles.PageModelBase) && c.IsAssignableTo(roles.PageModelBase))
-                            || (FrameworkTypes.IsSet(roles.ApiControllerAttribute) && c.Attributes.Any(a => a.FullName == roles.ApiControllerAttribute))))
-                    .Where(c => !arch.InIncomingAdapter(c))
-                    .Select(c => $"{c.FullName} is a controller outside the incoming adapters")
-                    .OrderBy(v => v, StringComparer.Ordinal)
-                    .ToList();
-                DcaRule.Fail(
-                    "Controllers must reside in an incoming adapter package",
-                    violations,
-                    "move the controller into the incoming adapter namespace of its module");
+                return SelectionArchRule.ForEach(
+                    "controllers should reside in an incoming adapter namespace",
+                    () => arch.Classes
+                        .Where(c => !c.IsCompilerGenerated && c.IsAbstract != true
+                            && ((FrameworkTypes.IsSet(roles.ControllerBase) && c.IsAssignableTo(roles.ControllerBase))
+                                || (FrameworkTypes.IsSet(roles.PageModelBase) && c.IsAssignableTo(roles.PageModelBase))
+                                || (FrameworkTypes.IsSet(roles.ApiControllerAttribute) && c.Attributes.Any(a => a.FullName == roles.ApiControllerAttribute)))),
+                    c => arch.InIncomingAdapter(c) ? [] : [$"{c.FullName} is a controller outside the incoming adapters"]);
             })
         .Experimental()
         .Selecting(
@@ -597,7 +566,8 @@ public sealed class HexagonalRules : IDcaRuleSet
                 + " every role is empty and nothing is selected.")
         .Checking(
             "Each resides in <Module>.Adapter.Incoming of some module root. Where in the incoming adapters it sits -"
-                + " which protocol segment - is not checked.");
+                + " which protocol segment - is not checked.",
+            "move the controller into the incoming adapter namespace of its module");
 
     /// <summary>
     /// DCA-HEX-019 (experimental). Every implementation of an output port is an outgoing adapter - the implemented port

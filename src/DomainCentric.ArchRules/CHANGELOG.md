@@ -6,6 +6,28 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ### Added
 
+**The baseline dial — `dca.rules.freeze` (WP-52).** `DcaRuleSelection.Frozen(...)` / `dca.rules.freeze` and
+`WithFreezeStore(...)` / `dca.rules.freeze.store`, the keys of the Java library, replace the refusal that stood here
+before: a frozen rule runs as ArchUnitNET's `FreezingArchRule` over a `JsonViolationStore`, records the violations of
+its first run as the baseline and fails only on new ones; violations fixed since leave the baseline. The store is
+the directory `FreezeStore` names (default `../../../ArchUnitNET/Storage`, ArchUnitNET's own), the file in it
+`FrozenRules.json`; a rule is stored under its id and a violation under its report line. `IDcaRule` gains
+`ArchRule(DcaArchitecture)` (default `null`) and `Freezable` (default `false`), the counterparts of Java's
+`archRule(...)` and `freezable()`. A rule without a single ArchUnitNET rule refuses with the Java sentence, word for
+word: "Rule <id> cannot be frozen: it runs several checks internally and has no single ArchUnit rule to build a
+baseline from. Lower it to WARN instead." `dca.rule.<id>.ignore` keeps working, also on a frozen rule.
+`rules.json` marks every rule `"freezable": true|false`; a test compares the set with the Java library's
+`rules.json` where a checkout lies beside this one.
+
+**45 rules are one ArchUnitNET rule now (WP-52)** — the ids the Java library builds with `DcaRule.of`, so the
+freezable set is the same in both: `DCA-ADV-001/005/012/016/019`, `DCA-CYC-001…005`, `DCA-ERR-001/003`,
+`DCA-HEX-011…014/017/018`, `DCA-LAY-005/008`, `DCA-NAM-001/003…006`, `DCA-ONI-002/004`, `DCA-STR-008`,
+`DCA-TAC-001/009/013/014/015/018/019/020`, `DCA-USE-004/005/007/009/012/013/019/020/021`. Their checks are unchanged
+— the same selection, the same violation lines, the existing fixtures unchanged as the proof; what changes is the
+report header, now the title and its rationale like every other `DcaRule.Of` rule, and a converted rule that
+selected nothing passes with the "selected nothing" note. `DcaRule.Selected.Checking(checks, fix)` carries the
+`Fix:` line for such rules.
+
 **`DCA-ONI-004` — the domain layer stays synchronous (WP-53), experimental** — the shared twin of `DCA-NET-001`,
 same id and text as in Java. A type the layout places in the domain layer depends on none of the configured
 asynchronous types, nor on a generic form of one or a type nested in one. The list is a layout setting,

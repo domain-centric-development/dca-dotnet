@@ -14,9 +14,11 @@ namespace DomainCentric.ArchRules;
 /// <para>
 /// The catalog is opinionated on purpose, but no team adopts all of it on day one — and a rule a team
 /// disagrees with should be a recorded decision, not a reason to drop the library. A selection
-/// expresses three things: <b>scope</b> (<see cref="OnlySets"/>, <see cref="OnlyIds"/>),
-/// <b>severity</b> (<see cref="Warning(string, string?)"/>, <see cref="Excluding(string, string?)"/>)
-/// and <b>exceptions</b> (<see cref="IgnoringViolationsMatching"/>).
+/// expresses four things: <b>scope</b> (<see cref="OnlySets"/>, <see cref="OnlyIds"/>),
+/// <b>severity</b> (<see cref="Warning(string, string?)"/>, <see cref="Excluding(string, string?)"/>),
+/// <b>exceptions</b> (<see cref="IgnoringViolationsMatching"/>) and <b>baselines</b>
+/// (<see cref="Frozen"/>: today's violations are accepted, only new ones fail — ArchUnitNET's
+/// <c>FreezingArchRule</c>).
 /// </para>
 /// <para>
 /// Every selection runs the <see cref="DcaRuleMaturity.Released"/> rules only. An
@@ -26,10 +28,6 @@ namespace DomainCentric.ArchRules;
 /// <para>
 /// Instances are immutable; every method returns a new selection. The same configuration can live in a
 /// <c>dca-archunit.properties</c> file next to the test assembly — see <see cref="FromFile"/>.
-/// </para>
-/// <para>
-/// Unlike the Java twin there is no baseline (<c>frozen</c>) dial: ArchUnitNET has no equivalent of
-/// ArchUnit's <c>FreezingArchRule</c>. Lower such rules to <see cref="DcaSeverity.Warn"/> instead.
 /// </para>
 /// </remarks>
 public sealed class DcaRuleSelection
@@ -46,20 +44,42 @@ public sealed class DcaRuleSelection
     private readonly IReadOnlySet<string>? _includedIds;
     private readonly IReadOnlyDictionary<string, RuleSettings> _settings;
     private readonly IReadOnlySet<string> _retiredReferences;
+    private readonly IReadOnlySet<string> _frozen;
 
     private DcaRuleSelection(
         IReadOnlySet<string>? includedSets,
         IReadOnlySet<string>? includedIds,
         IReadOnlyDictionary<string, RuleSettings> settings,
         IReadOnlySet<string>? retiredReferences = null,
-        bool includesExperimental = false)
+        bool includesExperimental = false,
+        IReadOnlySet<string>? frozen = null,
+        string? freezeStore = null)
     {
         _includedSets = includedSets;
         _includedIds = includedIds;
         _settings = settings;
         _retiredReferences = retiredReferences ?? new HashSet<string>(StringComparer.Ordinal);
         IncludesExperimental = includesExperimental;
+        _frozen = frozen ?? new HashSet<string>(StringComparer.Ordinal);
+        FreezeStore = freezeStore;
     }
+
+    /// <summary>
+    /// The directory holding the frozen baselines, as configured; <c>null</c> means the default,
+    /// <see cref="DefaultFreezeStore"/>. A relative path is resolved against the working directory of the
+    /// test run.
+    /// </summary>
+    public string? FreezeStore { get; }
+
+    /// <summary>
+    /// The baseline directory when none is configured: ArchUnitNET's own storage directory, which from the
+    /// output directory of a test project (<c>bin/&lt;configuration&gt;/&lt;framework&gt;</c>) lies in the
+    /// project directory.
+    /// </summary>
+    public const string DefaultFreezeStore = "../../../ArchUnitNET/Storage";
+
+    /// <summary>The name of the baseline file in the <see cref="FreezeStore"/> directory.</summary>
+    public const string FreezeStoreFileName = "FrozenRules.json";
 
     /// <summary>
     /// Whether this selection opted in to the <see cref="DcaRuleMaturity.Experimental"/> rules — through
@@ -85,7 +105,7 @@ public sealed class DcaRuleSelection
     /// set only. Severity settings and tolerated violations apply to them as to released rules.
     /// </summary>
     public DcaRuleSelection WithExperimental() =>
-        new(_includedSets, _includedIds, _settings, _retiredReferences, includesExperimental: true);
+        new(_includedSets, _includedIds, _settings, _retiredReferences, includesExperimental: true, _frozen, FreezeStore);
 
     /// <summary>Restricts the run to the named rule sets (<c>"tactical"</c>, <c>"hexagonal"</c>, …).</summary>
     public DcaRuleSelection OnlySets(params string[] ruleSetNames)
@@ -95,7 +115,7 @@ public sealed class DcaRuleSelection
             RequireKnownSet(name);
         }
 
-        return new DcaRuleSelection(ToSet(ruleSetNames), _includedIds, _settings, _retiredReferences, IncludesExperimental);
+        return new DcaRuleSelection(ToSet(ruleSetNames), _includedIds, _settings, _retiredReferences, IncludesExperimental, _frozen, FreezeStore);
     }
 
     /// <summary>Restricts the run to the given rule identifiers.</summary>
@@ -111,7 +131,7 @@ public sealed class DcaRuleSelection
             }
         }
 
-        return new DcaRuleSelection(_includedSets, ToSet(ruleIds), _settings, _retiredReferences, IncludesExperimental);
+        return new DcaRuleSelection(_includedSets, ToSet(ruleIds), _settings, _retiredReferences, IncludesExperimental, _frozen, FreezeStore);
     }
 
     /// <summary>Switches a rule off, recording why. The reason appears in the test report.</summary>
@@ -143,7 +163,7 @@ public sealed class DcaRuleSelection
             retired = new HashSet<string>(_retiredReferences, StringComparer.Ordinal) { ruleId };
         }
 
-        return new DcaRuleSelection(_includedSets, _includedIds, settings, retired, IncludesExperimental);
+        return new DcaRuleSelection(_includedSets, _includedIds, settings, retired, IncludesExperimental, _frozen, FreezeStore);
     }
 
     /// <summary>
@@ -166,7 +186,7 @@ public sealed class DcaRuleSelection
         var current = Settings(ruleId);
         var patterns = current.IgnoredViolationPatterns.Append(regex).ToList();
         settings[ruleId] = new RuleSettings(current.Severity, current.Reason, patterns);
-        return new DcaRuleSelection(_includedSets, _includedIds, settings, _retiredReferences, IncludesExperimental);
+        return new DcaRuleSelection(_includedSets, _includedIds, settings, _retiredReferences, IncludesExperimental, _frozen, FreezeStore);
     }
 
     /// <summary>
@@ -189,8 +209,46 @@ public sealed class DcaRuleSelection
             other._includedIds ?? _includedIds,
             settings,
             retired,
-            IncludesExperimental || other.IncludesExperimental);
+            IncludesExperimental || other.IncludesExperimental,
+            new HashSet<string>(_frozen.Concat(other._frozen), StringComparer.Ordinal),
+            other.FreezeStore ?? FreezeStore);
     }
+
+    /// <summary>
+    /// Freezes the given rules: the violations present at the first run become the accepted baseline, and
+    /// only new ones fail. Violations fixed since leave the baseline. Not available for rules that run
+    /// several checks internally — <see cref="IDcaRule.ArchRule"/> is <c>null</c> for those, and running one
+    /// frozen fails with a message naming it.
+    /// </summary>
+    public DcaRuleSelection Frozen(params string[] ruleIds)
+    {
+        ArgumentNullException.ThrowIfNull(ruleIds);
+        var frozen = new HashSet<string>(_frozen, StringComparer.Ordinal);
+        foreach (var id in ruleIds)
+        {
+            RequireKnownId(id);
+            frozen.Add(id);
+        }
+
+        return new DcaRuleSelection(_includedSets, _includedIds, _settings, _retiredReferences, IncludesExperimental, frozen, FreezeStore);
+    }
+
+    /// <summary>The directory holding the frozen baselines. Default: <see cref="DefaultFreezeStore"/>.</summary>
+    public DcaRuleSelection WithFreezeStore(string directory)
+    {
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            throw new ArgumentException("The baseline directory must not be blank.", nameof(directory));
+        }
+
+        return new DcaRuleSelection(_includedSets, _includedIds, _settings, _retiredReferences, IncludesExperimental, _frozen, directory.Trim());
+    }
+
+    /// <summary>Whether this rule runs against a frozen baseline.</summary>
+    public bool IsFrozen(string ruleId) => _frozen.Contains(ruleId);
+
+    /// <summary>The file the baselines of this selection are kept in.</summary>
+    public string FreezeStoreFile => Path.Combine(FreezeStore ?? DefaultFreezeStore, FreezeStoreFileName);
 
     /// <summary>
     /// Reads <see cref="DefaultFileName"/> from the directory, or <see cref="All"/> when there is none.
@@ -208,6 +266,8 @@ public sealed class DcaRuleSelection
     /// dca.rules.off               = DCA-NAM-002
     /// dca.rules.warn              = DCA-TAC-009
     /// dca.rules.warn.sets         = naming
+    /// dca.rules.freeze            = DCA-ONI-002
+    /// dca.rules.freeze.store      = ../../../arch/frozen
     /// dca.rule.DCA-NAM-002.reason = no DI framework in this project
     /// dca.rule.DCA-STR-003.ignore = .*backoffice.*
     /// dca.rule.DCA-STR-003.ignore.1 = .*legacy.*
@@ -220,7 +280,6 @@ public sealed class DcaRuleSelection
     /// An unknown rule identifier or set name fails immediately — a typo must not silently leave a rule
     /// enforced. <c>dca.rules.experimental</c> takes <c>true</c> or <c>false</c> and opts in to the
     /// experimental rules (see <see cref="WithExperimental"/>); any other value fails.
-    /// <c>dca.rules.freeze*</c> is not supported yet and fails with an explanatory message.
     /// </summary>
     public static DcaRuleSelection FromFile(string path) => FromProperties(ReadProperties(path));
 
@@ -229,14 +288,6 @@ public sealed class DcaRuleSelection
     {
         ArgumentNullException.ThrowIfNull(properties);
         var selection = All();
-
-        foreach (var key in properties.Keys.Where(k => k.StartsWith("dca.rules.freeze", StringComparison.Ordinal)))
-        {
-            throw new ArgumentException(
-                $"'{key}' is not supported yet: the rules of this library do not expose the ArchUnitNET rule "
-                + "behind them, so there is nothing for ArchUnitNET's FreezingArchRule to build a baseline "
-                + "from. Lower the rule to a warning (dca.rules.warn) instead.");
-        }
 
         if (Experimental(properties))
         {
@@ -273,6 +324,17 @@ public sealed class DcaRuleSelection
         foreach (var id in Split(Value(properties, "dca.rules.warn")))
         {
             selection = selection.Warning(id, Reason(properties, id));
+        }
+
+        foreach (var id in Split(Value(properties, "dca.rules.freeze")))
+        {
+            selection = selection.Frozen(id);
+        }
+
+        var store = Value(properties, "dca.rules.freeze.store");
+        if (!string.IsNullOrWhiteSpace(store))
+        {
+            selection = selection.WithFreezeStore(store);
         }
 
         foreach (var (id, expressions) in IgnoreExpressions(properties))
@@ -471,6 +533,11 @@ public sealed class DcaRuleSelection
         if (_settings.Count > 0)
         {
             parts.Add(_settings.Count.ToString(CultureInfo.InvariantCulture) + " rule(s) configured");
+        }
+
+        if (_frozen.Count > 0)
+        {
+            parts.Add(_frozen.Count.ToString(CultureInfo.InvariantCulture) + " rule(s) frozen");
         }
 
         return $"DcaRuleSelection[{string.Join(", ", parts)}]";
