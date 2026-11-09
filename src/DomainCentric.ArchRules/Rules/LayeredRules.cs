@@ -30,6 +30,7 @@ public sealed class LayeredRules : IDcaRuleSet
             TransactionBoundariesBelongToApplicationLayer(),
             OutputPortMarkersMustBeInterfaces(),
             TypesSitInALayer(),
+            ApplicationLayerMustNotUsePersistenceApis(),
         }.AsReadOnly();
     }
 
@@ -308,4 +309,62 @@ public sealed class LayeredRules : IDcaRuleSet
                 "Each is an interface. The project's own output ports in Application.Shared are not "
                 + "selected; the rule passes when no non-interface type is found.");
     }
+
+    /// <summary>
+    /// DCA-LAY-008 (experimental). The application layer names none of the configured persistence and
+    /// transaction APIs (<see cref="DcaLayout.WithPersistenceApiPrefixes"/>).
+    /// </summary>
+    public static IDcaRule ApplicationLayerMustNotUsePersistenceApis() =>
+        DcaRule.Check(
+            "DCA-LAY-008",
+            "Application layer must not use persistence or transaction APIs",
+            "A use case declares its transaction with the configured transactional annotation or"
+                + " draws its boundary through the transaction-boundary port or a decorator around"
+                + " the use case, never through a persistence context, a connection or a"
+                + " transaction scope of its own. A persistence or transaction API"
+                + " in the application layer binds the use cases to one persistence technology and"
+                + " hides where the boundary is; the boundary's implementation is the single place"
+                + " that knows how to open and commit a transaction",
+            arch =>
+            {
+                var prefixes = arch.Layout.PersistenceApiPrefixes;
+                // Declarative is allowed: the transactional attribute DCA-LAY-004 places in the
+                // application layer, and the types nested in it, pass.
+                var declarative = arch.Layout.FrameworkTypes.TransactionalAttribute;
+                bool IsDeclarative(string name) =>
+                    FrameworkTypes.IsSet(declarative)
+                    && (name == declarative || name.StartsWith(declarative + "+", StringComparison.Ordinal));
+                var violations = new List<string>();
+                foreach (var type in arch.Types.Where(arch.InApplication))
+                {
+                    var apis = type.Dependencies
+                        .Select(d => d.Target.FullName)
+                        .Where(name => prefixes.Any(p => name.StartsWith(p, StringComparison.Ordinal)) && !IsDeclarative(name))
+                        .Distinct()
+                        .OrderBy(n => n, StringComparer.Ordinal)
+                        .ToList();
+                    if (apis.Count > 0)
+                    {
+                        violations.Add($"{type.FullName} depends on {string.Join(", ", apis)}");
+                    }
+                }
+
+                DcaRule.Fail(
+                    "Application layer must not use persistence or transaction APIs\nbecause the transaction boundary belongs to the transaction-boundary port or a decorator",
+                    violations,
+                    "Program the use case against an output port, declare the transaction with the configured transactional attribute or draw it through the transaction-boundary port, and move the API call into an outgoing adapter.");
+            })
+        .Experimental()
+        .Selecting("Types the layout places in the application layer of every module root.")
+        .Checking(
+            "No dependency on a type whose fully qualified name starts with one of the configured"
+                + " persistence and transaction API prefixes - in a signature, a field, an annotation or"
+                + " a method body. The configured transactional annotation, which DCA-LAY-004 places in"
+                + " the application layer, passes, and so do the types nested in it: a use case may"
+                + " declare its transaction. A transaction drawn programmatically - a transaction scope,"
+                + " a user transaction, a connection - is reported; it goes through the"
+                + " transaction-boundary port. The default names the platform's common persistence,"
+                + " data-access and transaction APIs; another persistence library is not reported unless"
+                + " the layout setting for persistence APIs names it, and the domain and adapter layers"
+                + " are not selected. An empty list checks nothing; an empty selection passes.");
 }

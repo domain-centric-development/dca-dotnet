@@ -13,10 +13,12 @@ public sealed class OnionRulesTests
 
     private static readonly IReadOnlyDictionary<string, string> NoNegativeFixture = new Dictionary<string, string>
     {
-
+        ["DCA-ONI-004"] = "negative fixture in Fixtures.Asynchrony, see below",
     };
 
-    private static readonly string[] ExpectedIds = { "DCA-ONI-001", "DCA-ONI-002", "DCA-ONI-003" };
+    private const string Asynchrony = "DomainCentric.ArchRules.Tests.Fixtures.Asynchrony";
+
+    private static readonly string[] ExpectedIds = { "DCA-ONI-001", "DCA-ONI-002", "DCA-ONI-003", "DCA-ONI-004" };
 
     private static DcaArchitecture Arch(string ns) =>
         DcaArchitecture.Load(DcaLayout.ForRootNamespace(ns), typeof(OnionRulesTests).Assembly);
@@ -55,4 +57,38 @@ public sealed class OnionRulesTests
         var ex = Assert.Throws<DcaRuleViolationException>(() => rule.Check(Arch(Bad)));
         Assert.False(string.IsNullOrWhiteSpace(ex.Message));
     }
+
+    [Fact]
+    public void ASynchronousDomainPasses() =>
+        Check(DcaLayout.ForRootNamespace(Asynchrony + ".Good"));
+
+    /// <summary>A task and a cancellation token in the domain, not the application layer and not an awaitable of the code base's own.</summary>
+    [Fact]
+    public void AsynchronousTypesInTheDomainAreReported()
+    {
+        var message = Assert.Throws<DcaRuleViolationException>(() => Check(DcaLayout.ForRootNamespace(Asynchrony + ".Bad"))).Message;
+
+        Assert.Contains("Domain.Ledger depends on System.Threading.Tasks.Task, System.Threading.Tasks.Task`1", message, System.StringComparison.Ordinal);
+        Assert.Contains("Domain.PostingFeed depends on System.Threading.CancellationToken", message, System.StringComparison.Ordinal);
+        Assert.DoesNotContain("RecordPostingUseCase", message, System.StringComparison.Ordinal);
+        Assert.DoesNotContain("Domain.Posting depends", message, System.StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TheAsynchronousTypesAreConfigurable()
+    {
+        var ns = Asynchrony + ".Bad";
+        var own = DcaLayout.ForRootNamespace(ns).WithAsynchronousTypes(ns + ".Ledger.Domain.Deferred");
+
+        var message = Assert.Throws<DcaRuleViolationException>(() => Check(own)).Message;
+
+        Assert.Contains("Domain.Posting depends", message, System.StringComparison.Ordinal);
+        Assert.DoesNotContain("Domain.Ledger depends", message, System.StringComparison.Ordinal);
+        Check(DcaLayout.ForRootNamespace(ns).WithAsynchronousTypes());
+    }
+
+    private static void Check(DcaLayout layout) =>
+        new OnionRules(layout).Rules.Single(r => r.Id == "DCA-ONI-004")
+            .Check(DcaArchitecture.Load(layout, typeof(OnionRulesTests).Assembly));
 }
+

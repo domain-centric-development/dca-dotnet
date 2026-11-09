@@ -16,16 +16,31 @@ public sealed class LayeredRulesTests
         ["DCA-LAY-001"] = "diagnostic rule, never fails",
         ["DCA-LAY-007"] = "a diagnostic, lists and never fails",
         ["DCA-LAY-005"] = "consumer implementation negative is imported explicitly in RetirementTests",
+        ["DCA-LAY-008"] = "negative fixture in Fixtures.PersistenceApi, see below",
     };
 
-    private static readonly string[] ExpectedIds = { "DCA-LAY-001", "DCA-LAY-002", "DCA-LAY-003", "DCA-LAY-004", "DCA-LAY-005", "DCA-LAY-007" };
+    /// <summary>
+    /// Rules stricter than the shared good fixture is written to. Its use case draws the boundary programmatically
+    /// with the transaction scope - the positive case of DCA-LAY-004, which accepts a transaction API in the
+    /// application layer - and DCA-LAY-008 reports a programmatic transaction by decision (only the declarative
+    /// attribute passes). Rewriting the use case would take DCA-LAY-004 its positive case.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<string, string> PositiveFixtureElsewhere = new Dictionary<string, string>
+    {
+        ["DCA-LAY-008"] = "stricter than DCA-LAY-004; positive fixture in Fixtures.PersistenceApi, see below",
+    };
+
+    private const string PersistenceApi = "DomainCentric.ArchRules.Tests.Fixtures.PersistenceApi";
+
+    private static readonly string[] ExpectedIds = { "DCA-LAY-001", "DCA-LAY-002", "DCA-LAY-003", "DCA-LAY-004", "DCA-LAY-005", "DCA-LAY-007", "DCA-LAY-008" };
 
     private static DcaArchitecture Arch(string ns) =>
         DcaArchitecture.Load(DcaLayout.ForRootNamespace(ns), typeof(LayeredRulesTests).Assembly);
 
     private static LayeredRules Rules(string ns) => new LayeredRules(DcaLayout.ForRootNamespace(ns));
 
-    public static IEnumerable<object[]> RuleIds() => ExpectedIds.Select(id => new object[] { id });
+    public static IEnumerable<object[]> RuleIds() =>
+        ExpectedIds.Where(id => !PositiveFixtureElsewhere.ContainsKey(id)).Select(id => new object[] { id });
 
     public static IEnumerable<object[]> NegativeRuleIds() =>
         ExpectedIds.Where(id => !NoNegativeFixture.ContainsKey(id)).Select(id => new object[] { id });
@@ -142,4 +157,63 @@ public sealed class LayeredRulesTests
         var ex = Assert.Throws<DcaRuleViolationException>(() => InfraRule("DCA-LAY-002").Check(InfraArch()));
         Assert.Contains("CartWiring", ex.Message);
     }
+
+    [Fact]
+    public void AUseCaseBehindItsPortPasses() =>
+        CheckPersistenceApis(DcaLayout.ForRootNamespace(PersistenceApi + ".Good"));
+
+    /// <summary>The overlap with DCA-LAY-004 is deliberate: a programmatic transaction scope that rule accepts in a use case is reported here.</summary>
+    [Fact]
+    public void ATransactionScopeDcaLay004AcceptsIsReported()
+    {
+        var message = Assert.Throws<DcaRuleViolationException>(() => CheckPersistenceApis(DcaLayout.ForRootNamespace(Good))).Message;
+        Assert.Contains("PlaceOrderUseCase depends on System.Transactions.TransactionScope", message, System.StringComparison.Ordinal);
+    }
+
+    /// <summary>A persistence API in a use case, not in an outgoing adapter and not a library outside the configured list.</summary>
+    [Fact]
+    public void PersistenceApisInTheApplicationLayerAreReported()
+    {
+        var message = Assert.Throws<DcaRuleViolationException>(() => CheckPersistenceApis(DcaLayout.ForRootNamespace(PersistenceApi + ".Bad"))).Message;
+
+        Assert.Contains("RecordPostingUseCase depends on System.Data.IDbConnection", message, System.StringComparison.Ordinal);
+        Assert.DoesNotContain("ConnectionPostings", message, System.StringComparison.Ordinal);
+        Assert.DoesNotContain("ClosePeriodUseCase", message, System.StringComparison.Ordinal);
+    }
+
+    /// <summary>The attribute of the transactional role passes, a transaction drawn programmatically is reported.</summary>
+    [Fact]
+    public void TheDeclarativeExemptionFollowsTheTransactionalRole()
+    {
+        var ns = PersistenceApi + ".Declarative";
+        var layout = DcaLayout.ForRootNamespace(ns)
+            .WithPersistenceApiPrefixes("System.Transactions.", ns + ".Vendor.");
+        var declared = layout.WithFrameworkTypes(FrameworkTypes.AspNetCore() with { TransactionalAttribute = ns + ".Vendor.TransactionalAttribute" });
+
+        var message = Assert.Throws<DcaRuleViolationException>(() => CheckPersistenceApis(declared)).Message;
+        Assert.Contains("SettlePeriodUseCase depends on System.Transactions.TransactionScope", message, System.StringComparison.Ordinal);
+        Assert.DoesNotContain("CloseDayUseCase", message, System.StringComparison.Ordinal);
+        Assert.DoesNotContain("TransactionalAttribute", message, System.StringComparison.Ordinal);
+
+        var withoutRole = Assert.Throws<DcaRuleViolationException>(() => CheckPersistenceApis(layout)).Message;
+        Assert.Contains("CloseDayUseCase depends on " + ns + ".Vendor.TransactionalAttribute", withoutRole, System.StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ThePersistenceApiPrefixesAreConfigurable()
+    {
+        var ns = PersistenceApi + ".Bad";
+        var own = DcaLayout.ForRootNamespace(ns).WithPersistenceApiPrefixes(ns + ".Vendor.");
+
+        var message = Assert.Throws<DcaRuleViolationException>(() => CheckPersistenceApis(own)).Message;
+
+        Assert.Contains("ClosePeriodUseCase", message, System.StringComparison.Ordinal);
+        Assert.DoesNotContain("RecordPostingUseCase", message, System.StringComparison.Ordinal);
+        CheckPersistenceApis(DcaLayout.ForRootNamespace(ns).WithPersistenceApiPrefixes());
+    }
+
+    private static void CheckPersistenceApis(DcaLayout layout) =>
+        new LayeredRules(layout).Rules.Single(r => r.Id == "DCA-LAY-008")
+            .Check(DcaArchitecture.Load(layout, typeof(LayeredRulesTests).Assembly));
 }
+

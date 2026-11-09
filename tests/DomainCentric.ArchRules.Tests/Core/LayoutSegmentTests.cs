@@ -103,4 +103,24 @@ public class LayoutSegmentTests
         Assert.Throws<ArgumentException>(() => Defaults.WithTimestampTypes());
         Assert.Throws<ArgumentException>(() => Defaults.WithTimestampTypes("  "));
     }
+
+    [Fact]
+    public void TheAsynchronousTypesAndPersistenceApiPrefixesAreConfigurable()
+    {
+        Assert.Equal(new[] { "System.Threading.Tasks.Task", "System.Threading.Tasks.ValueTask", "System.Threading.CancellationToken" }, Defaults.AsynchronousTypes);
+        Assert.Equal(
+            new[] { "Microsoft.EntityFrameworkCore.", "System.Transactions.", "System.Data.", "Dapper.", "NHibernate.", "MongoDB.Driver." },
+            Defaults.PersistenceApiPrefixes);
+
+        var own = Defaults.WithAsynchronousTypes("Acme.Reactive.Mono").WithPersistenceApiPrefixes("Acme.Store.");
+        Assert.Equal(new[] { "Acme.Reactive.Mono" }, own.AsynchronousTypes);
+        Assert.Equal(new[] { "Acme.Store." }, own.PersistenceApiPrefixes);
+        Assert.Equal("Acme.Shop", own.RootNamespace);
+        Assert.Equal(new[] { "Acme.Store." }, own.WithTimestampTypes("Acme.Time").PersistenceApiPrefixes);
+
+        // An empty list checks nothing; a blank entry is a mistake.
+        Assert.Empty(Defaults.WithAsynchronousTypes().AsynchronousTypes);
+        Assert.Throws<ArgumentException>(() => Defaults.WithAsynchronousTypes(" "));
+        Assert.Throws<ArgumentException>(() => Defaults.WithPersistenceApiPrefixes(""));
+    }
 }

@@ -236,7 +236,11 @@ controller, REST-controller, aggregate-root, repository, store, factory and spec
 the segments of the namespace layout, the types a domain event may store its occurrence time in
 (`WithTimestampTypes`) and the names of the factory that rebuilds a stored object (`WithReconstitutingFactories`,
 `Reconstitute` and `Restore` by default) — `DcaLayout` has a `With…` for it. Configure the name; do not switch the
-rule off.
+rule off. The same holds for the types the domain may not use because they make it asynchronous
+(`WithAsynchronousTypes`, read by `DCA-ONI-004`; `Task`, `ValueTask` and `CancellationToken` by default) and the name
+prefixes of the persistence and transaction APIs the application layer may not use (`WithPersistenceApiPrefixes`,
+read by `DCA-LAY-008`; `Microsoft.EntityFrameworkCore.`, `System.Transactions.`, `System.Data.`, `Dapper.`,
+`NHibernate.`, `MongoDB.Driver.` by default) — a project on another awaitable or persistence library names its own.
 
 **Your own layers and attributes.** A layer is its namespace by default. A project that keeps a layer under
 another namespace name, or already marks its layers with attributes — its own or a library's — names that per

@@ -677,3 +677,23 @@ differently:
 - **DCA-TAC-025** — a domain enum's public static fields: exactly two whose names, lower-cased and without
   underscores, form one of the pairs yes/no, true/false, on/off, present/absent, enabled/disabled, or X with
   notX/noX/nonX/unX.
+
+## 2026-11-09 — DCA-ONI-004, DCA-LAY-008: shared twins of DCA-NET-001 and DCA-NET-006 (WP-53)
+
+Two new rules, same ids and texts as in `dca-archunit`, experimental, enforced. Both are the loops of `DCA-NET-001`
+and `DCA-NET-006` over `type.Dependencies`, with the literals replaced by the layout settings `AsynchronousTypes`
+and `PersistenceApiPrefixes`, read from the architecture under test (`arch.Layout`). The defaults are exactly what
+the two dotnet rules check, so a project switching from one id to the other sees the same findings.
+`DCA-ONI-004` matches a full name equal to an entry, or starting with the entry plus `` ` `` (a generic form,
+`Task`1`) or `+` (a nested type); `DCA-LAY-008` matches by prefix and exempts a target equal to, or nested in,
+`FrameworkTypes.TransactionalAttribute` - the declarative boundary `DCA-LAY-004` accepts (decision of 2026-11-09,
+"declarative allowed"; empty in the AspNetCore preset, so by default nothing is exempt). `DCA-NET-001` and `DCA-NET-006` stay released
+until the twins are; then they retire with these ids as replacement.
+
+`DCA-LAY-006` was assigned once during development (WP-18, Java) and dropped before release; the id is not reused,
+the new layered rule is `DCA-LAY-008`. The shared hexagonal good fixture draws its boundary with
+`TransactionScope` - programmatic, the positive case of `DCA-LAY-004` - which `DCA-LAY-008` reports by decision;
+`DCA-LAY-008` therefore takes its positive fixture from `Fixtures/PersistenceApi`, and a test pins the overlap.
+`Fixtures/PersistenceApi/.../Declarative` shows the attribute passing and the scope beside it reported. Both negative fixtures are their own
+trees (`Fixtures/Asynchrony`, `Fixtures/PersistenceApi`).
+

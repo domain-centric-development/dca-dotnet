@@ -25,6 +25,7 @@ public sealed class OnionRules : IDcaRuleSet
             DomainMustNotAccessApplication(),
             DomainMustBeFrameworkIndependent(),
             DomainModelsMustNotHaveFrameworkAttributes(),
+            DomainLayerMustStaySynchronous(),
         }.AsReadOnly();
     }
 
@@ -119,4 +120,54 @@ public sealed class OnionRules : IDcaRuleSet
             arch => DomainMetadata.Check(arch, "DCA-ONI-003"))
         .Selecting("Domain.Model types except events, services, factories and specifications, which have exclusive ADV ownership.")
         .Checking("Configured attribute namespaces (and the explicit persistence attribute type names) classify an attribute or any base attribute type. Types prohibit container, persistence and transaction roles; fields and properties prohibit injection and persistence; methods prohibit transaction and injection; constructors prohibit injection. Unclassified metadata is allowed by this check, not proven harmless: the default preset classifies its configured persistence namespaces, the key/timestamp/concurrency attribute types and keyed-service injection; mappings of other persistence libraries need a preset extension. The container role is empty in both shipped presets: .NET registers services in code, not through an attribute, so the half of this rule that does the most work in Java - a container stereotype on a domain type - selects nothing here until a project names its own. Missing runtime types are skipped; wiring is not established.");
+
+    /// <summary>
+    /// DCA-ONI-004 (experimental). The domain layer names none of the configured asynchronous types
+    /// (<see cref="DcaLayout.WithAsynchronousTypes"/>).
+    /// </summary>
+    public static IDcaRule DomainLayerMustStaySynchronous() =>
+        DcaRule.Check(
+            "DCA-ONI-004",
+            "Domain layer must stay synchronous",
+            "Asynchrony is an I/O concern of ports and adapters; a synchronous domain model stays"
+                + " testable, deterministic and free of sync-over-async hazards",
+            arch =>
+            {
+                var configured = arch.Layout.AsynchronousTypes;
+                var violations = new List<string>();
+                foreach (var type in arch.Types.Where(arch.InDomain))
+                {
+                    var asynchronous = type.Dependencies
+                        .Select(d => d.Target.FullName)
+                        .Where(name => IsOrIsNestedIn(name, configured))
+                        .Distinct()
+                        .OrderBy(n => n, StringComparer.Ordinal)
+                        .ToList();
+                    if (asynchronous.Count > 0)
+                    {
+                        violations.Add($"{type.FullName} depends on {string.Join(", ", asynchronous)}");
+                    }
+                }
+
+                DcaRule.Fail(
+                    "Domain layer must stay synchronous\nbecause asynchrony is an I/O concern of ports and adapters",
+                    violations,
+                    "Move the awaiting code into a use case or adapter and pass plain values into the domain.");
+            })
+        .Experimental()
+        .Selecting("Types the layout places in the domain layer of every module root.")
+        .Checking(
+            "No dependency on one of the configured asynchronous types, on a type nested in one or"
+                + " on a generic form of one - in a signature, a field, an annotation or a method"
+                + " body. The default names the platform's standard asynchronous types; other"
+                + " awaitables, asynchronous sequences and a library's own reactive types are not"
+                + " checked unless the layout setting for asynchronous types names them. The"
+                + " application and adapter layers are not selected. An empty list checks nothing;"
+                + " an empty selection passes.");
+
+    /// <summary>The type itself, a generic form of it or a type nested in it.</summary>
+    private static bool IsOrIsNestedIn(string fullName, IReadOnlyList<string> types) =>
+        types.Any(t => fullName == t
+            || fullName.StartsWith(t + "`", StringComparison.Ordinal)
+            || fullName.StartsWith(t + "+", StringComparison.Ordinal));
 }

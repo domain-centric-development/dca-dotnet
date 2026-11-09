@@ -168,6 +168,27 @@ public sealed class DcaLayout
     private static readonly IReadOnlyList<string> DefaultReconstitutingFactories =
         Array.AsReadOnly(new[] { "Reconstitute", "Restore" });
 
+    /// <summary>Types that make the domain asynchronous, unless a project names its own.</summary>
+    private static readonly IReadOnlyList<string> DefaultAsynchronousTypes =
+        Array.AsReadOnly(new[]
+        {
+            "System.Threading.Tasks.Task",
+            "System.Threading.Tasks.ValueTask",
+            "System.Threading.CancellationToken",
+        });
+
+    /// <summary>Name prefixes of the persistence and transaction APIs, unless a project names its own.</summary>
+    private static readonly IReadOnlyList<string> DefaultPersistenceApiPrefixes =
+        Array.AsReadOnly(new[]
+        {
+            "Microsoft.EntityFrameworkCore.",
+            "System.Transactions.",
+            "System.Data.",
+            "Dapper.",
+            "NHibernate.",
+            "MongoDB.Driver.",
+        });
+
     private static IReadOnlyList<string> RequireTypeNames(IReadOnlyList<string> values, string name)
     {
         if (values.Count == 0)
@@ -288,6 +309,20 @@ public sealed class DcaLayout
     /// <c>Reconstitute</c> and <c>Restore</c> by default, matched ignoring case.
     /// </summary>
     public IReadOnlyList<string> ReconstitutingFactories { get; private init; } = DefaultReconstitutingFactories;
+
+    /// <summary>
+    /// Types the domain layer may not depend on because they make it asynchronous, by full name, read by
+    /// <c>DCA-ONI-004</c>; a generic form of one (<c>Task`1</c>) and a type nested in one count as well.
+    /// <c>Task</c>, <c>ValueTask</c> and <c>CancellationToken</c> by default.
+    /// </summary>
+    public IReadOnlyList<string> AsynchronousTypes { get; private init; } = DefaultAsynchronousTypes;
+
+    /// <summary>
+    /// Name prefixes of the persistence and transaction APIs the application layer may not depend on, read by
+    /// <c>DCA-LAY-008</c>. By default <c>Microsoft.EntityFrameworkCore.</c>, <c>System.Transactions.</c>,
+    /// <c>System.Data.</c>, <c>Dapper.</c>, <c>NHibernate.</c> and <c>MongoDB.Driver.</c>.
+    /// </summary>
+    public IReadOnlyList<string> PersistenceApiPrefixes { get; private init; } = DefaultPersistenceApiPrefixes;
 
     public IReadOnlyList<string> ThirdPartyNamespacesAllowedInDomain { get; }
 
@@ -624,6 +659,33 @@ public sealed class DcaLayout
         return Copy(reconstitutingFactories: Array.AsReadOnly(names.ToArray()));
     }
 
+    /// <summary>
+    /// Replaces the types the domain layer may not depend on because they make it asynchronous (<c>Task</c>,
+    /// <c>ValueTask</c> and <c>CancellationToken</c> by default), read by <c>DCA-ONI-004</c>. A project that uses
+    /// another awaitable or a reactive library names its types here. An empty list checks nothing.
+    /// </summary>
+    public DcaLayout WithAsynchronousTypes(params string[] typeNames) =>
+        Copy(asynchronousTypes: RequireNames(typeNames, "asynchronousTypes"));
+
+    /// <summary>
+    /// Replaces the name prefixes of the persistence and transaction APIs the application layer may not depend on,
+    /// read by <c>DCA-LAY-008</c>. A project on another persistence library names its namespaces here. An empty
+    /// list checks nothing.
+    /// </summary>
+    public DcaLayout WithPersistenceApiPrefixes(params string[] prefixes) =>
+        Copy(persistenceApiPrefixes: RequireNames(prefixes, "persistenceApiPrefixes"));
+
+    private static IReadOnlyList<string> RequireNames(string[] values, string name)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+        if (values.Any(string.IsNullOrWhiteSpace))
+        {
+            throw new ArgumentException($"{name} must not contain a blank name", name);
+        }
+
+        return Array.AsReadOnly(values.ToArray());
+    }
+
     public DcaLayout WithThirdPartyNamespacesAllowedInDomain(IEnumerable<string> prefixes) =>
         Copy(thirdParty: prefixes.ToArray());
 
@@ -703,7 +765,9 @@ public sealed class DcaLayout
         IReadOnlyList<string>? localOutputPorts = null,
         IReadOnlyDictionary<Layer, IReadOnlyList<string>>? layerAttributes = null,
         IReadOnlyCollection<Layer>? pathlessLayers = null,
-        IReadOnlyList<string>? reconstitutingFactories = null) =>
+        IReadOnlyList<string>? reconstitutingFactories = null,
+        IReadOnlyList<string>? asynchronousTypes = null,
+        IReadOnlyList<string>? persistenceApiPrefixes = null) =>
         new(
             RootNamespace,
             sharedKernel ?? SharedKernelSegment,
@@ -740,6 +804,8 @@ public sealed class DcaLayout
             LayerAttributesByLayer = layerAttributes ?? LayerAttributesByLayer,
             PathlessLayers = pathlessLayers ?? PathlessLayers,
             ReconstitutingFactories = reconstitutingFactories ?? ReconstitutingFactories,
+            AsynchronousTypes = asynchronousTypes ?? AsynchronousTypes,
+            PersistenceApiPrefixes = persistenceApiPrefixes ?? PersistenceApiPrefixes,
         };
 
     // ---------------------------------------------------------------------------------------------

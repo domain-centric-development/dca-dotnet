@@ -69,6 +69,17 @@
       "maturity": "experimental"
     },
     {
+      "set": "layered",
+      "id": "DCA-LAY-008",
+      "title": "Application layer must not use persistence or transaction APIs",
+      "rationale": "A use case declares its transaction with the configured transactional annotation or draws its boundary through the transaction-boundary port or a decorator around the use case, never through a persistence context, a connection or a transaction scope of its own. A persistence or transaction API in the application layer binds the use cases to one persistence technology and hides where the boundary is; the boundary's implementation is the single place that knows how to open and commit a transaction",
+      "selects": "Types the layout places in the application layer of every module root.",
+      "checks": "No dependency on a type whose fully qualified name starts with one of the configured persistence and transaction API prefixes - in a signature, a field, an annotation or a method body. The configured transactional annotation, which DCA-LAY-004 places in the application layer, passes, and so do the types nested in it: a use case may declare its transaction. A transaction drawn programmatically - a transaction scope, a user transaction, a connection - is reported; it goes through the transaction-boundary port. The default names the platform's common persistence, data-access and transaction APIs; another persistence library is not reported unless the layout setting for persistence APIs names it, and the domain and adapter layers are not selected. An empty list checks nothing; an empty selection passes.",
+      "implementation": "dotnet",
+      "status": "enforced",
+      "maturity": "experimental"
+    },
+    {
       "set": "onion",
       "id": "DCA-ONI-001",
       "title": "Domain must not access Application Services (Onion Architecture - Domain is innermost layer)",
@@ -100,6 +111,17 @@
       "implementation": "dotnet",
       "status": "enforced",
       "maturity": "released"
+    },
+    {
+      "set": "onion",
+      "id": "DCA-ONI-004",
+      "title": "Domain layer must stay synchronous",
+      "rationale": "Asynchrony is an I/O concern of ports and adapters; a synchronous domain model stays testable, deterministic and free of sync-over-async hazards",
+      "selects": "Types the layout places in the domain layer of every module root.",
+      "checks": "No dependency on one of the configured asynchronous types, on a type nested in one or on a generic form of one - in a signature, a field, an annotation or a method body. The default names the platform's standard asynchronous types; other awaitables, asynchronous sequences and a library's own reactive types are not checked unless the layout setting for asynchronous types names them. The application and adapter layers are not selected. An empty list checks nothing; an empty selection passes.",
+      "implementation": "dotnet",
+      "status": "enforced",
+      "maturity": "experimental"
     },
     {
       "set": "hexagonal",
@@ -1521,7 +1543,7 @@
       "title": "Domain layer must stay synchronous",
       "rationale": "Async is an I/O concern of ports and adapters; a synchronous domain model stays testable, deterministic and free of sync-over-async hazards",
       "selects": "Types in <module>.Domain of every module root.",
-      "checks": "No dependency on Task, Task<T>, ValueTask, ValueTask<T> or CancellationToken - in a signature, a field or a method body. Other awaitables and IAsyncEnumerable<T> are not checked. An empty selection passes. The statement is language-neutral, but it is carried under a dotnet id: Java has no twin, and CompletableFuture or Flow.Publisher in a domain model is reported by no rule there.",
+      "checks": "No dependency on Task, Task<T>, ValueTask, ValueTask<T> or CancellationToken - in a signature, a field or a method body. Other awaitables and IAsyncEnumerable<T> are not checked. An empty selection passes. The statement is language-neutral: its shared twin is DCA-ONI-004 (experimental), with the types as a layout setting, and this id retires with DCA-ONI-004 as replacement once that one is released.",
       "implementation": "dotnet",
       "status": "enforced",
       "maturity": "released"
@@ -1576,7 +1598,7 @@
       "title": "Application layer must not use persistence or transaction frameworks",
       "rationale": "The transaction boundary of a use case is drawn by a decorator around IUseCase or by ITransactionBoundary (an application-layer execution abstraction implemented in infrastructure), never by DbContext, SaveChanges, TransactionScope or IDbTransaction in the use case itself. Framework types in the application layer bind use cases to one persistence technology and hide where the boundary is; the ITransactionBoundary implementation is the single place that knows how to open and commit a transaction",
       "selects": "Types in <module>.Application of every module root.",
-      "checks": "No dependency on a type whose full name starts with Microsoft.EntityFrameworkCore, System.Transactions, System.Data, Dapper, NHibernate or MongoDB.Driver. Only these six namespace prefixes are checked - another persistence library is not reported, and the domain and adapter layers are not selected. An empty selection passes. The statement is language-neutral, but it is carried under a dotnet id: Java has no twin, where DCA-LAY-003 forbids the infrastructure packages and not the persistence API itself.",
+      "checks": "No dependency on a type whose full name starts with Microsoft.EntityFrameworkCore, System.Transactions, System.Data, Dapper, NHibernate or MongoDB.Driver. Only these six namespace prefixes are checked - another persistence library is not reported, and the domain and adapter layers are not selected. An empty selection passes. The statement is language-neutral: its shared twin is DCA-LAY-008 (experimental), with the prefixes as a layout setting, and this id retires with DCA-LAY-008 as replacement once that one is released.",
       "implementation": "dotnet",
       "status": "enforced",
       "maturity": "released"

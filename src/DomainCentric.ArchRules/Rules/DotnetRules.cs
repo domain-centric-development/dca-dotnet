@@ -18,7 +18,9 @@ namespace DomainCentric.ArchRules.Rules;
 /// pin down how the doctrine maps onto C# idioms — a synchronous domain, async-only ports with the
 /// <c>Async</c> suffix, one <c>ExecuteAsync</c> per use case, readonly structs for struct values,
 /// readonly record structs for identifiers.
-/// They have no Java counterpart and therefore no entry in the shared catalog of ported rules.
+/// They have no Java counterpart and therefore no entry in the shared catalog of ported rules — except
+/// DCA-NET-001 and DCA-NET-006, whose statements are language-neutral and now have shared twins
+/// (DCA-ONI-004, DCA-LAY-008, experimental); the two retire once their twins are released.
 /// </summary>
 public sealed class DotnetRules : IDcaRuleSet
 {
@@ -85,9 +87,9 @@ public sealed class DotnetRules : IDcaRuleSet
                 + " System.Transactions, System.Data, Dapper, NHibernate or MongoDB.Driver. Only"
                 + " these six namespace prefixes are checked - another persistence library is not"
                 + " reported, and the domain and adapter layers are not selected. An empty selection"
-                + " passes. The statement is language-neutral, but it is carried under a dotnet id:"
-                + " Java has no twin, where DCA-LAY-003 forbids the infrastructure packages and not"
-                + " the persistence API itself.");
+                + " passes. The statement is language-neutral: its shared twin is DCA-LAY-008"
+                + " (experimental), with the prefixes as a layout setting, and this id retires with"
+                + " DCA-LAY-008 as replacement once that one is released.");
 
     private static readonly string[] PersistenceFrameworkNamespaces =
     {
@@ -135,9 +137,9 @@ public sealed class DotnetRules : IDcaRuleSet
         .Checking(
             "No dependency on Task, Task<T>, ValueTask, ValueTask<T> or CancellationToken -"
                 + " in a signature, a field or a method body. Other awaitables and IAsyncEnumerable<T>"
-                + " are not checked. An empty selection passes. The statement is language-neutral, but"
-                + " it is carried under a dotnet id: Java has no twin, and CompletableFuture or"
-                + " Flow.Publisher in a domain model is reported by no rule there.");
+                + " are not checked. An empty selection passes. The statement is language-neutral: its"
+                + " shared twin is DCA-ONI-004 (experimental), with the types as a layout setting, and"
+                + " this id retires with DCA-ONI-004 as replacement once that one is released.");
 
     /// <summary>DCA-NET-002: awaitable port methods end with <c>Async</c>, and only those.</summary>
     public static IDcaRule PortMethodsReturningTaskMustEndWithAsync() =>

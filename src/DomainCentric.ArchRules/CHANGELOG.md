@@ -6,6 +6,28 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ### Added
 
+**`DCA-ONI-004` — the domain layer stays synchronous (WP-53), experimental** — the shared twin of `DCA-NET-001`,
+same id and text as in Java. A type the layout places in the domain layer depends on none of the configured
+asynchronous types, nor on a generic form of one or a type nested in one. The list is a layout setting,
+`WithAsynchronousTypes(...)` / `AsynchronousTypes`; the default is `System.Threading.Tasks.Task`, `ValueTask` and
+`System.Threading.CancellationToken`, the types `DCA-NET-001` checks. An empty list checks nothing.
+
+**`DCA-LAY-008` — the application layer uses no persistence or transaction API (WP-53), experimental** — the shared
+twin of `DCA-NET-006`, same id and text as in Java. A type the layout places in the application layer depends on no
+type whose full name starts with one of the configured prefixes. The list is a layout setting,
+`WithPersistenceApiPrefixes(...)` / `PersistenceApiPrefixes`; the default is the six prefixes `DCA-NET-006` checks
+(`Microsoft.EntityFrameworkCore.`, `System.Transactions.`, `System.Data.`, `Dapper.`, `NHibernate.`,
+`MongoDB.Driver.`). Declarative is allowed: the configured `TransactionalAttribute`, which `DCA-LAY-004` places in
+the application layer, and the types nested in it pass; a transaction drawn programmatically (`TransactionScope`,
+`DbConnection`, EF Core) is reported and goes through the transaction-boundary port. `DCA-NET-006` has no such exemption; it
+reports the attribute too when it lies under one of the prefixes.
+
+### Changed
+
+**`DCA-NET-001` and `DCA-NET-006` name their shared twins.** The note that Java has no twin now says the twin is
+`DCA-ONI-004` / `DCA-LAY-008` (experimental) and that the dotnet id retires with it as replacement once it is
+released. Both stay released and unchanged in what they check until then.
+
 **`DCA-ADV-021` — domain services are used only by the application and by other domain services (WP-189),
 experimental** — the twin of the Java rule, read from the IL of each runtime type and the types nested in it. Every
 type outside the application layer that carries no domain-service role is selected; a call, a construction or a
