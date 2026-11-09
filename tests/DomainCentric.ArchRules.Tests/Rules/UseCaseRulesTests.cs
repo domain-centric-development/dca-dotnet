@@ -34,6 +34,8 @@ public sealed class UseCaseRulesTests
         "DCA-USE-018",
         "DCA-USE-019",
         "DCA-USE-020",
+        "DCA-USE-021",
+        "DCA-USE-022",
     };
 
     /// <summary>Rules without a negative fixture (id → reason).</summary>
@@ -122,6 +124,38 @@ public sealed class UseCaseRulesTests
         Assert.Contains("OrdersByRegionResult.Value : Order (IAggregateRoot)", ex.Message);
         Assert.Contains("LineItemResult.Value : OrderLine (IEntity)", ex.Message);
         Assert.DoesNotContain(".Count", ex.Message);
+    }
+
+    /// <summary>
+    /// DCA-USE-021: a field the use case writes, a property with a setter and a primary-constructor parameter assigned
+    /// outside the constructor are reported; the readonly fields of the other use cases and a captured parameter
+    /// nothing reassigns are not.
+    /// </summary>
+    [Fact]
+    public void UseCasesThatKeepStateAreReported()
+    {
+        var message = Assert.Throws<DcaRuleViolationException>(() => Rule(Bad, "DCA-USE-021").Check(Arch(Bad))).Message;
+
+        Assert.Contains("CountOrdersUseCase has non-readonly field '_calls'", message, StringComparison.Ordinal);
+        Assert.Contains("CountOrdersUseCase has property 'LastOrder' with a setter", message, StringComparison.Ordinal);
+        Assert.Contains("CountOrdersUseCase assigns its constructor parameter 'orders' outside the constructor", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("PlaceOrderUseCase", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("OrderExistsUseCase", message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// DCA-USE-022: a bare number on the input port and a bare nullable flag on a class that declares the contract
+    /// itself are reported, each once; a result type is not.
+    /// </summary>
+    [Fact]
+    public void BareUseCaseResultsAreReported()
+    {
+        var message = Assert.Throws<DcaRuleViolationException>(() => Rule(Bad, "DCA-USE-022").Check(Arch(Bad))).Message;
+
+        Assert.Contains("ICountOrdersInputPort answers IUseCase<..., Int32> - a bare Int32", message, StringComparison.Ordinal);
+        Assert.Contains("OrderExistsUseCase answers IUseCase<..., Boolean?> - a bare Boolean?", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("CountOrdersUseCase", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("PlaceOrder", message, StringComparison.Ordinal);
     }
 
     private string SaveRuleMessage() =>

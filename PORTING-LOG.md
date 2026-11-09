@@ -655,3 +655,25 @@ differently:
   the composition root's construction and passes. Deviation from Java: a field operand is not read, so a public
   field of a service read directly is not seen (Java reports a field access); a property is a method and is seen.
 
+## 2026-11-09 — DCA-HEX-021, DCA-USE-021, DCA-USE-022, DCA-TAC-025 negation enums (WP-193)
+
+- **DCA-HEX-021** — read from the IL through `IntraClassCalls` (as `DCA-ADV-021`) over every non-nested runtime type in
+  the outgoing adapter layer. A method operand whose declaring type carries the aggregate-root role is classified by
+  `StateChangeOf`: non-static and returning `void`/`Task`/`ValueTask`; a `set_` accessor without the `IsExternalInit`
+  modifier (an `init` accessor runs only while the object is built and passes - .NET-only reading, Java has none); or
+  a `stfld` in the target's own IL onto a field of its type or a base type. Methods declared by a type in the namespace of the
+  aggregate-root role's own marker pass (as Java: package equality), so the building blocks' `AggregateRootBase.ClearDomainEvents()`,
+  which the outgoing event publisher calls after publishing, is not reported. `IntraClassCalls.IlInstructions` now
+  resolves `InlineField` operands to `FieldInfo`.
+- **DCA-USE-021** — the use cases of `OperationPolicy.Operation` (as `DCA-USE-019`). Every instance field, declared
+  or inherited, must be `IsInitOnly` or literal; an auto-property with a `set` accessor is reported through its
+  backing field (`init` backing fields are `initonly` and pass). C# keeps a captured primary-constructor parameter in
+  a mutable compiler-generated field `<name>P` that cannot be made readonly; it is reported only when the IL of a
+  non-constructor unit stores into it. Static fields are not read (Java: instance fields only as well).
+- **DCA-USE-022** — the closed `IUseCase<,>` (role `UseCase`) a type declares itself: implemented by it and not
+  inherited from a base class or another interface, so the input-port interface is reported and the class behind it
+  is not. The last generic argument, unwrapped from `Nullable<>`, against string, bool, the integral and floating
+  primitives, decimal and char.
+- **DCA-TAC-025** — a domain enum's public static fields: exactly two whose names, lower-cased and without
+  underscores, form one of the pairs yes/no, true/false, on/off, present/absent, enabled/disabled, or X with
+  notX/noX/nonX/unX.

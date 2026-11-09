@@ -21,7 +21,7 @@ public sealed class HexagonalRulesTests
 
     };
 
-    private static readonly string[] ExpectedIds = { "DCA-HEX-001", "DCA-HEX-002", "DCA-HEX-003", "DCA-HEX-004", "DCA-HEX-005", "DCA-HEX-006", "DCA-HEX-007", "DCA-HEX-008", "DCA-HEX-009", "DCA-HEX-010", "DCA-HEX-011", "DCA-HEX-012", "DCA-HEX-013", "DCA-HEX-014", "DCA-HEX-016", "DCA-HEX-017", "DCA-HEX-018", "DCA-HEX-019", "DCA-HEX-020" };
+    private static readonly string[] ExpectedIds = { "DCA-HEX-001", "DCA-HEX-002", "DCA-HEX-003", "DCA-HEX-004", "DCA-HEX-005", "DCA-HEX-006", "DCA-HEX-007", "DCA-HEX-008", "DCA-HEX-009", "DCA-HEX-010", "DCA-HEX-011", "DCA-HEX-012", "DCA-HEX-013", "DCA-HEX-014", "DCA-HEX-016", "DCA-HEX-017", "DCA-HEX-018", "DCA-HEX-019", "DCA-HEX-020", "DCA-HEX-021" };
 
     private static DcaArchitecture Arch(string ns) =>
         DcaArchitecture.Load(DcaLayout.ForRootNamespace(ns), typeof(HexagonalRulesTests).Assembly);
@@ -59,6 +59,24 @@ public sealed class HexagonalRulesTests
         var rule = Rules(Bad).Rules.Single(r => r.Id == id);
         var ex = Assert.Throws<DcaRuleViolationException>(() => rule.Check(Arch(Bad)));
         Assert.False(string.IsNullOrWhiteSpace(ex.Message));
+    }
+
+    /// <summary>
+    /// DCA-HEX-021: a void method (through an async state machine), a property setter and a value-returning method
+    /// that writes a field are reported; a query and a getter are not, nor the repository that stores the aggregate.
+    /// </summary>
+    [Fact]
+    public void AnOutgoingAdapterThatChangesAnAggregateIsReported()
+    {
+        var message = Assert.Throws<DcaRuleViolationException>(
+            () => Rules(Bad).Rules.Single(r => r.Id == "DCA-HEX-021").Check(Arch(Bad))).Message;
+
+        Assert.Contains("OrderArchive.ArchiveAsync calls Order.Cancel - it returns no value", message, System.StringComparison.Ordinal);
+        Assert.Contains("OrderArchive.Annotate calls Order.set_Note - a property setter", message, System.StringComparison.Ordinal);
+        Assert.Contains("OrderArchive.Remind calls Order.Remind - it writes the field _reminders", message, System.StringComparison.Ordinal);
+        Assert.DoesNotContain("IsLargerThan", message, System.StringComparison.Ordinal);
+        Assert.DoesNotContain("get_", message, System.StringComparison.Ordinal);
+        Assert.DoesNotContain("InMemoryOrderRepository", message, System.StringComparison.Ordinal);
     }
 
     private static DcaLayout ListenerLayout(string ns) => DcaLayout.ForRootNamespace(ns).WithFrameworkTypes(

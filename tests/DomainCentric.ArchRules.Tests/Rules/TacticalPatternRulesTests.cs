@@ -160,6 +160,7 @@ public sealed class TacticalPatternRulesTests
         Assert.DoesNotContain("PostalCode:", message);
         Assert.DoesNotContain("AccountId:", message);
         Assert.DoesNotContain("ToString", message);
+        Assert.Contains("Presence: enum of Present/Absent names one fact and its negation", message);
     }
 
     [Fact]

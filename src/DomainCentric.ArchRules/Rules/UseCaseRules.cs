@@ -47,6 +47,8 @@ public sealed class UseCaseRules : IDcaRuleSet
             IncomingAdaptersDriveOneFeature(layout),
             QueryUseCasesDoNotWrite(layout),
             UseCasesDoNotParseIds(layout),
+            UseCasesAreStateless(layout),
+            UseCaseResultsAreNotBare(layout),
         };
     }
 
@@ -244,6 +246,165 @@ public sealed class UseCaseRules : IDcaRuleSet
                 + " ParseExact or TryParseExact, in any overload. Parsing a project's own id type, or an id"
                 + " held as a number or another text format, is not seen; the value type's own factory in the"
                 + " domain is outside the selection and may parse. An empty selection passes.");
+
+    /// <summary>
+    /// DCA-USE-021 (experimental). One instance of a use case serves every caller: what it holds is set once, by its
+    /// constructor. Read by reflection over the instance fields, a property's backing field included; a captured
+    /// primary-constructor parameter is read from the IL.
+    /// </summary>
+    public static IDcaRule UseCasesAreStateless(DcaLayout layout) =>
+        DcaRule.Check(
+            "DCA-USE-021",
+            "Use cases should be stateless (only final fields for dependencies)",
+            "One instance of a use case serves every caller. A field it writes while it runs is shared by the next"
+                + " call and by concurrent ones, and one call's outcome depends on the call before. What a use case"
+                + " holds is set once, by its constructor: the ports and services it is wired with",
+            arch =>
+            {
+                var violations = new List<string>();
+                const BindingFlags instance = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+                foreach (var type in arch.Types.Where(t => OperationPolicy.Operation(t, arch)).OrderBy(t => t.FullName, StringComparer.Ordinal))
+                {
+                    var runtime = arch.RuntimeType(type)!;
+                    for (var current = runtime; current is not null && current != typeof(object); current = current.BaseType)
+                    {
+                        foreach (var field in current.GetFields(instance).Where(f => !f.IsInitOnly && !f.IsLiteral))
+                        {
+                            if (CapturedParameter(field) is { } parameter)
+                            {
+                                if (WrittenOutsideConstructors(current, field))
+                                {
+                                    violations.Add($"{type.FullName} assigns its constructor parameter '{parameter}' outside the constructor");
+                                }
+
+                                continue;
+                            }
+
+                            violations.Add(field.Name.StartsWith("<", StringComparison.Ordinal)
+                                ? $"{type.FullName} has property '{CapturedName(field.Name)}' with a setter"
+                                : $"{type.FullName} has non-readonly field '{field.Name}'");
+                        }
+                    }
+                }
+
+                DcaRule.Fail(
+                    "Use cases should be stateless (only final fields for dependencies)",
+                    violations,
+                    "pass what a call needs through the command or keep it in a local; the constructor sets only the collaborators");
+            })
+        .Experimental()
+        .Selecting(
+            "Concrete non-nested application operations selected by IInputPort marker or configured use-case"
+                + " suffix, with loadable runtime types - the use cases DCA-USE-019 selects, whatever their input.")
+        .Checking(
+            "Every instance field - declared by the class or inherited from a base class - is readonly or const, and"
+                + " no auto-property has a setter: its backing field is read like any field, so a get-only or init-only"
+                + " property passes. A parameter of a primary constructor that the class captures is held in a"
+                + " compiler-generated field the language cannot make readonly; it is reported only when a method other"
+                + " than a constructor assigns it. Static fields and the types of the fields are not inspected, so a"
+                + " readonly field holding mutable state passes. An empty selection passes.");
+
+    /// <summary>The parameter name of a primary-constructor capture field (<c>&lt;orders&gt;P</c>), or <c>null</c>.</summary>
+    private static string? CapturedParameter(FieldInfo field) =>
+        field.Name.StartsWith("<", StringComparison.Ordinal) && field.Name.EndsWith(">P", StringComparison.Ordinal)
+            ? field.Name[1..^2]
+            : null;
+
+    private static string CapturedName(string name)
+    {
+        var end = name.IndexOf('>', StringComparison.Ordinal);
+        return end > 1 ? name[1..end] : name;
+    }
+
+    /// <summary>Whether any IL of the type, but a constructor's, stores into the field.</summary>
+    private static bool WrittenOutsideConstructors(Type owner, FieldInfo field) =>
+        new IntraClassCalls(owner).Units
+            .Where(unit => unit is not ConstructorInfo)
+            .SelectMany(IntraClassCalls.IlInstructions)
+            .Any(i => i.Code == System.Reflection.Emit.OpCodes.Stfld && i.Operand is FieldInfo written
+                && written.Name == field.Name && written.DeclaringType == field.DeclaringType);
+
+    /// <summary>The bare output types a use case does not answer with.</summary>
+    private static readonly HashSet<Type> BareResultTypes = new()
+    {
+        typeof(string), typeof(bool), typeof(byte), typeof(sbyte), typeof(short), typeof(ushort), typeof(int),
+        typeof(uint), typeof(long), typeof(ulong), typeof(float), typeof(double), typeof(decimal), typeof(char),
+    };
+
+    /// <summary>
+    /// DCA-USE-022 (experimental). A use case answers in the application's language - a result type, a value or a
+    /// closed result - not with a bare number, text or flag. Read from the closed generic use-case contract each type
+    /// declares.
+    /// </summary>
+    public static IDcaRule UseCaseResultsAreNotBare(DcaLayout layout) =>
+        DcaRule.Check(
+            "DCA-USE-022",
+            "Use case results must not be bare primitives or strings",
+            "A use case answers in the application's language: a result type of its own, a value, or a case of a"
+                + " closed result. A bare number, text or flag carries no meaning of its own - an exit code, a status"
+                + " word or a count whose meaning lives in the caller - and it cannot gain a case without changing every"
+                + " caller",
+            arch =>
+            {
+                var markers = arch.Layout.Markers;
+                var violations = new List<string>();
+                foreach (var type in arch.Types.Where(t => !t.IsCompilerGenerated).OrderBy(t => t.FullName, StringComparer.Ordinal))
+                {
+                    var runtime = arch.RuntimeType(type);
+                    if (runtime is null)
+                    {
+                        continue;
+                    }
+
+                    foreach (var contract in DeclaredUseCaseContracts(runtime, markers))
+                    {
+                        var output = contract.GetGenericArguments()[^1];
+                        var bare = Nullable.GetUnderlyingType(output) ?? output;
+                        if (BareResultTypes.Contains(bare))
+                        {
+                            violations.Add($"{type.FullName} answers {contract.Name.Split('`')[0]}<..., {Display(output)}> - a bare {Display(output)}");
+                        }
+                    }
+                }
+
+                DcaRule.Fail(
+                    "Use case results must not be bare primitives or strings",
+                    violations.Distinct().ToList(),
+                    "answer with a result type of its own, a value object, or a closed result whose cases name the outcomes");
+            })
+        .Experimental()
+        .Selecting(
+            "Types under scan, interfaces included, with their runtime type in the loaded assemblies that declare the"
+                + " generic use-case contract - the configured UseCase role, by default IUseCase<TInput, TOutput> -"
+                + " closed over its output argument: the input port that names the contract, or the class that"
+                + " implements it directly. A class that receives the contract through its input-port interface counts"
+                + " as that interface, so one contract is reported once; an open generic argument is not selected.")
+        .Checking(
+            "The output type argument is none of string, bool, byte, sbyte, short, ushort, int, uint, long, ulong,"
+                + " float, double, decimal or char, nor a Nullable of one. A container of them, such as"
+                + " IReadOnlyList<string>, and the project's own types pass. An empty selection passes.");
+
+    /// <summary>
+    /// The closed use-case contracts a type declares itself: implemented by the type, and not already brought in by a
+    /// base type or by another interface it implements.
+    /// </summary>
+    private static IEnumerable<Type> DeclaredUseCaseContracts(Type runtime, DcaMarkers markers)
+    {
+        var interfaces = runtime.GetInterfaces();
+        var inherited = new HashSet<Type>(interfaces.SelectMany(i => i.GetInterfaces()));
+        if (runtime.BaseType is { } baseType)
+        {
+            inherited.UnionWith(baseType.GetInterfaces());
+        }
+
+        return interfaces.Where(i => i.IsGenericType && !inherited.Contains(i)
+            && DcaMarkers.IsRole(i.GetGenericTypeDefinition(), markers.UseCase)
+            && i.GetGenericArguments() is { Length: >= 2 } arguments
+            && !arguments[^1].IsGenericParameter && !arguments[^1].ContainsGenericParameters);
+    }
+
+    private static string Display(Type type) =>
+        Nullable.GetUnderlyingType(type) is { } inner ? inner.Name + "?" : type.Name;
 
     private static readonly HashSet<string> IdParseMethods = new(StringComparer.Ordinal) { "Parse", "TryParse", "ParseExact", "TryParseExact" };
 

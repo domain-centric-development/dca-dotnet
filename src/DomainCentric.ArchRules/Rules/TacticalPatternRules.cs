@@ -947,6 +947,33 @@ public sealed class TacticalPatternRules : IDcaRuleSet
         typeof(DateTime), typeof(DateTimeOffset), typeof(DateOnly), typeof(TimeOnly), typeof(Guid),
     };
 
+    /// <summary>The pairs of member names that say one fact and its negation, beside X with NotX, NoX, NonX or UnX.</summary>
+    private static readonly (string, string)[] NegationPairs =
+    {
+        ("yes", "no"), ("true", "false"), ("on", "off"), ("present", "absent"), ("enabled", "disabled"),
+    };
+
+    /// <summary>
+    /// The two members of an enum that name one fact and its negation (<c>Present/Absent</c>), or <c>null</c> - compared
+    /// ignoring case and underscores.
+    /// </summary>
+    private static string? NegationPair(Type enumType)
+    {
+        var names = enumType.GetFields(BindingFlags.Public | BindingFlags.Static).Select(f => f.Name).ToArray();
+        if (names.Length != 2)
+        {
+            return null;
+        }
+
+        static string Plain(string name) => name.Replace("_", "", StringComparison.Ordinal).ToLowerInvariant();
+        var (a, b) = (Plain(names[0]), Plain(names[1]));
+        bool Negates(string fact, string other) =>
+            new[] { "not", "no", "non", "un" }.Any(prefix => other == prefix + fact);
+        return NegationPairs.Any(p => (a, b) == p || (b, a) == p) || (a.Length > 0 && Negates(a, b)) || (b.Length > 0 && Negates(b, a))
+            ? $"{names[0]}/{names[1]}"
+            : null;
+    }
+
     /// <summary>The methods every type has from the platform, and the ones a record declares for itself.</summary>
     private static readonly HashSet<string> PlatformMethods = new(StringComparer.Ordinal)
     {
@@ -1003,6 +1030,11 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                         | BindingFlags.Static | BindingFlags.DeclaredOnly;
                     var bare = new List<string>();
                     var stateReported = false;
+                    if (runtime.IsEnum && NegationPair(runtime) is { } pair)
+                    {
+                        bare.Add($"enum of {pair} names one fact and its negation - a Boolean in disguise");
+                    }
+
                     foreach (var field in runtime.GetFields(declared & ~BindingFlags.Static))
                     {
                         if (field.IsDefined(typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute))
@@ -1101,7 +1133,8 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                     "Domain types must not hold bare primitives, strings or time types; a boolean only as a field or a predicate",
                     violations,
                     "wrap each in a value object that carries its rules - a value of one component may hold the primitive it wraps;"
-                    + " replace a bool parameter or a public bool setter by a method that names the behaviour - Complete() instead of SetCompleted(true)");
+                    + " replace a bool parameter or a public bool setter by a method that names the behaviour - Complete() instead of SetCompleted(true);"
+                    + " hold a two-member enum of a fact and its negation as a bool field with a predicate");
             })
             .Experimental()
             .Selecting(
@@ -1132,7 +1165,11 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 + " like any other - and so does an IReadOnlyList<bool>. A value object with several components is checked like"
                 + " any other type: each component is a value object itself. A reported type with exactly one"
                 + " instance field that is no value or id is told to carry the value or id role to count as a"
-                + " wrapper. An empty selection passes.");
+                + " wrapper. A domain enum with exactly two members that name one fact and its negation is a boolean in"
+                + " disguise and is reported where it is declared: the pairs Yes/No, True/False, On/Off, Present/Absent,"
+                + " Enabled/Disabled, and any X with NotX, NoX, NonX or UnX (compared case-insensitively, underscores"
+                + " ignored). A two-member enum whose members have names of their own (for example Open/Closed) passes."
+                + " An empty selection passes.");
 
     // ---------------------------------------------------------------------------------------------
     // Ownership

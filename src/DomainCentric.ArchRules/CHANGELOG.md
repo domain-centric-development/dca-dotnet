@@ -12,7 +12,29 @@ type outside the application layer that carries no domain-service role is select
 delegate of a domain service's method is reported, except a construction in the infrastructure layer, the
 composition root. `DCA-ADV-019` and `DCA-HEX-012` stay; their remedies point at `DCA-ADV-021`.
 
+**`DCA-HEX-021` — outgoing adapters must not call state-changing methods of aggregate roots (WP-193),
+experimental** — the twin of the Java rule, read from the IL of every outgoing adapter and its nested, async
+state-machine and closure types. A call of an aggregate-root method that changes state is reported: a non-static
+method returning `void`, `Task` or `ValueTask`, a property setter (an `init` accessor passes), or a method whose own IL
+writes a field of its type. Static factories, getters and queries pass, and so does a method declared by a type in the
+namespace of the aggregate-root role's own marker - the vocabulary's base, such as `ClearDomainEvents()` after
+publishing.
+
+**`DCA-USE-021` — use cases should be stateless (WP-193), experimental** — the use-case twin of `DCA-ADV-012`: every
+instance field of a use case (as `DCA-USE-019` selects them) is `readonly`, and no auto-property has a setter. A
+captured primary-constructor parameter is reported only when a method other than a constructor assigns it.
+
+**`DCA-USE-022` — use case results must not be bare primitives or strings (WP-193), experimental** — the output
+argument of a closed `IUseCase<TInput, TOutput>` (the `UseCase` role) is none of `string`, `bool`, the numeric
+primitives, `decimal` or `char`, nor a `Nullable` of one; a container such as `IReadOnlyList<string>` passes. Each
+contract is reported once, on the type that declares it - the input port, or the class that implements it directly.
+
 ### Changed
+
+**`DCA-TAC-025` reports a boolean in disguise (WP-193)** — the twin of the Java change. A domain enum with exactly two
+members that name one fact and its negation is reported where it is declared: `Yes/No`, `True/False`, `On/Off`,
+`Present/Absent`, `Enabled/Disabled`, and any `X` with `NotX`, `NoX`, `NonX` or `UnX`, compared ignoring case and
+underscores. A two-member enum whose members have names of their own (`Open/Closed`) passes.
 
 **`DCA-TAC-025` exempts the factory that rebuilds a stored object** — the twin of the Java change. A `bool` parameter
 of a static method that returns its own type and is named as the layout configures — `Reconstitute` and `Restore` by
