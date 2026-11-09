@@ -253,10 +253,11 @@ project has. `DCA-LAY-007` (experimental) lists the types of a module that sit i
 
 ## Rule catalog
 
-**147 rule ids in 12 sets: 136 enforced, 10 informational, 1 not applicable in .NET; 17 of them experimental.** Six further ids are retired and keep their meaning in the retirement list. The
-exact, current list is [RULES.md](RULES.md) and [rules.json](rules.json), both generated from the code
-by `dotnet run --project tools/RulesCatalog -- .` and verified in CI; every number in this README is
-taken from there. `rules.json` names the package version its texts belong to.
+Every rule has one id, a set, a status (enforced, informational, or not applicable in .NET) and a maturity
+(released or experimental); a retired id keeps its meaning in the retirement list. The current list is
+[RULES.md](RULES.md) and [rules.json](rules.json), both generated from the code by
+`dotnet run --project tools/RulesCatalog -- .` and verified in CI. `rules.json` names the package version its texts
+belong to.
 
 Rule sets and identifier prefixes (identical to dca-java, so guide, catalog and tooling can speak of
 one rule across both languages):
