@@ -50,13 +50,15 @@ Namespaces:
 DomainCentric.BuildingBlocks
 ├── Ddd.Tactical                 IAggregateRoot, AggregateRootBase, IEntity, IValue, IId, IDomainEvent,
 │                                IIntegrationEvent, [IntegrationEventType], IDomainService, IDomainGateway,
-│                                IFactory, ISpecification<T>, DomainException
+│                                IFactory, ISpecification<T>, DomainException, IOwned
 ├── Ddd.Strategic                [BoundedContext]
 ├── Ddd.Strategic.Relationships  [SharedKernel], [OpenHostService], [Upstream], [ExternalUpstream], [Partnership]
 ├── Hexagonal.Ports.In / .Out    IInputPort, IUseCase<TIn,TOut>  |  IOutputPort, IRepository, IStore,
 │                                IDomainEventPublisher, IIntegrationEventPublisher
 └── Application                  ITransactionBoundary (execution abstraction, not a port),
-                                 UseCaseException
+                                 PortException ← InputPortException ← UseCaseException,
+                                 PortException ← OutputPortException,
+                                 IRefusal (a refusing case of a result)
 ```
 
 Ports are **async only** (`Task<TOut> ExecuteAsync(TIn, CancellationToken)`, `FindByIdAsync`, …); the
@@ -294,15 +296,16 @@ one rule across both languages):
 | `naming` | `DCA-NAM` | naming conventions, forbidden technical suffixes and bucket namespaces |
 | `cycles` | `DCA-CYC` | no cycles between contexts, layers, use-case namespaces |
 | `errors` | `DCA-ERR` | domain and use-case exceptions: base types, their layer, no framework or transport vocabulary |
-| `dotnet` | `DCA-NET` | .NET only: synchronous domain, `Async` suffix on port methods, an awaitable and cancellable use-case contract, readonly structs for struct values and ids |
+| `dotnet` | `DCA-NET` | .NET only: synchronous domain, no persistence or transaction framework in the application layer, `Async` suffix on port methods, an awaitable and cancellable use-case contract, readonly structs for struct values and ids |
 
 The full list with rationale is in [RULES.md](RULES.md) (generated — `dotnet run --project tools/RulesCatalog -- .`).
 One Java rule has no .NET counterpart and is listed there as *not applicable*: `DCA-NAM-002`, a
-diagnostic over the container stereotype, which .NET has no attribute for. Two ids that used to be
-listed that way — `DCA-USE-013` and `DCA-MAP-006` — are carried here under the same id and select
-nothing until the project configures the role they read, exactly as their Java twins select nothing
-where the framework annotation is absent. See [PORTING-LOG.md](PORTING-LOG.md) for the reasoning per
-rule.
+diagnostic over the container stereotype, which .NET has no attribute for. `DCA-USE-013` and
+`DCA-MAP-006` select nothing until the project configures the role they read, exactly as their Java
+twins select nothing where the framework annotation is absent. Two rules of the `dotnet` set have a
+shared twin: `DCA-NET-001` in `DCA-ONI-004` and `DCA-NET-006` in `DCA-LAY-008`, both experimental.
+Once the shared ids are released, the two `DCA-NET` ids retire with them as their replacement. See
+[PORTING-LOG.md](PORTING-LOG.md) for the reasoning per rule.
 
 ## Beyond rules: executable context map
 
@@ -359,7 +362,7 @@ What a consumer may rely on, and what may change in a patch:
 | Public — covered by the versioning promise | Internal — may change without notice |
 |---|---|
 | The **rule ids** and their meaning, `rules.json` and `RULES.md` | The rule-set classes (`TacticalPatternRules`, `UseCaseRules`, …) and their factory methods |
-| `DcaLayout`, `DcaMarkers`, `FrameworkTypes` and the preset SPI | The `Rules` namespace as a whole, and every helper in it |
+| `DcaLayout`, `DcaMarkers` and `FrameworkTypes` with its presets | The `Rules` namespace as a whole, and every helper in it |
 | `DcaArchitecture`, `DcaRules`, `DcaRuleSelection`, `DcaRuleExecution`, `DcaRuleOutcome`, `DcaSeverity` | The wording of a violation message, beyond the `[DCA-XXX-nnn]` prefix every line carries |
 | `IDcaRule` as a type to read — `Id`, `Title`, `Rationale`, `Selects`, `Checks` | The retired rules' implementations, which exist only so an old reference still compiles |
 | `DomainCentric.BuildingBlocks` — every marker and port type | Test fixtures, and anything under an `Internal` namespace |
@@ -367,8 +370,8 @@ What a consumer may rely on, and what may change in a patch:
 
 The rule-set classes are `public` because the catalog tool and the xUnit integration live outside
 their namespace, not because they are meant to be called directly. Build a run through `DcaRules` and
-a `DcaRuleSelection`; that is the supported entry point, and the one that applies severities and
-tolerated violations.
+a `DcaRuleSelection`; that is the supported entry point, and the one that applies severities,
+freezing and tolerated violations.
 
 ## Versioning
 
@@ -396,7 +399,7 @@ dotnet test                                      # rule self-tests against Good/
 dotnet run --project tools/RulesCatalog -- .     # regenerate rules.json + RULES.md
 dotnet pack -c Release -o artifacts              # try the packages in another project (local feed)
 cd samples/MinimalConsumer && dotnet test        # the smallest consumer
-git tag archrules/v0.5.0 && git push origin archrules/v0.5.0   # release to NuGet.org — see RELEASING.md
+git tag archrules/v0.13.0 && git push origin archrules/v0.13.0   # release to NuGet.org — see RELEASING.md
 ```
 
 Without a local SDK, the same through Docker (Podman works too; podman-compose needs `--profile tools` before `run`): `docker compose run --rm test`

@@ -132,7 +132,6 @@ This package is a port of the Java library `dev.domaincentric:dca-building-block
 | `ddd.tactical.Factory` | `Ddd.Tactical.IFactory` |
 | `ddd.tactical.Specification<T>` | `Ddd.Tactical.ISpecification<T>` |
 | `ddd.tactical.DomainException` (business rule, domain layer) | `Ddd.Tactical.DomainException` |
-| `ddd.tactical.Specification<T>` | `Ddd.Tactical.ISpecification<T>` |
 | `@BoundedContext(name, description)` on `package-info` | `[BoundedContext(name, Description = …)]` on a context marker class |
 | `@SharedKernel(description)` on `package-info` | `[SharedKernel(Description = …)]` on a marker class |
 | `@OpenHostService(context, description)` | `[OpenHostService(context, Description = …)]` |
