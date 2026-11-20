@@ -213,7 +213,11 @@ internal sealed class IntraClassCalls
     /// (<c>InlineField</c>, such as <c>stfld</c>); other operands are skipped and yield <c>null</c>. A token that does
     /// not resolve yields <c>null</c> as well.
     /// </summary>
-    public static IEnumerable<(OpCode Code, object? Operand)> IlInstructions(MethodBase method)
+    public static IEnumerable<(OpCode Code, object? Operand)> IlInstructions(MethodBase method) =>
+        IlInstructionsAt(method).Select(i => (i.Code, i.Operand));
+
+    /// <summary>The instructions of a unit's IL as <see cref="IlInstructions"/> reads them, each with its offset.</summary>
+    public static IEnumerable<(int Offset, OpCode Code, object? Operand)> IlInstructionsAt(MethodBase method)
     {
         byte[]? il;
         try
@@ -235,6 +239,7 @@ internal sealed class IntraClassCalls
         var position = 0;
         while (position < il.Length)
         {
+            var offset = position;
             short code = il[position++];
             if (code == 0xFE)
             {
@@ -301,7 +306,7 @@ internal sealed class IntraClassCalls
                     break;
             }
 
-            yield return (opCode, operand);
+            yield return (offset, opCode, operand);
         }
     }
 }

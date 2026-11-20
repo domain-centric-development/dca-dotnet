@@ -24,7 +24,7 @@ public sealed class ErrorHandlingRulesTests
     private static readonly string[] ExpectedIds =
     {
         "DCA-ERR-001", "DCA-ERR-002", "DCA-ERR-003", "DCA-ERR-004", "DCA-ERR-005", "DCA-ERR-006", "DCA-ERR-007",
-        "DCA-ERR-008", "DCA-ERR-009",
+        "DCA-ERR-008", "DCA-ERR-009", "DCA-ERR-010",
     };
 
     private static DcaArchitecture Arch(string ns) =>
@@ -82,6 +82,8 @@ public sealed class ErrorHandlingRulesTests
     [InlineData("DCA-ERR-003", "ReservationQuotaExceededException")]
     [InlineData("DCA-ERR-009", "CancelReservationUseCase.CancelAsync constructs DomainCentric.ArchRules.Tests.Fixtures.Errors.Bad.Booking.Domain.Model.ReservationUnknownException")]
     [InlineData("DCA-ERR-009", "CancelReservationUseCase.UnknownFor constructs")]
+    [InlineData("DCA-ERR-010", "ReservationRestController.ConfirmAsync catches System.Exception around DomainCentric.BuildingBlocks.Hexagonal.Ports.In.IUseCase<ConfirmReservationCommand, ConfirmReservationResult>.ExecuteAsync")]
+    [InlineData("DCA-ERR-010", "ReleaseReservationUseCase.ExecuteAsync catches System.Exception around")]
     public void EachRuleNamesItsOffender(string id, string offender)
     {
         var rule = Rules(Bad).Rules.Single(r => r.Id == id);

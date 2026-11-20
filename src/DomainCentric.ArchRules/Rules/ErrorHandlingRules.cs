@@ -46,6 +46,7 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
             FailuresCarryIdsAndValues(),
             ClosedResultsRefuse(),
             DomainExceptionsConstructedInTheDomain(),
+            PortCallsCatchNamedFailures(),
         };
     }
 
@@ -531,6 +532,138 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                 + " the domain layer passes, a domain service and a factory included. A domain exception the application"
                 + " catches, wraps or rethrows is not constructed and passes. A construction through reflection or a"
                 + " generic factory method outside the domain is not seen. An empty selection passes.");
+
+    /// <summary>
+    /// DCA-ERR-010 (experimental). A port call is never wrapped in a catch of every failure: the code that answers a
+    /// failure names its type.
+    /// </summary>
+    public IDcaRule PortCallsCatchNamedFailures() =>
+        DcaRule.Check(
+            "DCA-ERR-010",
+            "A port call is never wrapped in a catch of every failure",
+            "A failure has a type, and the code that answers it names that type. A catch of the platform's catch-all or"
+                + " of the port failures' common base around a port call answers every failure alike: a broken rule, an"
+                + " output port's refusal and a defect end in the same branch, and a failure nobody expected is swallowed"
+                + " instead of reaching the one handler that reports it",
+            arch =>
+            {
+                var markers = arch.Layout.Markers;
+                bool Port(Type? t) => t is { IsInterface: true } && (markers.Is(nameof(DcaMarkers.InputPort), t) || markers.Is(nameof(DcaMarkers.OutputPort), t));
+                bool CatchesEverything(Type t) =>
+                    t == typeof(Exception) || t == typeof(object) || t == typeof(SystemException)
+                    || (markers.Is(nameof(DcaMarkers.PortException), t)
+                        && !markers.Is(nameof(DcaMarkers.OutputPortException), t)
+                        && !markers.Is(nameof(DcaMarkers.UseCaseException), t));
+                var violations = new SortedSet<string>(StringComparer.Ordinal);
+                foreach (var origin in arch.RuntimeTypes().Where(t => !t.IsNested))
+                {
+                    if (!arch.InLayer(origin, DcaLayout.Layer.IncomingAdapter) && !arch.InLayer(origin, DcaLayout.Layer.Application))
+                    {
+                        continue;
+                    }
+
+                    foreach (var unit in new IntraClassCalls(origin).Units)
+                    {
+                        IList<ExceptionHandlingClause> clauses;
+                        try
+                        {
+                            clauses = unit.GetMethodBody()?.ExceptionHandlingClauses ?? (IList<ExceptionHandlingClause>)Array.Empty<ExceptionHandlingClause>();
+                        }
+                        catch (InvalidOperationException)
+                        {
+                            continue;
+                        }
+
+                        if (clauses.Count == 0)
+                        {
+                            continue;
+                        }
+
+                        var instructions = IntraClassCalls.IlInstructionsAt(unit).ToList();
+                        foreach (var clause in clauses.Where(c => c.Flags == ExceptionHandlingClauseOptions.Clause))
+                        {
+                            var caught = clause.CatchType;
+                            if (caught is null || !CatchesEverything(caught))
+                            {
+                                continue;
+                            }
+
+                            // The compiler's own catch of an async or iterator state machine hands every failure to the
+                            // task it builds: not a catch of the source.
+                            var handler = instructions.Where(i => i.Offset >= clause.HandlerOffset && i.Offset < clause.HandlerOffset + clause.HandlerLength);
+                            var handled = handler.ToList();
+                            if (handled.Any(i => i.Operand is MethodBase { Name: "SetException" }))
+                            {
+                                continue;
+                            }
+
+                            // A clause that ends in `throw;` cleans up and hands the same failure on: nothing is swallowed.
+                            if (handled.Any(i => i.Code == System.Reflection.Emit.OpCodes.Rethrow))
+                            {
+                                continue;
+                            }
+
+                            // With an await in the clause the compiler moves its body out: the clause only keeps the
+                            // failure, and `throw;` becomes ExceptionDispatchInfo.Throw after it.
+                            if (!handled.Any(i => i.Operand is MethodBase)
+                                && instructions.Any(i => i.Operand is MethodBase { Name: "Throw", DeclaringType.Name: "ExceptionDispatchInfo" }))
+                            {
+                                continue;
+                            }
+
+                            var call = instructions
+                                .Where(i => i.Offset >= clause.TryOffset && i.Offset < clause.TryOffset + clause.TryLength)
+                                .Select(i => i.Operand)
+                                .OfType<MethodBase>()
+                                .FirstOrDefault(m => Port(m.DeclaringType));
+                            if (call is null)
+                            {
+                                continue;
+                            }
+
+                            violations.Add(
+                                $"{origin.FullName}.{IntraClassCalls.DisplayName(unit)} catches {caught.FullName} around"
+                                + $" {Readable(call.DeclaringType!)}.{call.Name} - catch the failure the port declares by its own type");
+                        }
+                    }
+                }
+
+                DcaRule.Fail(
+                    "A port call is wrapped in a catch of every failure",
+                    violations,
+                    "catch the failure the port declares by its own type - the use case's own exception, the output port's"
+                    + " exception, the domain exception of the rule - and let every other failure reach the one handler of"
+                    + " the context");
+            })
+            .Experimental()
+            .Selecting(
+                "Every try block in a type under <Module>.Adapter.Incoming or <Module>.Application of every module root"
+                + " whose try part calls a method of an interface assignable to the configured input-port or output-port role,"
+                + " the compiler's async state machines, lambda closures and nested types included.")
+            .Checking(
+                "No catch clause of such a try block names the platform's catch-all exception (Exception, SystemException,"
+                + " or a catch without a type), nor the configured port-exception or input-port-exception role itself; a"
+                + " subtype - a use case's own failure, an output port's failure, a named domain failure - passes. The"
+                + " compiler's own catch of an async or iterator state machine, which hands the failure to the task, is"
+                + " not a catch clause of the source and is not reported; a filtered catch (when) is read as narrower and"
+                + " passes, and so does a clause that rethrows the caught failure unchanged (throw;) - it cleans up and"
+                + " hands the failure on. A try block without a port call - a call of the type's own method that reaches a port"
+                + " included, which is not followed -, a handler that receives the failure as a parameter, and a catch"
+                + " outside the selected layers pass. An empty selection passes.");
+
+    /// <summary>A type as source names it: <c>Ns.IUseCase&lt;Command, Result&gt;</c>, not the runtime's assembly-qualified form.</summary>
+    private static string Readable(Type type)
+    {
+        if (!type.IsGenericType)
+        {
+            return type.FullName ?? type.Name;
+        }
+
+        var name = type.Name;
+        var tick = name.IndexOf('`', StringComparison.Ordinal);
+        var shortName = tick < 0 ? name : name[..tick];
+        return $"{type.Namespace}.{shortName}<{string.Join(", ", type.GetGenericArguments().Select(a => a.Name))}>";
+    }
 
     /// <summary>
     /// The full names of the cases of every closed result an input port answers with: a type argument of a

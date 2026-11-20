@@ -447,6 +447,15 @@ titles, same rationales; the mechanics texts speak namespaces instead of package
   assignable to the `DomainException` role. A base-constructor chain is a `call`, not a `newobj`, so it is excluded
   by the instruction itself; Java excludes it by origin. IL carries no line numbers, so a finding names the type and
   the source-level method instead of a line.
+- **ERR-010 — a port call is never wrapped in a catch of every failure (WP-143, 2026-11-20), experimental,
+  enforced.** Same id as `dca-archunit`. Reads `MethodBody.ExceptionHandlingClauses` of every unit `IntraClassCalls`
+  yields (state machines and closures included) for a top-level type in the incoming adapters or the application
+  layer, and the IL with offsets (`IlInstructionsAt`): a typed clause whose try range calls a method of an interface
+  assignable to the input-port or output-port role fails when it catches `Exception`, `SystemException`, `object`
+  (a catch without a type), or the port-exception / input-port-exception role itself. Passed: the compiler's own
+  state-machine clause (its handler calls `SetException`), a clause that rethrows (`rethrow`, or with an await in the
+  clause `ExceptionDispatchInfo.Throw` after a handler that calls nothing), and filtered clauses. Java cannot see a
+  rethrow and reports it.
 - **The base types are excluded by namespace** (`DomainCentric.BuildingBlocks`): they are library code, and
   ERR-002 would otherwise report them as residing outside the project's layers.
 
