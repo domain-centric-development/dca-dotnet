@@ -68,6 +68,7 @@ public sealed class TacticalPatternRules : IDcaRuleSet
             ValueObjectsHaveNoNeutralFactoryBesideAnOriginFactory(),
             DomainHoldsNoBarePrimitives(),
             OwnedAggregatesAreLoadedThroughTheirOwner(),
+            ModelTypesReceiveADomainGatewayOnlyAsAParameter(),
         }.AsReadOnly();
     }
 
@@ -1226,6 +1227,131 @@ public sealed class TacticalPatternRules : IDcaRuleSet
                 + " role stands for it. Whether a use case calls the scoped lookup or the unscoped FindByIdAsync is not"
                 + " checked; a generic intermediate port whose parameters are generic parameters is not seen through."
                 + " An empty selection passes.");
+
+    // ---------------------------------------------------------------------------------------------
+    // Domain gateway
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>The roles of the model types that receive a gateway only as a parameter.</summary>
+    private static readonly string[] GatewayFreeRoles =
+    {
+        nameof(DcaMarkers.AggregateRoot), nameof(DcaMarkers.Entity), nameof(DcaMarkers.Value),
+        nameof(DcaMarkers.Factory), nameof(DcaMarkers.Specification),
+    };
+
+    /// <summary>
+    /// DCA-TAC-027 (experimental). An aggregate, entity, value, factory or specification receives a domain gateway only
+    /// as a method parameter: it never holds one, never looks one up and never builds one. Read by reflection and from
+    /// the IL of the type and its compiler-generated nested types, so a lambda and an async method count as their owner.
+    /// </summary>
+    public static IDcaRule ModelTypesReceiveADomainGatewayOnlyAsAParameter() =>
+        DcaRule.Check(
+            "DCA-TAC-027",
+            "Aggregates, entities, values, factories and specifications receive a domain gateway only as a parameter",
+            "A domain gateway only reads: it supplies a fact the model does not hold or a computation bound to a"
+            + " technology. A model method that needs it takes it as a parameter, so the dependency stands in the"
+            + " signature and the caller - a domain service or the use case - decides which implementation answers. A"
+            + " gateway held in a field makes the model stateful towards the outside and survives into every later"
+            + " call; a gateway looked up from a registry or built in place is a hidden dependency no signature shows."
+            + " The service-locator form - a static registry the model asks for its services - is the one this rule"
+            + " rejects",
+            arch =>
+            {
+                var markers = arch.Layout.Markers;
+                bool IsGateway(Type? t) => t is not null
+                    && InvolvedRuntimeTypes(t).Any(i => markers.Is(nameof(DcaMarkers.DomainGateway), i));
+                const BindingFlags declared = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance
+                    | BindingFlags.Static | BindingFlags.DeclaredOnly;
+                var violations = new SortedSet<string>(StringComparer.Ordinal);
+                foreach (var type in NonInterfaceTypes(arch)
+                             .Where(t => !IsRole(arch, t, nameof(DcaMarkers.DomainGateway))
+                                 && GatewayFreeRoles.Any(role => IsRole(arch, t, role))))
+                {
+                    var runtime = arch.RuntimeType(type);
+                    if (runtime is null)
+                    {
+                        continue;
+                    }
+
+                    foreach (var field in runtime.GetFields(declared).Where(f => !f.Name.Contains("k__BackingField", StringComparison.Ordinal)))
+                    {
+                        if (IsGateway(field.FieldType))
+                        {
+                            violations.Add($"{runtime.FullName} has field '{field.Name}' holding a domain gateway");
+                        }
+                    }
+
+                    foreach (var property in runtime.GetProperties(declared))
+                    {
+                        if (IsGateway(property.PropertyType))
+                        {
+                            violations.Add($"{runtime.FullName} has property '{property.Name}' holding a domain gateway");
+                        }
+                    }
+
+                    foreach (var method in runtime.GetMethods(declared).Where(m => !m.IsSpecialName))
+                    {
+                        if (IsGateway(method.ReturnType))
+                        {
+                            violations.Add($"{runtime.FullName}.{method.Name}() returns a domain gateway - a locator for its callers");
+                        }
+                    }
+
+                    bool Own(Type? t) => t is not null
+                        && (t == runtime || (t.FullName ?? "").StartsWith(runtime.FullName + "+", StringComparison.Ordinal));
+                    foreach (var unit in new IntraClassCalls(runtime).Units
+                                 .Where(u => u.DeclaringType == runtime || u.DeclaringType?.Name.StartsWith('<') == true))
+                    {
+                        var site = $"{runtime.FullName}.{IntraClassCalls.DisplayName(unit)}";
+                        foreach (var (_, operand) in IntraClassCalls.IlInstructions(unit))
+                        {
+                            switch (operand)
+                            {
+                                case ConstructorInfo constructor
+                                    when markers.Is(nameof(DcaMarkers.DomainGateway), constructor.DeclaringType):
+                                    violations.Add($"{site} constructs the domain gateway {constructor.DeclaringType!.FullName}");
+                                    break;
+                                case MethodInfo called
+                                    when !Own(called.DeclaringType)
+                                        && !markers.Is(nameof(DcaMarkers.DomainGateway), called.DeclaringType)
+                                        && markers.Is(nameof(DcaMarkers.DomainGateway), called.ReturnType):
+                                    violations.Add($"{site} obtains a domain gateway from {called.DeclaringType!.FullName}.{called.Name}()");
+                                    break;
+                                case FieldInfo read
+                                    when !Own(read.DeclaringType)
+                                        && markers.Is(nameof(DcaMarkers.DomainGateway), read.FieldType):
+                                    violations.Add($"{site} obtains a domain gateway from the field {read.DeclaringType!.FullName}.{read.Name}");
+                                    break;
+                            }
+                        }
+                    }
+                }
+
+                DcaRule.Fail(
+                    "Aggregates, entities, values, factories and specifications must receive a domain gateway only as a"
+                    + " method parameter - never hold it, look it up or build it.",
+                    violations.ToList(),
+                    "take the gateway as a parameter of the method that needs it, and let the domain service or the use"
+                    + " case pass it in");
+            })
+            .Experimental()
+            .Selecting(
+                "Non-interface types below the root namespace - classes, records and structs, abstract ones included -"
+                + " assignable to the aggregate-root, entity, value, factory or specification role, with their runtime"
+                + " type in the loaded assemblies; a type that is itself assignable to the domain-gateway role is not"
+                + " selected.")
+            .Checking(
+                "A type assignable to the domain-gateway role (by default IDomainGateway of the building blocks) appears"
+                + " in none of these places: a field or property the type declares, static ones included, through its"
+                + " type, arrays or generic arguments; the return type of a method the type declares, generic arguments"
+                + " included; a method or property getter the type calls on another type whose return type is a"
+                + " gateway - a registry or locator lookup; a field of another type the type reads whose type is a"
+                + " gateway; a constructor of a gateway implementation the type calls. The compiler-generated types"
+                + " nested in it - a lambda's closure, an async method's state machine - count as the type. A gateway"
+                + " taken as a constructor or method parameter and the calls made on it pass - a constructor that"
+                + " keeps it in a field or property is reported for the member. Inherited members are reported on the"
+                + " type that declares them. A domain service and the application may use the gateway freely. An"
+                + " empty selection passes.");
 
     /// <summary>The owner id type an aggregate binds on the generic interface that carries the owned role.</summary>
     private static Type? OwnerIdOf(DcaArchitecture arch, Type aggregate)

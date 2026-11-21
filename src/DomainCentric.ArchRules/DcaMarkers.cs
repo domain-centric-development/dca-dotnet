@@ -96,6 +96,13 @@ public sealed record DcaMarkers(string Name)
     /// </summary>
     public string Specification { get; init; } = DcaBuildingBlocks + ".Ddd.Tactical.ISpecification";
 
+    /// <summary>
+    /// The marker of a domain gateway — a domain-owned interface that supplies a fact or a technology-bound
+    /// computation, called by a domain service or the application. Read by <c>DCA-TAC-027</c>, which keeps it out
+    /// of aggregates, entities, values, factories and specifications.
+    /// </summary>
+    public string DomainGateway { get; init; } = DcaBuildingBlocks + ".Ddd.Tactical.IDomainGateway";
+
     /// <summary>The base type of a domain failure.</summary>
     public string DomainException { get; init; } = DcaBuildingBlocks + ".Ddd.Tactical.DomainException";
 
@@ -267,6 +274,7 @@ public sealed record DcaMarkers(string Name)
         nameof(DomainService) => this with { DomainService = type },
         nameof(Factory) => this with { Factory = type },
         nameof(Specification) => this with { Specification = type },
+        nameof(DomainGateway) => this with { DomainGateway = type },
         nameof(DomainException) => this with { DomainException = type },
         nameof(UseCaseException) => this with { UseCaseException = type },
         nameof(PortException) => this with { PortException = type },
@@ -432,6 +440,8 @@ public sealed record DcaMarkers(string Name)
 
     public DcaMarkers WithSpecification(DcaMarker marker) => WithRole(nameof(Specification), marker);
 
+    public DcaMarkers WithDomainGateway(DcaMarker marker) => WithRole(nameof(DomainGateway), marker);
+
     public DcaMarkers WithDomainException(DcaMarker marker) => WithRole(nameof(DomainException), marker);
 
     public DcaMarkers WithUseCaseException(DcaMarker marker) => WithRole(nameof(UseCaseException), marker);
@@ -503,6 +513,7 @@ public sealed record DcaMarkers(string Name)
             new KeyValuePair<string, string>(nameof(DomainService), DomainService),
             new KeyValuePair<string, string>(nameof(Factory), Factory),
             new KeyValuePair<string, string>(nameof(Specification), Specification),
+            new KeyValuePair<string, string>(nameof(DomainGateway), DomainGateway),
             new KeyValuePair<string, string>(nameof(DomainException), DomainException),
             new KeyValuePair<string, string>(nameof(UseCaseException), UseCaseException),
             new KeyValuePair<string, string>(nameof(PortException), PortException),
@@ -582,6 +593,7 @@ public sealed record DcaMarkers(string Name)
         nameof(DomainService),
         nameof(Factory),
         nameof(Specification),
+        nameof(DomainGateway),
         nameof(DomainException),
         nameof(OutputPort),
         nameof(Repository),

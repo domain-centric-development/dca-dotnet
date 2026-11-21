@@ -16,12 +16,13 @@ public sealed class TacticalPatternRulesTests
     {
         ["DCA-TAC-025"] = "negative fixture in Primitives - BarePrimitivesInTheDomainAreReported",
         ["DCA-TAC-026"] = "negative fixture in Ownership - AnOwnedAggregateWithoutAScopedLookupIsReported",
+        ["DCA-TAC-027"] = "negative fixture in Gateways - AModelTypeThatHoldsOrObtainsADomainGatewayIsReported",
     };
 
     /// <summary>Experimental and stricter than the shared good fixture; its positive fixture is Primitives.Good.</summary>
     private static readonly string[] NotOnTheSharedGoodFixture = { "DCA-TAC-025", "DCA-TAC-026" };
 
-    private static readonly string[] ExpectedIds = Enumerable.Range(1, 21).Select(i => $"DCA-TAC-{i:000}").Append("DCA-TAC-023").Append("DCA-TAC-024").Append("DCA-TAC-025").Append("DCA-TAC-026").ToArray();
+    private static readonly string[] ExpectedIds = Enumerable.Range(1, 21).Select(i => $"DCA-TAC-{i:000}").Append("DCA-TAC-023").Append("DCA-TAC-024").Append("DCA-TAC-025").Append("DCA-TAC-026").Append("DCA-TAC-027").ToArray();
 
     public static IEnumerable<object[]> RuleIds() =>
         ExpectedIds.Where(id => !NotOnTheSharedGoodFixture.Contains(id)).Select(id => new object[] { id });
@@ -196,4 +197,42 @@ public sealed class TacticalPatternRulesTests
 
     [Fact]
     public void AnOwnedAggregateWithAScopedLookupPasses() => Rule(OwnershipGood, "DCA-TAC-026").Check(Arch(OwnershipGood));
+
+    private const string GatewaysBad = "DomainCentric.ArchRules.Tests.Fixtures.Gateways.Bad";
+    private const string GatewaysGood = "DomainCentric.ArchRules.Tests.Fixtures.Gateways.Good";
+
+    /// <summary>
+    /// DCA-TAC-027: an aggregate and an entity that hold a domain gateway (the entity in a type argument), a value that
+    /// holds one in a static property read from a registry's field, a factory that looks one up, a specification that
+    /// builds an implementation and returns it.
+    /// </summary>
+    [Fact]
+    public void AModelTypeThatHoldsOrObtainsADomainGatewayIsReported()
+    {
+        var message = Assert.Throws<DcaRuleViolationException>(
+            () => Rule(GatewaysBad, "DCA-TAC-027").Check(Arch(GatewaysBad))).Message;
+
+        foreach (var offender in new[]
+                 {
+                     "Policy has field 'rates' holding a domain gateway",
+                     "Cover has field 'sources' holding a domain gateway",
+                     "Premium has property 'Rates' holding a domain gateway",
+                     "obtains a domain gateway from the field",
+                     "GatewayRegistry.RiskRates()",
+                     "constructs the domain gateway",
+                     "InsurableRegion.Rates() returns a domain gateway",
+                 })
+        {
+            Assert.Contains(offender, message);
+        }
+
+        Assert.DoesNotContain("Policy.Open", message);
+    }
+
+    /// <summary>
+    /// An aggregate and a value that take the gateway as a parameter and call it (the value from a closure), a domain
+    /// service and a use case that call it.
+    /// </summary>
+    [Fact]
+    public void AGatewayReceivedAsAParameterPasses() => Rule(GatewaysGood, "DCA-TAC-027").Check(Arch(GatewaysGood));
 }

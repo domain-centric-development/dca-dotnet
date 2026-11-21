@@ -706,6 +706,18 @@ the new layered rule is `DCA-LAY-008`. The shared hexagonal good fixture draws i
 `Fixtures/PersistenceApi/.../Declarative` shows the attribute passing and the scope beside it reported. Both negative fixtures are their own
 trees (`Fixtures/Asynchrony`, `Fixtures/PersistenceApi`).
 
+## 2026-11-20 — DCA-TAC-027: the model receives a domain gateway only as a parameter
+
+- Same rule as `dca-archunit`, same title, rationale and selection; the checks text names properties, getters and
+  the compiler-generated types. New `DcaMarkers` role `DomainGateway` (after `Specification`, default
+  `IDomainGateway`). Reads the runtime type by reflection: declared fields (backing fields skipped, their property
+  reported) and properties, static included, and declared non-special methods, through `InvolvedRuntimeTypes`. Reads
+  the IL of the type and its compiler-generated nested units through `IntraClassCalls`: a `ConstructorInfo` of a
+  gateway type, a `MethodInfo` on a non-gateway type outside the type whose return type is a gateway (a getter
+  included), a `FieldInfo` of another type whose type is a gateway. A closure's own fields - a captured gateway
+  parameter - belong to the type and are not reads of another type. Fixtures `Gateways/Bad` and `Gateways/Good`
+  (the good value calls the parameter from a closure).
+
 ## Baseline dial (WP-52, 2026-11-09)
 
 `dca.rules.freeze` and `dca.rules.freeze.store` are read as in Java; a frozen rule runs as

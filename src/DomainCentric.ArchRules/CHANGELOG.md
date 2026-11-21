@@ -4,6 +4,17 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+### Added
+
+**`DCA-TAC-027` — aggregates, entities, values, factories and specifications receive a domain gateway only as a
+parameter, experimental.** Same id and title as `dca-archunit`. Selects every non-interface type assignable to the
+aggregate-root, entity, value, factory or specification role and reports a gateway it holds (a declared field or
+property, static included, through arrays and generic arguments), returns from a declared method, obtains from
+another type (a call or getter whose return type is a gateway, a read of another type's gateway field) or
+constructs - its compiler-generated closures and state machines included. A gateway taken as a parameter and the
+calls made on it pass. The gateway is the new `DcaMarkers` role `DomainGateway` (default
+`Ddd.Tactical.IDomainGateway`, `WithDomainGateway(...)`).
+
 ## [0.13.0] - 2026-11-09
 
 ### Added

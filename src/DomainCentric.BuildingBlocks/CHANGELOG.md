@@ -4,6 +4,14 @@ All notable changes to this package. Format: [Keep a Changelog](https://keepacha
 
 ## [Unreleased]
 
+### Changed — documentation
+
+- `IDomainGateway` names its callers: a domain service, the application (a use case), or a model method that
+  receives the gateway as a parameter. An aggregate, entity, value object, factory or specification never holds a
+  gateway, never looks one up from a registry and never builds an implementation. The comparison with the output
+  port, the characteristics and the examples say so, and the reference to Vernon's sample names the registry as
+  the form DCA leaves out. Decided on 2026-11-20; `DomainCentric.ArchRules` checks it as `DCA-TAC-027`.
+
 ## [0.3.0] - 2026-11-07
 
 ### Added

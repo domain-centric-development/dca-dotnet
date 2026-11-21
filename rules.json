@@ -675,6 +675,18 @@
       "freezable": false
     },
     {
+      "set": "tactical",
+      "id": "DCA-TAC-027",
+      "title": "Aggregates, entities, values, factories and specifications receive a domain gateway only as a parameter",
+      "rationale": "A domain gateway only reads: it supplies a fact the model does not hold or a computation bound to a technology. A model method that needs it takes it as a parameter, so the dependency stands in the signature and the caller - a domain service or the use case - decides which implementation answers. A gateway held in a field makes the model stateful towards the outside and survives into every later call; a gateway looked up from a registry or built in place is a hidden dependency no signature shows. The service-locator form - a static registry the model asks for its services - is the one this rule rejects",
+      "selects": "Non-interface types below the root namespace - classes, records and structs, abstract ones included - assignable to the aggregate-root, entity, value, factory or specification role, with their runtime type in the loaded assemblies; a type that is itself assignable to the domain-gateway role is not selected.",
+      "checks": "A type assignable to the domain-gateway role (by default IDomainGateway of the building blocks) appears in none of these places: a field or property the type declares, static ones included, through its type, arrays or generic arguments; the return type of a method the type declares, generic arguments included; a method or property getter the type calls on another type whose return type is a gateway - a registry or locator lookup; a field of another type the type reads whose type is a gateway; a constructor of a gateway implementation the type calls. The compiler-generated types nested in it - a lambda's closure, an async method's state machine - count as the type. A gateway taken as a constructor or method parameter and the calls made on it pass - a constructor that keeps it in a field or property is reported for the member. Inherited members are reported on the type that declares them. A domain service and the application may use the gateway freely. An empty selection passes.",
+      "implementation": "dotnet",
+      "status": "enforced",
+      "maturity": "experimental",
+      "freezable": false
+    },
+    {
       "set": "strategic",
       "id": "DCA-STR-001",
       "title": "Diagnostic: Display discovered bounded contexts",
