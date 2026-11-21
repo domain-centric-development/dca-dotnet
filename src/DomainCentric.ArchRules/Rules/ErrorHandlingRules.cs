@@ -597,16 +597,9 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                                 continue;
                             }
 
-                            // A clause that ends in `throw;` cleans up and hands the same failure on: nothing is swallowed.
-                            if (handled.Any(i => i.Code == System.Reflection.Emit.OpCodes.Rethrow))
-                            {
-                                continue;
-                            }
-
-                            // With an await in the clause the compiler moves its body out: the clause only keeps the
-                            // failure, and `throw;` becomes ExceptionDispatchInfo.Throw after it.
-                            if (!handled.Any(i => i.Operand is MethodBase)
-                                && instructions.Any(i => i.Operand is MethodBase { Name: "Throw", DeclaringType.Name: "ExceptionDispatchInfo" }))
+                            // A clause that ends in `throw;` and leaves no other way cleans up and hands the same
+                            // failure on: nothing is answered.
+                            if (RethrowsUnchanged(clause, handled, instructions))
                             {
                                 continue;
                             }
@@ -646,10 +639,82 @@ public sealed class ErrorHandlingRules : IDcaRuleSet
                 + " subtype - a use case's own failure, an output port's failure, a named domain failure - passes. The"
                 + " compiler's own catch of an async or iterator state machine, which hands the failure to the task, is"
                 + " not a catch clause of the source and is not reported; a filtered catch (when) is read as narrower and"
-                + " passes, and so does a clause that rethrows the caught failure unchanged (throw;) - it cleans up and"
-                + " hands the failure on. A try block without a port call - a call of the type's own method that reaches a port"
+                + " passes, and so does a clause that rethrows the caught failure unchanged and has no other way out - it"
+                + " cleans up and hands the failure on, it does not answer it. Unchanged is the bare throw; (the rethrow"
+                + " instruction, which keeps the stack trace); throw e;, which starts a new stack trace, a wrapping throw"
+                + " new X(e), a throw of anything else, a return or a fall-through out of the clause on any path is still"
+                + " reported. With an await in the clause the compiler moves its body behind the try and the clause passes"
+                + " when the failure it keeps is handed to ExceptionDispatchInfo.Capture(...).Throw(); the paths of the"
+                + " moved body are not followed one by one. A try block without a port call - a call of the type's own method that reaches a port"
                 + " included, which is not followed -, a handler that receives the failure as a parameter, and a catch"
                 + " outside the selected layers pass. An empty selection passes.");
+
+    /// <summary>
+    /// Whether a catch clause hands the caught failure on unchanged and has no other way out. Without an await in
+    /// the clause its handler holds a <c>rethrow</c> (<c>throw;</c>), no <c>throw</c> of anything else (<c>throw e;</c>,
+    /// <c>throw new X(e)</c>) and no <c>leave</c> to a target outside the handler (a <c>return</c> or the fall-through
+    /// that swallows the failure). With an await in the clause the compiler moves its body behind the try: the handler
+    /// only keeps the caught object in a field of the state machine and leaves, and <c>throw;</c> becomes
+    /// <c>ExceptionDispatchInfo.Capture(kept).Throw()</c> - the clause passes when that field is loaded right before such
+    /// a capture. Every path of the moved body is not followed.
+    /// </summary>
+    private static bool RethrowsUnchanged(
+        ExceptionHandlingClause clause,
+        IReadOnlyList<(int Offset, System.Reflection.Emit.OpCode Code, object? Operand)> handler,
+        IReadOnlyList<(int Offset, System.Reflection.Emit.OpCode Code, object? Operand)> instructions)
+    {
+        var start = clause.HandlerOffset;
+        var end = clause.HandlerOffset + clause.HandlerLength;
+        bool Leaves((int Offset, System.Reflection.Emit.OpCode Code, object? Operand) i) =>
+            (i.Code == System.Reflection.Emit.OpCodes.Leave || i.Code == System.Reflection.Emit.OpCodes.Leave_S)
+            && i.Operand is int target && (target < start || target >= end);
+        bool Exits((int Offset, System.Reflection.Emit.OpCode Code, object? Operand) i) =>
+            i.Code == System.Reflection.Emit.OpCodes.Throw || i.Code == System.Reflection.Emit.OpCodes.Ret || Leaves(i);
+
+        if (handler.Any(i => i.Code == System.Reflection.Emit.OpCodes.Rethrow))
+        {
+            return !handler.Any(Exits);
+        }
+
+        if (handler.Any(i => i.Operand is MethodBase))
+        {
+            return false;
+        }
+
+        var kept = handler
+            .Select(i => i.Operand)
+            .OfType<FieldInfo>()
+            .Where(f => f.FieldType == typeof(object) || typeof(Exception).IsAssignableFrom(f.FieldType))
+            .ToHashSet();
+        if (kept.Count == 0)
+        {
+            return false;
+        }
+
+        for (var index = 0; index < instructions.Count; index++)
+        {
+            var i = instructions[index];
+            if (i.Offset >= start && i.Offset < end)
+            {
+                continue;
+            }
+
+            if (i.Code != System.Reflection.Emit.OpCodes.Ldfld || i.Operand is not FieldInfo field || !kept.Contains(field))
+            {
+                continue;
+            }
+
+            // ldfld kept; stloc; ldloc; isinst Exception; dup; brtrue; ldloc; throw; call Capture - a few instructions on.
+            var capture = instructions.Skip(index + 1).Take(10).Any(n =>
+                n.Operand is MethodBase { Name: "Capture", DeclaringType.Name: "ExceptionDispatchInfo" });
+            if (capture)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     /// <summary>A type as source names it: <c>Ns.IUseCase&lt;Command, Result&gt;</c>, not the runtime's assembly-qualified form.</summary>
     private static string Readable(Type type)

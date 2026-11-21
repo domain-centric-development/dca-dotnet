@@ -210,8 +210,9 @@ internal sealed class IntraClassCalls
     /// <summary>
     /// The instructions of a unit's IL in order, each with its resolved operand where it names a method
     /// (<c>InlineMethod</c>), a type (<c>InlineType</c>, such as <c>box</c> and <c>constrained.</c>) or a field
-    /// (<c>InlineField</c>, such as <c>stfld</c>); other operands are skipped and yield <c>null</c>. A token that does
-    /// not resolve yields <c>null</c> as well.
+    /// (<c>InlineField</c>, such as <c>stfld</c>), and the absolute target offset of a branch (<c>br</c>,
+    /// <c>leave</c> and their short forms) as an <c>int</c>; other operands are skipped and yield <c>null</c>. A token
+    /// that does not resolve yields <c>null</c> as well.
     /// </summary>
     public static IEnumerable<(OpCode Code, object? Operand)> IlInstructions(MethodBase method) =>
         IlInstructionsAt(method).Select(i => (i.Code, i.Operand));
@@ -290,6 +291,13 @@ internal sealed class IntraClassCalls
                 case OperandType.InlineNone:
                     break;
                 case OperandType.ShortInlineBrTarget:
+                    operand = position + 1 + (sbyte)il[position];
+                    position += 1;
+                    break;
+                case OperandType.InlineBrTarget:
+                    operand = position + 4 + BitConverter.ToInt32(il, position);
+                    position += 4;
+                    break;
                 case OperandType.ShortInlineI:
                 case OperandType.ShortInlineVar:
                     position += 1;

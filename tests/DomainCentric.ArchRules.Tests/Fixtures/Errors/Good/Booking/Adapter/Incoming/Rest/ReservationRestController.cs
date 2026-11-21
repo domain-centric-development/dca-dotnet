@@ -61,5 +61,40 @@ public sealed class ReservationRestController
         }
     }
 
+    /// <summary>DCA-ERR-010 passes: a catch of everything that undoes its own work and hands the same failure on.</summary>
+    public async Task<string> ConfirmAndUndoAsync(Guid reservationId)
+    {
+        Pending++;
+        try
+        {
+            var result = await _confirmReservation.ExecuteAsync(new ConfirmReservationCommand(reservationId));
+            return result.ReservationId.ToString();
+        }
+        catch (Exception)
+        {
+            Undo();
+            throw;
+        }
+    }
+
+    /// <summary>DCA-ERR-010 passes: the same without an async state machine.</summary>
+    public string ConfirmAndUndo(Guid reservationId)
+    {
+        Pending++;
+        try
+        {
+            return _confirmReservation.ExecuteAsync(new ConfirmReservationCommand(reservationId)).GetAwaiter().GetResult().ReservationId.ToString();
+        }
+        catch (Exception)
+        {
+            Undo();
+            throw;
+        }
+    }
+
     public int Failures { get; private set; }
+
+    public int Pending { get; private set; }
+
+    private void Undo() => Pending--;
 }

@@ -84,6 +84,13 @@ public sealed class ErrorHandlingRulesTests
     [InlineData("DCA-ERR-009", "CancelReservationUseCase.UnknownFor constructs")]
     [InlineData("DCA-ERR-010", "ReservationRestController.ConfirmAsync catches System.Exception around DomainCentric.BuildingBlocks.Hexagonal.Ports.In.IUseCase<ConfirmReservationCommand, ConfirmReservationResult>.ExecuteAsync")]
     [InlineData("DCA-ERR-010", "ReleaseReservationUseCase.ExecuteAsync catches System.Exception around")]
+    [InlineData("DCA-ERR-010", "ReservationRetryController.RethrowOrAnswerAsync catches System.Exception around")]
+    [InlineData("DCA-ERR-010", "ReservationRetryController.WrapAsync catches System.Exception around")]
+    [InlineData("DCA-ERR-010", "ReservationRetryController.ThrowCaughtAsync catches System.Exception around")]
+    [InlineData("DCA-ERR-010", "ReservationRetryController.ThrowOtherAsync catches System.Exception around")]
+    [InlineData("DCA-ERR-010", "ReservationRetryController.AwaitThenAnswerAsync catches System.Exception around")]
+    [InlineData("DCA-ERR-010", "ReservationRetryController.AwaitThenThrowCaughtAsync catches System.Exception around")]
+    [InlineData("DCA-ERR-010", "ReservationRetryController.SwallowAsync catches System.Exception around")]
     public void EachRuleNamesItsOffender(string id, string offender)
     {
         var rule = Rules(Bad).Rules.Single(r => r.Id == id);

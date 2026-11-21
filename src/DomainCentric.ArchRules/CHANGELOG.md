@@ -15,6 +15,17 @@ constructs - its compiler-generated closures and state machines included. A gate
 calls made on it pass. The gateway is the new `DcaMarkers` role `DomainGateway` (default
 `Ddd.Tactical.IDomainGateway`, `WithDomainGateway(...)`).
 
+### Changed
+
+**`DCA-ERR-010` — a catch of every failure that only cleans up and rethrows the caught failure unchanged passes,
+and only that one.** A clause passes when it rethrows with a bare `throw;` (the `rethrow` instruction, which keeps
+the stack trace) and has no other way out: no `throw` of anything else, no `leave` out of the handler, no `ret`. A
+clause that rethrows on one path and returns, swallows, wraps (`throw new X(e)`) or throws something else on
+another is reported; so is `throw e;`, which starts a new stack trace. With an await in the clause the compiler
+moves its body behind the try; the clause passes when the failure it keeps reaches
+`ExceptionDispatchInfo.Capture(...).Throw()`, and the paths of the moved body are not followed one by one. The IL
+reader now yields a branch's absolute target offset as its operand.
+
 ## [0.13.0] - 2026-11-09
 
 ### Added
