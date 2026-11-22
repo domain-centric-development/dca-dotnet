@@ -23,5 +23,6 @@
 
   <ItemGroup>
     <ProjectReference Include="../DomainCentric.ArchRules.ConsumerFixture/DomainCentric.ArchRules.ConsumerFixture.csproj" />
+    <ProjectReference Include="../DomainCentric.ArchRules.EmptyFixture/DomainCentric.ArchRules.EmptyFixture.csproj" />
   </ItemGroup>
 </Project>

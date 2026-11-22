@@ -203,6 +203,12 @@ public abstract class DcaArchitectureTest
     public void LayoutDiagnostics()
     {
         var layout = EffectiveLayout;
+        if (Architecture.NoProductionCodeNotice is { } empty)
+        {
+            // diagnostic only - nothing to govern yet, every rule passes
+            Console.Out.WriteLine($"production code: {empty}");
+        }
+
         if (layout.ExcludedNamespaces.Count > 0)
         {
             Console.Out.WriteLine($"excluded namespaces: {string.Join(", ", layout.ExcludedNamespaces)}");

@@ -21,8 +21,14 @@ calls made on it pass. The gateway is the new `DcaMarkers` role `DomainGateway` 
 Both guard against success over an empty model: a layout that selects nothing. A project that holds no production
 code yet - no type imported below the root namespace - has no model to be empty, so neither rule fails there any
 more. As soon as one production type is imported, both fail as before until a context is declared and a module
-root is discovered. `DcaArchitecture.Load` still refuses assemblies that hold no type below the root namespace; the
-rules pass on such a model when it is handed to `DcaArchitecture.Of`.
+root is discovered.
+
+**`DcaArchitecture.Load` accepts a project without production code.** Assemblies that hold no type below the root
+namespace used to be refused. They are now refused only when they hold a type of the project outside it - a type
+the compiler did not generate, outside the DCA libraries: a misspelt root namespace over existing code still fails,
+and the message names one such type. Assemblies that hold no type of the project at all load, `NoProductionCodeNotice`
+says why, and the xUnit base class prints it in `LayoutDiagnostics`, so the whole catalog is green on an empty
+project. A generated entry point (`Program` of top-level statements) is a type of the project.
 
 **`DCA-ERR-010` — a catch of every failure that only cleans up and rethrows the caught failure unchanged passes,
 and only that one.** A clause passes when it rethrows with a bare `throw;` (the `rethrow` instruction, which keeps

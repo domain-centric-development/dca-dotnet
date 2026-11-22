@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using ArchUnitNET.Domain;
 using ArchUnitNET.Loader;
 using DomainCentric.BuildingBlocks.Ddd.Strategic;
@@ -69,12 +70,21 @@ public sealed class DcaArchitecture
 
     private sealed record NamespaceDeclaration(string Namespace, DcaLayout.Layer Layer, string AssemblyName);
 
-    private DcaArchitecture(DcaLayout layout, Architecture architecture, IReadOnlyList<Assembly> assemblies)
+    private DcaArchitecture(
+        DcaLayout layout, Architecture architecture, IReadOnlyList<Assembly> assemblies, string? noProductionCodeNotice = null)
     {
         Layout = layout ?? throw new ArgumentNullException(nameof(layout));
         Architecture = WithoutExcludedNamespaces(layout, architecture ?? throw new ArgumentNullException(nameof(architecture)));
         _assemblies = assemblies;
+        NoProductionCodeNotice = noProductionCodeNotice;
     }
+
+    /// <summary>
+    /// Set when <see cref="Load(DcaLayout, Assembly[])"/> found no production code at all — the passed assemblies
+    /// hold no type of the project, below the root namespace or elsewhere: a project that holds no production code
+    /// yet. Every rule passes on it; the notice says why the suite is green.
+    /// </summary>
+    public string? NoProductionCodeNotice { get; }
 
     /// <summary>
     /// The architecture without the types of <see cref="DcaLayout.ExcludedNamespaces"/>. They stay known as
@@ -162,38 +172,83 @@ public sealed class DcaArchitecture
             loader.LoadNamespacesWithinAssembly(assembly, DcaLayout.BuildingBlocksPortsOutNamespace);
         }
 
-        RequireImportedTypes(layout, assemblies);
+        var notice = RequireImportedTypes(layout, assemblies);
 
-        return new DcaArchitecture(layout, loader.Build(), assemblies);
+        return new DcaArchitecture(layout, loader.Build(), assemblies, notice);
     }
 
     /// <summary>
-    /// Refuses a run whose assemblies hold no type the layout describes: every rule would then pass
-    /// without having looked at anything. Reflection over the passed assemblies, not the built model —
+    /// Refuses a run whose assemblies hold types of the project but none the layout describes: every rule would
+    /// then pass without having looked at anything — a misspelt root namespace, or a production assembly not
+    /// passed. Assemblies that hold no type of the project at all are a project without production code yet: the
+    /// run passes, and the returned notice says why. Reflection over the passed assemblies, not the built model —
     /// the always-loaded building blocks would otherwise make the model look populated.
     /// </summary>
-    private static void RequireImportedTypes(DcaLayout layout, IReadOnlyList<Assembly> assemblies)
+    /// <returns><c>null</c> when a type below the root namespace was found; the notice for a project without production code.</returns>
+    private static string? RequireImportedTypes(DcaLayout layout, IReadOnlyList<Assembly> assemblies)
     {
+        Type? outside = null;
         foreach (var assembly in assemblies)
         {
             foreach (var type in Exported(assembly))
             {
+                if (!IsProjectType(type))
+                {
+                    continue;
+                }
+
                 if (type.Namespace is not null
                     && (DcaLayout.IsBelow(type.Namespace, layout.RootNamespace)
                         || DcaLayout.IsBelow(type.Namespace, DcaLayout.BuildingBlocksPortsOutNamespace)))
                 {
-                    return;
+                    return null;
                 }
+
+                outside ??= type;
             }
         }
 
-        throw new InvalidOperationException(
-            $"No type was imported below the root namespace '{layout.RootNamespace}', so every rule would " +
-            "pass without having looked at anything. Check that the root namespace is spelled as the " +
-            "production code declares it, and that every production project holding code below it is " +
-            "referenced by the test project and passed to Load. Assemblies passed: " +
-            string.Join(", ", assemblies.Select(a => a.GetName().Name)) + ".");
+        if (outside is not null)
+        {
+            throw new InvalidOperationException(
+                $"No type was imported below the root namespace '{layout.RootNamespace}', but the assemblies passed " +
+                $"hold types of the project outside it - {outside.FullName} among them - so every rule would pass " +
+                "without having looked at anything. Check that the root namespace is spelled as the production " +
+                "code declares it, and that every production project holding code below it is referenced by the " +
+                "test project and passed to Load. Assemblies passed: " +
+                string.Join(", ", assemblies.Select(a => a.GetName().Name)) + ".");
+        }
+
+        return $"no type below the root namespace '{layout.RootNamespace}' and no type of the project in the " +
+            "assemblies passed (" + string.Join(", ", assemblies.Select(a => a.GetName().Name)) + "): a project " +
+            "without production code yet, so every rule passes. Once code exists, a misspelt root namespace fails " +
+            "the load.";
     }
+
+    /// <summary>
+    /// A type the project wrote: not emitted by the compiler (embedded attributes, private implementation
+    /// details, closures) and not one of the DCA libraries' own types.
+    /// </summary>
+    private static bool IsProjectType(Type type)
+    {
+        for (var t = type; t is not null; t = t.DeclaringType)
+        {
+            if (t.Name.StartsWith('<') || t.IsDefined(typeof(CompilerGeneratedAttribute), inherit: false))
+            {
+                return false;
+            }
+        }
+
+        return !LibraryAssemblies.Contains(type.Assembly.GetName().Name ?? string.Empty);
+    }
+
+    /// <summary>The DCA libraries: their types are never the project's code.</summary>
+    private static readonly HashSet<string> LibraryAssemblies = new(StringComparer.Ordinal)
+    {
+        "DomainCentric.BuildingBlocks",
+        "DomainCentric.ArchRules",
+        "DomainCentric.ArchRules.Xunit",
+    };
 
     private static IEnumerable<Type> Exported(Assembly assembly)
     {

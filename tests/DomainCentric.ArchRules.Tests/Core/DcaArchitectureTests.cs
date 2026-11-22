@@ -25,6 +25,26 @@ public sealed class DcaArchitectureTests
         Assert.Contains("DomainCentric.ArchRules.Tests", empty.Message);
     }
 
+    /// <summary>
+    /// A production assembly without a single type, and the building blocks: no type of the project anywhere,
+    /// so the load passes and says why.
+    /// </summary>
+    [Fact]
+    public void AcceptsAProjectWithoutProductionCode()
+    {
+        var arch = DcaArchitecture.Load(
+            DcaLayout.ForRootNamespace("Absent.Example"),
+            EmptyProjectArchitectureTest.EmptyAssembly,
+            typeof(IAggregateRoot).Assembly);
+
+        Assert.Empty(arch.Types);
+        Assert.NotNull(arch.NoProductionCodeNotice);
+        Assert.Contains("without production code", arch.NoProductionCodeNotice, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ALoadThatFoundItsTypesCarriesNoNotice() => Assert.Null(Arch().NoProductionCodeNotice);
+
     [Fact]
     public void DiscoversBoundedContextsInEncounterOrderAndSharedKernel()
     {

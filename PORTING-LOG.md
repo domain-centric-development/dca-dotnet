@@ -748,3 +748,13 @@ the loader always adds lie outside it and do not count). Once one production typ
 until a context is declared and a module root is discovered. The loaders' refusal of an empty import is unchanged, so
 an empty project reaches the two rules only through `DcaArchitecture.Of`. Test: `ProjectWithoutProductionCodePassesBothGuards`,
 Java `aProjectWithoutProductionCodePassesBothGuards`; the negative fixtures stay.
+
+The loaders follow (same day): an empty import is refused only when the project has code elsewhere. Java looks at
+the project's own output — the class-path directories, test output and the DCA libraries left out — and fails on a
+production class outside the base package; .NET looks at the passed assemblies and fails on a type of the project
+(not compiler-generated, not from a DCA library) outside the root namespace. Otherwise both load, carry a notice
+(`noProductionCodeNotice()` / `NoProductionCodeNotice`) and the base test classes print it. The readings differ where
+the platforms differ: Java cannot tell a sibling module's jar from a third-party jar, so a misspelt base package in a
+test module without code of its own passes with the notice; .NET reads exactly the assemblies it is given. Tests:
+Java `DcaArchitectureTestNoProductionCodeTest`, .NET `EmptyProjectArchitectureTest` over the source-less
+`DomainCentric.ArchRules.EmptyFixture` assembly — the whole catalog through the real entry point.
