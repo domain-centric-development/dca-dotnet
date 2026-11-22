@@ -50,6 +50,7 @@ public sealed class UseCaseRules : IDcaRuleSet
             UseCasesDoNotParseIds(layout),
             UseCasesAreStateless(layout),
             UseCaseResultsAreNotBare(layout),
+            PortsOfSeveralUseCasesAreShared(layout),
         };
     }
 
@@ -387,6 +388,94 @@ public sealed class UseCaseRules : IDcaRuleSet
             "The output type argument is none of string, bool, byte, sbyte, short, ushort, int, uint, long, ulong,"
                 + " float, double, decimal or char, nor a Nullable of one. A container of them, such as"
                 + " IReadOnlyList<string>, and the project's own types pass. An empty selection passes.");
+
+    /// <summary>
+    /// DCA-USE-023 (experimental). A port used by one use case stays with it; a port used by several belongs in the
+    /// shared application namespace. A use case namespace is the namespace of an operation (as DCA-USE-016 selects
+    /// it) and everything below it; a type belongs to the deepest such namespace that contains it.
+    /// </summary>
+    public static IDcaRule PortsOfSeveralUseCasesAreShared(DcaLayout layout) =>
+        DcaRule.Check(
+            "DCA-USE-023",
+            "An output port declared in a use case's package is used by that use case only",
+            "A port used by one use case stays with that use case; a port used by several belongs in the shared"
+                + " application package. A port declared in one use case's package and used by another ties the second"
+                + " to the first: it changes with a use case it does not belong to, grows methods only the other one"
+                + " calls, and hides that the port is shared",
+            arch =>
+            {
+                var roots = arch.Types.Where(t => OperationPolicy.Operation(t, arch)).Select(t => t.Namespace.FullName)
+                    .ToHashSet(StringComparer.Ordinal);
+                var outputPort = arch.Layout.Markers.OutputPort;
+                var users = new SortedDictionary<string, SortedSet<string>>(StringComparer.Ordinal);
+                var homes = new Dictionary<string, string>(StringComparer.Ordinal);
+                foreach (var user in arch.Types)
+                {
+                    var userRoot = UseCaseNamespaceOf(user.Namespace.FullName, roots, arch, layout);
+                    if (userRoot is null)
+                    {
+                        continue;
+                    }
+
+                    foreach (var target in user.Dependencies.Select(d => d.Target).OfType<Interface>())
+                    {
+                        if (target.FullName == outputPort || !arch.Layout.Markers.Is(nameof(DcaMarkers.OutputPort), target))
+                        {
+                            continue;
+                        }
+
+                        var home = target.Namespace is null ? null : UseCaseNamespaceOf(target.Namespace.FullName, roots, arch, layout);
+                        if (home is null || home == userRoot)
+                        {
+                            continue;
+                        }
+
+                        homes[target.FullName] = home;
+                        if (!users.TryGetValue(target.FullName, out var set))
+                        {
+                            users[target.FullName] = set = new SortedSet<string>(StringComparer.Ordinal);
+                        }
+
+                        set.Add(userRoot);
+                    }
+                }
+
+                DcaRule.Fail(
+                    "An output port used by several use cases is declared in one of them",
+                    users.Select(e => $"{e.Key} is declared in the use case namespace {homes[e.Key]} and used by {string.Join(", ", e.Value)}").ToList(),
+                    "move the port into the shared application namespace once a second use case needs it");
+            })
+        .Experimental()
+        .Selecting(
+            "Interfaces assignable to the output-port role (the role type itself excluded) that are declared in a use"
+                + " case namespace: the namespace of a non-abstract, non-nested application class with the input-port"
+                + " role or the configured use-case suffix, and everything below it - a type belongs to the deepest such"
+                + " namespace. Ports in Application.Shared, in a feature namespace or directly in the application"
+                + " namespace are not selected.")
+        .Checking(
+            "No type of another use case namespace depends on the port - a field, a parameter, a call or any other"
+                + " dependency the type model records. Adapters, the shared namespace and types outside a use case"
+                + " namespace are not counted. An empty selection passes.");
+
+    /// <summary>The deepest use case namespace containing <paramref name="ns"/>, or <c>null</c>.</summary>
+    private static string? UseCaseNamespaceOf(string ns, ISet<string> roots, DcaArchitecture arch, DcaLayout layout)
+    {
+        var module = arch.ModuleRootOf(ns);
+        if (module is null)
+        {
+            return null;
+        }
+
+        var application = module + "." + layout.ApplicationSegment;
+        var shared = application + "." + layout.SharedSegment;
+        if (DcaLayout.IsBelow(ns, shared))
+        {
+            return null;
+        }
+
+        return roots.Where(r => r != application && r.StartsWith(application + ".", StringComparison.Ordinal) && DcaLayout.IsBelow(ns, r))
+            .OrderByDescending(r => r.Length).FirstOrDefault();
+    }
 
     /// <summary>
     /// The closed use-case contracts a type declares itself: implemented by the type, and not already brought in by a

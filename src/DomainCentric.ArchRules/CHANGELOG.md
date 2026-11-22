@@ -6,6 +6,14 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ### Added
 
+**`DCA-USE-023` — an output port declared in a use case's package is used by that use case only, experimental.**
+Same id and title as `dca-archunit`. A port used by one use case stays with it; a port used by several belongs in the
+shared application namespace. Selects every interface assignable to the output-port role declared in a use case
+namespace - the namespace of an operation (the input-port role or the use-case suffix, as `DCA-USE-016` selects it)
+and everything below it, the deepest one winning - and reports it when a type of another use case namespace depends on
+it. Ports in `Application.Shared`, a feature namespace or the application namespace itself are not selected; adapters
+do not count.
+
 **`DCA-TAC-027` — aggregates, entities, values, factories and specifications receive a domain gateway only as a
 parameter, experimental.** Same id and title as `dca-archunit`. Selects every non-interface type assignable to the
 aggregate-root, entity, value, factory or specification role and reports a gateway it holds (a declared field or

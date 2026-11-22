@@ -36,6 +36,7 @@ public sealed class UseCaseRulesTests
         "DCA-USE-020",
         "DCA-USE-021",
         "DCA-USE-022",
+        "DCA-USE-023",
     };
 
     /// <summary>Rules without a negative fixture (id → reason).</summary>
@@ -45,6 +46,7 @@ public sealed class UseCaseRulesTests
         // Its negative fixture therefore needs a configured layout: see
         // ARemoteCallInsideADeclarativeTransactionIsReportedOnceConfigured.
         ["DCA-USE-013"] = "no .NET preset configures a transactional attribute; the RemoteInside fixture does",
+        ["DCA-USE-023"] = "its own fixture: Fixtures.UseCase.SharedPort.Bad",
     };
 
     public static IEnumerable<object[]> RuleIds() => ExpectedIds.Select(id => new object[] { id });
@@ -256,5 +258,31 @@ public sealed class UseCaseRulesTests
 
         Assert.Contains("ShowOrderByTextUseCase.ExistsAsync parses an id with Guid.Parse", message);
         Assert.Contains("OrderIdText.Read parses an id with Guid.TryParse", message);
+    }
+
+    private const string SharedPort = "DomainCentric.ArchRules.Tests.Fixtures.UseCase.SharedPort";
+
+    /// <summary>DCA-USE-023: a port of one use case used by another fails; a shared port and an own port pass.</summary>
+    [Fact]
+    public void APortOfOneUseCaseUsedByAnotherIsReported()
+    {
+        var message = Assert.Throws<DcaRuleViolationException>(
+            () => Rule(SharedPort + ".Bad", "DCA-USE-023").Check(Arch(SharedPort + ".Bad"))).Message;
+        Assert.Contains(
+            $"{SharedPort}.Bad.Alpha.Application.Install.ISource is declared in the use case namespace {SharedPort}.Bad.Alpha.Application.Install and used by {SharedPort}.Bad.Alpha.Application.Check",
+            message,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ASharedPortAndAPortOfItsOwnUseCasePass() =>
+        Rule(SharedPort + ".Good", "DCA-USE-023").Check(Arch(SharedPort + ".Good"));
+
+    [Fact]
+    public void AnEmptyProjectPassesThePortPlacementRule()
+    {
+        var layout = DcaLayout.ForRootNamespace("Absent.Example");
+        var model = new ArchUnitNET.Loader.ArchLoader().LoadAssembly(typeof(BuildingBlocks.Ddd.Strategic.BoundedContextAttribute).Assembly).Build();
+        new UseCaseRules(layout).Rules.Single(r => r.Id == "DCA-USE-023").Check(DcaArchitecture.Of(layout, model));
     }
 }

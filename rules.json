@@ -1479,6 +1479,18 @@
       "freezable": false
     },
     {
+      "set": "usecase",
+      "id": "DCA-USE-023",
+      "title": "An output port declared in a use case's package is used by that use case only",
+      "rationale": "A port used by one use case stays with that use case; a port used by several belongs in the shared application package. A port declared in one use case's package and used by another ties the second to the first: it changes with a use case it does not belong to, grows methods only the other one calls, and hides that the port is shared",
+      "selects": "Interfaces assignable to the output-port role (the role type itself excluded) that are declared in a use case namespace: the namespace of a non-abstract, non-nested application class with the input-port role or the configured use-case suffix, and everything below it - a type belongs to the deepest such namespace. Ports in Application.Shared, in a feature namespace or directly in the application namespace are not selected.",
+      "checks": "No type of another use case namespace depends on the port - a field, a parameter, a call or any other dependency the type model records. Adapters, the shared namespace and types outside a use case namespace are not counted. An empty selection passes.",
+      "implementation": "dotnet",
+      "status": "enforced",
+      "maturity": "experimental",
+      "freezable": false
+    },
+    {
       "set": "naming",
       "id": "DCA-NAM-001",
       "title": "Application layer InputPort implementations must end with 'UseCase'",

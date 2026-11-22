@@ -770,3 +770,12 @@ application class (shims of the framework annotation and its run method), .NET `
 over the unchanged `Program.cs` of `dotnet new web`; each beside a twin with one record more, where both guards fail.
 The web fixtures are copied beside the tests as files, not referenced: a reference would carry the web framework onto
 the test project, whose shims stand in for it by name.
+
+## 2026-11-22 — DCA-USE-023: an output port of one use case is used by that use case only
+
+New in both libraries with the same id, title and reading, experimental. Source: the guide's package structure ("a
+port used by one use case stays with that use case, a port used by several belongs in `application/shared`"),
+prompted by a judge finding that repeated across stories - a port declared in one use case's package and imported by
+another. The use case package is the operation root `DCA-USE-016` and `DCA-CYC-005` already use (the deepest package
+holding an operation); Java reads the dependencies from the byte code, .NET from ArchUnitNET's type dependencies.
+Fixtures: Java `fixtures/usecase/sharedport/{bad,good}`, .NET `Fixtures/UseCase/SharedPort/{Bad,Good}`.
