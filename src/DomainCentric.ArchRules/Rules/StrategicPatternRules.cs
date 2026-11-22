@@ -340,10 +340,11 @@ public sealed class StrategicPatternRules : IDcaRuleSet
             "DCA-STR-012",
             "At least one module owns a DCA layer",
             "Without a discovered module root every rule that selects over the layers matches nothing and"
-                + " reports success over an empty model",
+                + " reports success over an empty model; a project without production code has no model to be"
+                + " empty, so it passes",
             arch =>
             {
-                if (arch.ModuleRoots().Count > 0)
+                if (arch.ModuleRoots().Count > 0 || !arch.Types.Any())
                 {
                     return;
                 }
@@ -382,7 +383,10 @@ public sealed class StrategicPatternRules : IDcaRuleSet
             "At least one module root was discovered. The rule says nothing about how many modules there should be"
                 + " or how they are cut; it only establishes that the layer-selecting rules have something to look"
                 + " at. It is the third guard of the same kind as an empty import and an undeclared bounded"
-                + " context.");
+                + " context. A project that holds no production code yet - no type imported below the root"
+                + " namespace - passes: there is no module to own a layer. Once one production type is imported,"
+                + " the rule fails until a module root is discovered, so a layout that misses the existing code"
+                + " still fails.");
 
     /// <summary>DCA-STR-011.</summary>
     public static IDcaRule AtLeastOneBoundedContextIsDeclared() =>
@@ -390,10 +394,10 @@ public sealed class StrategicPatternRules : IDcaRuleSet
             "DCA-STR-011",
             "At least one bounded context is declared",
             "Without a declared context the context-map and isolation rules select nothing and report success"
-                + " over an empty model",
+                + " over an empty model; a project without production code has no model to be empty, so it passes",
             arch =>
             {
-                if (arch.BoundedContexts.Count > 0)
+                if (arch.BoundedContexts.Count > 0 || !arch.Types.Any())
                 {
                     return;
                 }
@@ -418,7 +422,10 @@ public sealed class StrategicPatternRules : IDcaRuleSet
         .Checking(
             "At least one such namespace exists. The rule says nothing about how many contexts there should be,"
                 + " about their boundaries, or about modules that own a layer without declaring a context — those"
-                + " are governed structurally and are not a substitute for the declaration.");
+                + " are governed structurally and are not a substitute for the declaration. A project that holds no"
+                + " production code yet - no type imported below the root namespace - passes: there is nothing to"
+                + " declare a context for. Once one production type is imported, the rule fails until a context is"
+                + " declared, so a root namespace or a layout that misses the declarations still fails.");
 
     /// <summary>
     /// DCA-STR-013. A consumer may publish an interface in its own events namespace that a producer's

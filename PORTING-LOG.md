@@ -739,3 +739,12 @@ over contexts, declared relationships or code paths and assert across them (the 
 `tactical`, the reflective `ADV` checks, `ERR-002/004/005/009`, `HEX-005/007/019/021`, `LAY-004`, `NAM-013`,
 `ONI-003`, `STR-002…004/006/011…013`, `USE-014…018/022`), and the `DCA-NET` rules have no Java twin. Freezable in
 both: 75 ids (`rules.json`, `"freezable"`); `FreezeParityTests` fails when the sets drift apart.
+
+## 2026-11-22 — DCA-STR-011, DCA-STR-012: green on a project without production code
+
+Both guards pass in both libraries, with the same texts, when the model holds no production code: Java no class
+imported below the base package, .NET no type below the root namespace (`DcaArchitecture.Types`; the building blocks
+the loader always adds lie outside it and do not count). Once one production type is imported, both fail as before
+until a context is declared and a module root is discovered. The loaders' refusal of an empty import is unchanged, so
+an empty project reaches the two rules only through `DcaArchitecture.Of`. Test: `ProjectWithoutProductionCodePassesBothGuards`,
+Java `aProjectWithoutProductionCodePassesBothGuards`; the negative fixtures stay.

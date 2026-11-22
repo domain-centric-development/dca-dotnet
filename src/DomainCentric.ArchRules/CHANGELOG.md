@@ -17,6 +17,13 @@ calls made on it pass. The gateway is the new `DcaMarkers` role `DomainGateway` 
 
 ### Changed
 
+**`DCA-STR-011` and `DCA-STR-012` pass on a project without production code.** Same change as in `dca-archunit`.
+Both guard against success over an empty model: a layout that selects nothing. A project that holds no production
+code yet - no type imported below the root namespace - has no model to be empty, so neither rule fails there any
+more. As soon as one production type is imported, both fail as before until a context is declared and a module
+root is discovered. `DcaArchitecture.Load` still refuses assemblies that hold no type below the root namespace; the
+rules pass on such a model when it is handed to `DcaArchitecture.Of`.
+
 **`DCA-ERR-010` — a catch of every failure that only cleans up and rethrows the caught failure unchanged passes,
 and only that one.** A clause passes when it rethrows with a bare `throw;` (the `rethrow` instruction, which keeps
 the stack trace) and has no other way out: no `throw` of anything else, no `leave` out of the handler, no `ret`. A

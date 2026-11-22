@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using System.Linq;
+using ArchUnitNET.Loader;
 using DomainCentric.ArchRules.Rules;
+using DomainCentric.BuildingBlocks.Ddd.Strategic;
 using Xunit;
 
 namespace DomainCentric.ArchRules.Tests.Rules;
@@ -10,6 +12,9 @@ public sealed class StrategicPatternRulesTests
     private const string Good = "DomainCentric.ArchRules.Tests.Fixtures.Strategic.Good";
     private const string Bad = "DomainCentric.ArchRules.Tests.Fixtures.Strategic.Bad";
     private const string Undeclared = "DomainCentric.ArchRules.Tests.Fixtures.Strategic.Undeclared";
+
+    /// <summary>No type exists below this namespace: a project that holds no production code yet.</summary>
+    private const string NoProductionCode = "DomainCentric.ArchRules.Tests.Fixtures.NoProductionCode";
 
     /// <summary>A declared context whose layers carry names the layout does not know.</summary>
     private const string NoModuleRoot = "DomainCentric.ArchRules.Tests.Fixtures.NoModuleRoot";
@@ -94,6 +99,25 @@ public sealed class StrategicPatternRulesTests
 
         Assert.Contains("no module root was discovered", violation.Message, System.StringComparison.Ordinal);
         Assert.Contains("WithDomainSegment", violation.Message, System.StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A project without production code has nothing to declare and no module to own a layer: both guards
+    /// pass, so the suite is green on an empty project. The model holds the building blocks, as Load builds
+    /// it; they lie outside the root namespace and do not count as production code. The two fixtures above
+    /// keep the guards red once code exists.
+    /// </summary>
+    [Fact]
+    public void ProjectWithoutProductionCodePassesBothGuards()
+    {
+        var layout = DcaLayout.ForRootNamespace(NoProductionCode);
+        var model = new ArchLoader().LoadAssembly(typeof(BoundedContextAttribute).Assembly).Build();
+        var arch = DcaArchitecture.Of(layout, model, typeof(StrategicPatternRulesTests).Assembly);
+        Assert.Empty(arch.Types);
+
+        var rules = new StrategicPatternRules(layout).Rules;
+        rules.Single(r => r.Id == "DCA-STR-011").Check(arch);
+        rules.Single(r => r.Id == "DCA-STR-012").Check(arch);
     }
 
     [Fact]
