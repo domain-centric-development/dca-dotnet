@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The shapes of a program entry point, read by reflection: a library, so several Main methods may stand side by
+       side. Kept apart from the test assembly, whose own generated entry point would collide with them. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS0169;CS0414;CA1812;CA1822;CA1052;IDE0051;IDE0052</NoWarn>
+  </PropertyGroup>
+</Project>

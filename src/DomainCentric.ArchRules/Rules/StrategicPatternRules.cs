@@ -344,7 +344,7 @@ public sealed class StrategicPatternRules : IDcaRuleSet
                 + " empty, so it passes",
             arch =>
             {
-                if (arch.ModuleRoots().Count > 0 || !arch.Types.Any())
+                if (arch.ModuleRoots().Count > 0 || !arch.HoldsProductionCode)
                 {
                     return;
                 }
@@ -383,8 +383,11 @@ public sealed class StrategicPatternRules : IDcaRuleSet
             "At least one module root was discovered. The rule says nothing about how many modules there should be"
                 + " or how they are cut; it only establishes that the layer-selecting rules have something to look"
                 + " at. It is the third guard of the same kind as an empty import and an undeclared bounded"
-                + " context. A project that holds no production code yet - no type imported below the root"
-                + " namespace - passes: there is no module to own a layer. Once one production type is imported,"
+                + " context. A project that holds no production code yet passes: there is no module to own a layer."
+                + " A project holds none while every type below the root namespace is a program entry point - the"
+                + " Program the compiler writes for top-level statements, or a top-level class that derives from"
+                + " nothing, declares no field, property or nested type and no constructor parameter and whose only"
+                + " method is a static Main, attributes allowed. Once one production type is imported,"
                 + " the rule fails until a module root is discovered, so a layout that misses the existing code"
                 + " still fails.");
 
@@ -397,7 +400,7 @@ public sealed class StrategicPatternRules : IDcaRuleSet
                 + " over an empty model; a project without production code has no model to be empty, so it passes",
             arch =>
             {
-                if (arch.BoundedContexts.Count > 0 || !arch.Types.Any())
+                if (arch.BoundedContexts.Count > 0 || !arch.HoldsProductionCode)
                 {
                     return;
                 }
@@ -423,8 +426,11 @@ public sealed class StrategicPatternRules : IDcaRuleSet
             "At least one such namespace exists. The rule says nothing about how many contexts there should be,"
                 + " about their boundaries, or about modules that own a layer without declaring a context — those"
                 + " are governed structurally and are not a substitute for the declaration. A project that holds no"
-                + " production code yet - no type imported below the root namespace - passes: there is nothing to"
-                + " declare a context for. Once one production type is imported, the rule fails until a context is"
+                + " production code yet passes: there is nothing to declare a context for. A project holds none while"
+                + " every type below the root namespace is a program entry point - the Program the compiler writes for"
+                + " top-level statements, or a top-level class that derives from nothing, declares no field, property"
+                + " or nested type and no constructor parameter and whose only method is a static Main, attributes"
+                + " allowed. Once one production type is imported, the rule fails until a context is"
                 + " declared, so a root namespace or a layout that misses the declarations still fails.");
 
     /// <summary>

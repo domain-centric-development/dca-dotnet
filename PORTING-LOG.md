@@ -758,3 +758,15 @@ the platforms differ: Java cannot tell a sibling module's jar from a third-party
 test module without code of its own passes with the notice; .NET reads exactly the assemblies it is given. Tests:
 Java `DcaArchitectureTestNoProductionCodeTest`, .NET `EmptyProjectArchitectureTest` over the source-less
 `DomainCentric.ArchRules.EmptyFixture` assembly — the whole catalog through the real entry point.
+
+Same day, a generated application starts green: a type that only starts the program is no production code. Java
+`isEntryPoint(JavaClass, JavaClasses)` reads a top-level class without supertype, interface, field or nested type whose
+only declared method is `public static void main(String[])` (synthetic lambda methods belong to it); .NET
+`IsEntryPoint(Type)` reads the `Program` of top-level statements or a class whose only method is a static `Main`
+(compiler-generated members of its body belong to it). Both decide by shape, never by a framework annotation or type.
+`DCA-STR-011`/`012` read `holdsProductionCode()` / `HoldsProductionCode`, and the loaders skip entry points when they
+look for production code. Tests: Java `DcaArchitectureTestEntryPointTest` over a fixture shaped like a generated
+application class (shims of the framework annotation and its run method), .NET `GeneratedWebApplicationArchitectureTest`
+over the unchanged `Program.cs` of `dotnet new web`; each beside a twin with one record more, where both guards fail.
+The web fixtures are copied beside the tests as files, not referenced: a reference would carry the web framework onto
+the test project, whose shims stand in for it by name.

@@ -192,7 +192,7 @@ public sealed class DcaArchitecture
         {
             foreach (var type in Exported(assembly))
             {
-                if (!IsProjectType(type))
+                if (!IsProjectType(type) || IsEntryPoint(type))
                 {
                     continue;
                 }
@@ -211,7 +211,7 @@ public sealed class DcaArchitecture
         if (outside is not null)
         {
             throw new InvalidOperationException(
-                $"No type was imported below the root namespace '{layout.RootNamespace}', but the assemblies passed " +
+                $"No production type was imported below the root namespace '{layout.RootNamespace}', but the assemblies passed " +
                 $"hold types of the project outside it - {outside.FullName} among them - so every rule would pass " +
                 "without having looked at anything. Check that the root namespace is spelled as the production " +
                 "code declares it, and that every production project holding code below it is referenced by the " +
@@ -219,11 +219,70 @@ public sealed class DcaArchitecture
                 string.Join(", ", assemblies.Select(a => a.GetName().Name)) + ".");
         }
 
-        return $"no type below the root namespace '{layout.RootNamespace}' and no type of the project in the " +
-            "assemblies passed (" + string.Join(", ", assemblies.Select(a => a.GetName().Name)) + "): a project " +
-            "without production code yet, so every rule passes. Once code exists, a misspelt root namespace fails " +
-            "the load.";
+        return $"no production type below the root namespace '{layout.RootNamespace}' and none in the assemblies " +
+            "passed (" + string.Join(", ", assemblies.Select(a => a.GetName().Name)) + ") - at most a type that only " +
+            "starts the program: a project without production code yet, so every rule passes. Once code exists, a " +
+            "misspelt root namespace fails the load.";
     }
+
+    /// <summary>
+    /// Whether the type only starts the program — the shape an application generator writes before any production
+    /// code exists: the <c>Program</c> the compiler writes for top-level statements, or a class whose only method is
+    /// a static <c>Main</c>. Such a type is a top-level class that derives from nothing but <see cref="object"/>,
+    /// implements no interface, declares no field, property, event or nested type and no constructor with a
+    /// parameter, and whose only method is a static <c>Main</c> or the compiler's entry method of top-level
+    /// statements. Attributes are allowed, and what the compiler writes for the body of <c>Main</c> (closures, local
+    /// functions, cached delegates, state machines) is part of <c>Main</c>. Every other type is production code.
+    /// </summary>
+    public static bool IsEntryPoint(Type type)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+        if (type.IsNested || !type.IsClass || type.BaseType != typeof(object) || type.GetInterfaces().Length > 0)
+        {
+            return false;
+        }
+
+        const BindingFlags Declared =
+            BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
+        var main = 0;
+        foreach (var method in type.GetMethods(Declared))
+        {
+            if (method.IsStatic && method.Name is "Main" or "<Main>$")
+            {
+                main++;
+            }
+            else if (!IsCompilerGenerated(method))
+            {
+                return false;
+            }
+        }
+
+        return main == 1
+            && type.GetFields(Declared).All(IsCompilerGenerated)
+            && type.GetProperties(Declared).Length == 0
+            && type.GetEvents(Declared).Length == 0
+            && type.GetConstructors(Declared).All(c => c.GetParameters().Length == 0)
+            && type.GetNestedTypes(BindingFlags.Public | BindingFlags.NonPublic).All(IsCompilerGenerated);
+    }
+
+    private static bool IsCompilerGenerated(MemberInfo member) =>
+        member.Name.StartsWith('<') || member.IsDefined(typeof(CompilerGeneratedAttribute), inherit: false);
+
+    /// <summary>
+    /// Whether the assemblies hold production code below the root namespace: a type of the project that is not a
+    /// program entry point (<see cref="IsEntryPoint"/>). A project whose only type starts the program holds none
+    /// yet. Without assemblies — an architecture built by the caller — every type below the root namespace counts.
+    /// </summary>
+    public bool HoldsProductionCode =>
+        _holdsProductionCode ??= _assemblies.Count == 0
+            ? Types.Any(t => !t.IsCompilerGenerated)
+            : _assemblies.SelectMany(Exported).Any(t =>
+                IsProjectType(t)
+                && !IsEntryPoint(t)
+                && t.Namespace is not null
+                && DcaLayout.IsBelow(t.Namespace, Layout.RootNamespace));
+
+    private bool? _holdsProductionCode;
 
     /// <summary>
     /// A type the project wrote: not emitted by the compiler (embedded attributes, private implementation

@@ -24,5 +24,15 @@
   <ItemGroup>
     <ProjectReference Include="../DomainCentric.ArchRules.ConsumerFixture/DomainCentric.ArchRules.ConsumerFixture.csproj" />
     <ProjectReference Include="../DomainCentric.ArchRules.EmptyFixture/DomainCentric.ArchRules.EmptyFixture.csproj" />
+    <ProjectReference Include="../DomainCentric.ArchRules.EntryPointShapes/DomainCentric.ArchRules.EntryPointShapes.csproj" />
+  </ItemGroup>
+
+  <!-- The generated web applications are built first and copied beside the tests as files, not referenced: a
+       reference would carry their web framework onto this project, whose shims stand in for it by name. -->
+  <ItemGroup>
+    <ProjectReference Include="../DomainCentric.ArchRules.WebEntryPointFixture/DomainCentric.ArchRules.WebEntryPointFixture.csproj"
+                      ReferenceOutputAssembly="false" PrivateAssets="all" OutputItemType="Content" CopyToOutputDirectory="PreserveNewest" />
+    <ProjectReference Include="../DomainCentric.ArchRules.WebEntryPointPlusFixture/DomainCentric.ArchRules.WebEntryPointPlusFixture.csproj"
+                      ReferenceOutputAssembly="false" PrivateAssets="all" OutputItemType="Content" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
