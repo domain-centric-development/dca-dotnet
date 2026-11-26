@@ -4,6 +4,8 @@ All notable changes to these packages. Format: [Keep a Changelog](https://keepac
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-11-26
+
 ### Added
 
 **`DCA-USE-023` — an output port declared in a use case's package is used by that use case only, experimental.**
@@ -22,6 +24,14 @@ another type (a call or getter whose return type is a gateway, a read of another
 constructs - its compiler-generated closures and state machines included. A gateway taken as a parameter and the
 calls made on it pass. The gateway is the new `DcaMarkers` role `DomainGateway` (default
 `Ddd.Tactical.IDomainGateway`, `WithDomainGateway(...)`).
+
+**`DCA-ERR-010` — a port call is never wrapped in a catch of every failure, experimental.** Same id and title as
+`dca-archunit`. Selects every try block in a type of the incoming adapters or the application layer whose try part
+calls a method of an interface assignable to the input-port or output-port role, lambdas and compiler-generated
+closures and state machines included, and reports a catch clause that names `Exception`, `SystemException`, a catch
+without a type, or the port-exception or input-port-exception role itself. A subtype - a use case's own failure, an
+output port's failure, a named domain failure - passes, as do a filtered catch (`when`) and a clause that rethrows
+the caught failure unchanged (see below).
 
 ### Changed
 
